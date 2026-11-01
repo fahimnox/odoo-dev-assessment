@@ -4,11 +4,11 @@ __pycache__/
 .venv/
 venv/
 
-# Local secrets and runtime configuration (examples are committed)
+# Local secrets (examples are committed). config/odoo.conf is committed on
+# purpose: it holds no secrets; passwords live only in .env.
 .env
 .env.*
 !.env.example
-odoo.conf
 !*.example
 
 # Local Odoo runtime data (normally kept outside this repository)

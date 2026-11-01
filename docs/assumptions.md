@@ -19,6 +19,10 @@ These are referenced by the PDF but were **not supplied**. They have not been re
 | A-01 | Exercises 1 and 2 are selected; Exercise 3 (POS) is intentionally unselected | PDF p. 3: "Pickup two of the three exercises" | Decided by the user |
 | A-02 | Target is Odoo 18 Community | Kit proposal. The PDF names Odoo 18 only for Exercise 3 (p. 8) and doesn't fix a version or edition for Exercises 1–2 | Unconfirmed; question Q-01 |
 | A-03 | Exercise 2 addon name is `azk_dynamic_trial_balance` | The PDF gives the report name but no module name (p. 6) | Unconfirmed default |
+| A-04 | Development and verification run on Docker Compose with the official `odoo:18.0` and `postgres:16` images, pinned by digest | Stage 01 host inspection; see [environment.md](environment.md) | Decided in Stage 01 |
+| A-05 | The addons live in `addons/` inside this repository, not at the repository root | Keeps configuration, documentation and secrets out of the Odoo addons path | Decided in Stage 01 |
+| A-06 | Manifest `author` is `fahimnox` (the Git user name) and `license` is `LGPL-3` | The assessment gives no author or license | Unconfirmed default |
+| A-07 | The development, test and clean-install databases load demo data | Odoo 18 default; the Trial Balance exercise requires demo data (T-21 to T-23) | Decided in Stage 01 |
 
 ## Ambiguities to resolve in Stage 02
 

@@ -1,20 +1,20 @@
 # Project state
 
-_Last updated: 2026-11-01, after language correction R0. No stage work has happened since Stage 00._
+_Last updated: 2026-11-01, end of Stage 01._
 
 ## Current position
 
-- **Last completed stage:** 00 — operating contract, workspace and state files.
-- **Next stage:** 01 — build and verify the local development environment.
-- **Business features implemented:** none.
-- **Tests run:** none (Stage 00 has no code to test).
+- **Last completed stage:** 01 - local development environment (Docker Compose with pinned Odoo 18 and PostgreSQL 16 images).
+- **Next stage:** 02 - requirements, assumptions, architecture and acceptance plan.
+- **Business features implemented:** none. Both addons exist as installable skeletons with smoke tests.
+- **Tests run:** `scripts/dev.sh test` on 2026-11-01: 4 tests, 0 failed, 0 errors. Details in [environment.md](environment.md).
 
 ## Stage status
 
 | Stage | Title | Status |
 |---|---|---|
 | 00 | Operating contract | DONE |
-| 01 | Environment | NOT STARTED |
+| 01 | Environment | DONE (manual UI check pending) |
 | 02 | Requirements, assumptions, architecture | NOT STARTED |
 | 03 | Partner Monitor models, permissions, basic UI | NOT STARTED |
 | 04 | Partner scraping | NOT STARTED |
@@ -36,6 +36,7 @@ _Last updated: 2026-11-01, after language correction R0. No stage work has happe
 - Odoo 18 Community, unconfirmed by the assessor (A-02).
 - This repository holds the solution only. The assessment PDF and prompt kit live in the parent kit directory and are never committed.
 - English only for terminal output, new documentation, code comments and commit messages (AGENTS.md rule 7, set by correction R0). Each stage also writes an English handoff to [handoffs/](handoffs/) (AGENTS.md rule 9).
+- Development environment: Docker Compose with pinned images, run through `scripts/dev.sh`, with three databases: `azk_dev` (development, demo data), `azk_test` and `azk_clean` (both disposable). See [environment.md](environment.md) and A-04 to A-07.
 
 ## Corrections applied
 
@@ -49,11 +50,16 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 
 - Clarifications Q-01 to Q-03 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked.
 - Ambiguities D-01 to D-07 are to be resolved in Stage 02.
+- The manual browser check of login and the Apps list is NOT RUN until the user reports it (steps in [environment.md](environment.md)).
+- Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06).
+- Not exercised yet: a failing test through `scripts/dev.sh test`, and `scripts/dev.sh source` itself.
 
-## Host facts observed so far
+## Host facts
 
-Observed during Stage 00 and the earlier `/init` session; Stage 01 performs the full inspection.
+Inspected in Stage 01; details in [environment.md](environment.md).
 
-- Windows 11 Pro 10.0.26200; the agent runs through Git Bash and PowerShell.
-- `git` 2.53.0.windows.2; host `python` 3.12.0; `pdftotext` available in Git Bash.
-- Not yet checked: Docker/WSL, PostgreSQL, wkhtmltopdf, RAM/disk.
+- Windows 11 Pro 10.0.26200, Intel Core i7-8650U (4 cores, 8 threads), 15.9 GB RAM. Drive C: had 18.0 GB free before Stage 01 and 10.2 GB after.
+- The agent works through Git Bash (installed per user under `%LOCALAPPDATA%\Programs\Git`) and PowerShell. In PowerShell, `bash` starts WSL, not Git Bash.
+- Docker Desktop 29.4.0 with Compose v5.1.1 (WSL2 backend) was already running. Another project (ots-local) uses 127.0.0.1 ports 5433, 8000 and 9000.
+- A host PostgreSQL 18 service listens on port 5432; this project does not use it.
+- Host `python` 3.12.0, `git` 2.53.0.windows.2 and `pdftotext` are available. wkhtmltopdf is not installed on the host; the Odoo image provides it.

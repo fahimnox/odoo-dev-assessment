@@ -21,7 +21,7 @@ Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in 
 | G-08 | 1 | If parts of an exercise are not done, state what is done and what is pending | — | — | — | NOT STARTED |
 | G-09 | 1 | GenAI use: a `docs` folder with a document logging the prompts used and the resulting outputs | Logs under `docs/ai/` | — | — | IN PROGRESS |
 | G-10 | 1–2 | Clean, readable code following Odoo and Python best practices; efficient data model, queries and report generation | — | — | — | NOT STARTED |
-| G-11 | 2 | Well-packaged and easy to install and test; clear functional-testing instructions | — | — | — | NOT STARTED |
+| G-11 | 2 | Well-packaged and easy to install and test; clear functional-testing instructions | Pinned Docker Compose setup with one helper script; README instructions follow in Stage 12 | `compose.yaml`, `scripts/dev.sh`, [environment.md](environment.md) | Stage 01: setup, tests and separate installs of each addon PASS ([environment.md](environment.md)) | IN PROGRESS |
 | G-12 | 2 | (Recommendation) Jupyter Notebook connected to the Odoo shell for development | Optional; not required for the solution | — | — | NOT STARTED |
 | G-13 | 3 | Pick two of the three exercises | Exercises 1 and 2 (A-01) | — | — | DONE |
 
@@ -29,9 +29,9 @@ Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in 
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| P-01 | 3 | Module named `azk_odoo_partner_monitor` | — | — | — | NOT STARTED |
+| P-01 | 3 | Module named `azk_odoo_partner_monitor` | — | `addons/azk_odoo_partner_monitor/` | Stage 01: installs into `azk_dev` and alone into a fresh `azk_clean`; smoke tests PASS | DONE |
 | P-02 | 3 | Scrape partner data from the official Odoo Partners page, store it, track historical changes, provide analytical views and dashboards | — | — | — | NOT STARTED |
-| P-03 | 3 | Scraping logic generated with a GenAI tool, using standard libraries such as `requests` and `BeautifulSoup` | — | — | — | NOT STARTED |
+| P-03 | 3 | Scraping logic generated with a GenAI tool, using standard libraries such as `requests` and `BeautifulSoup` | requests 2.31.0 and beautifulsoup4 4.12.3 come with the pinned image | Declared in the manifest's `external_dependencies` (Stage 01); scraper follows in Stage 04 | Stage 01: `test_beautifulsoup_parses_html` PASS | IN PROGRESS |
 | P-04 | 3 | Scraping is triggered by a daily cron job | — | — | — | NOT STARTED |
 | P-05 | 3 | A failure while processing one partner or one country page does not halt the entire job | — | — | — | NOT STARTED |
 | P-06 | 3 | Log all errors encountered during the scrape | — | — | — | NOT STARTED |
@@ -61,7 +61,7 @@ Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in 
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| T-01 | 6 | New module introducing a "Dynamic Trial Balance" report with filters, grouping levels and PDF/XLSX/on-screen outputs | — | — | — | NOT STARTED |
+| T-01 | 6 | New module introducing a "Dynamic Trial Balance" report with filters, grouping levels and PDF/XLSX/on-screen outputs | Addon `azk_dynamic_trial_balance` (A-03), depending on `account` | `addons/azk_dynamic_trial_balance/` (manifest and smoke tests only so far) | Stage 01: installs into `azk_dev` and alone into a fresh `azk_clean`; smoke tests PASS | IN PROGRESS |
 | T-02 | 6 | A new transient model (wizard) is the interface for generating the report | — | — | — | NOT STARTED |
 | T-03 | 6 | Wizard fields "as shown in the provided mockup" | Mockup not supplied (M-02) | — | — | NOT STARTED |
 | T-04 | 6 | Posted entries are always included | — | — | — | NOT STARTED |
@@ -77,8 +77,8 @@ Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in 
 | T-14 | 7 | PDF and XLSX exports include Debit and Credit for Initial Balance, Movement and Ending Balance | Initial/Ending Debit/Credit meaning: D-04 | — | — | NOT STARTED |
 | T-15 | 7 | Each account line shows Initial Balance, Movement during the Period and End Balance, each as Debit, Credit, Balance | — | — | — | NOT STARTED |
 | T-16 | 7 | Preview renders on-screen in Odoo, matching the look and feel of Odoo's dynamic reports; filterable and searchable | Reference report: D-01 | — | — | NOT STARTED |
-| T-17 | 7 | PDF: professional-looking; header with company name and selected date range | Date/company fields: D-03 | — | — | NOT STARTED |
-| T-18 | 7 | XLSX: report data preserving structure and hierarchy; properly formatted columns | — | — | — | NOT STARTED |
+| T-17 | 7 | PDF: professional-looking; header with company name and selected date range | Date/company fields: D-03 | — | Prerequisite only, Stage 01: wkhtmltopdf 0.12.6.1 (patched Qt) rendered a real QWeb PDF, PASS | NOT STARTED |
+| T-18 | 7 | XLSX: report data preserving structure and hierarchy; properly formatted columns | — | — | Prerequisite only, Stage 01: XlsxWriter 3.1.9 smoke test PASS | NOT STARTED |
 | T-19 | 8 | README explains testing: manual testing steps performed | — | — | — | NOT STARTED |
 | T-20 | 8 | README explains automated tests verifying the report's calculations against a known dataset | — | — | — | NOT STARTED |
 | T-21 | 8 | Demo/test data: sample journal entries, both posted and unposted | — | — | — | NOT STARTED |

@@ -1,0 +1,53 @@
+# Local development environment: Odoo 18 Community + PostgreSQL 16.
+# Images are pinned by digest. Run everything through scripts/dev.sh
+# (see docs/environment.md). Secrets come from the ignored .env file.
+name: azk-odoo-assessment
+
+services:
+  db:
+    # postgres:16 (16.15 at pin time)
+    image: postgres:16@sha256:5db6dac2ef5dcff512f4f00a009c3c332b9f2f28f24277175bf3e4a3d02ef83a
+    environment:
+      # Bootstrap superuser, used only inside this container for initialization.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: postgres
+      # Odoo's application role, created by docker/db/init on first start.
+      ODOO_DB_USER: odoo
+      ODOO_DB_PASSWORD: ${ODOO_DB_PASSWORD:?set ODOO_DB_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=postgres --dbname=postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # No published port: only the odoo service can reach PostgreSQL.
+    restart: "no"
+
+  odoo:
+    # odoo:18.0 (Odoo 18.0-20261015 nightly build at pin time)
+    image: odoo:18.0@sha256:9668abacd894276ed009e8db7db1d1ffb8068af6982f76a3400ed0d68e40432d
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Read by the image entrypoint and by libpq for one-off processes.
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: odoo
+      PGPASSWORD: ${ODOO_DB_PASSWORD:?set ODOO_DB_PASSWORD in .env}
+    # The web server always serves the development database only.
+    command: ["odoo", "--database=azk_dev", "--db-filter=^azk_dev$$"]
+    ports:
+      - "127.0.0.1:${ODOO_HTTP_PORT:-8069}:8069"
+    volumes:
+      - ./config/odoo.conf:/etc/odoo/odoo.conf:ro
+      - ./addons:/mnt/extra-addons
+      - odoo-data:/var/lib/odoo
+    restart: "no"
+
+volumes:
+  db-data:
+  odoo-data:

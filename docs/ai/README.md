@@ -34,9 +34,11 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | [pre_stage_init.md](pre_stage_init.md) | Before 00 | Two `/init` runs that produced a guidance file for the kit (outside this repository) |
 | [stage_00.md](stage_00.md) | 00 | Operating contract, workspace, state files, first requirement inventory |
 | [correction_r0.md](correction_r0.md) | After 00 | Language correction R0: English-only output, guidance updates, Stage 00 English handoff |
+| [stage_01.md](stage_01.md) | 01 | Docker Compose environment with pinned images, addon skeletons, verification runs |
 
 ## Mistakes found and corrected
 
 | Stage | What went wrong | How it was detected | Correction |
 |---|---|---|---|
 | 00 | The agent tried to extract the kit zip based on the state seen in the earlier `/init` session, without re-checking. The user had already extracted it and removed the zip. | The `unzip` command failed: the archive no longer existed | Re-listed the directory, used `reference/assessment.pdf`, and corrected the kit's guidance file |
+| 01 | The first version of `scripts/dev.sh test` trusted Odoo's exit code, which is 0 when no test matches the selection | Reading `ThreadedServer.run()` in the pinned source, which logs "of 0 tests" as a WARNING and still returns 0 | Added a check on the "of N tests" summary line; a no-match run now fails with exit code 1 (verified) |
