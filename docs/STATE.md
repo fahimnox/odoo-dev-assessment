@@ -1,6 +1,6 @@
 # Project state
 
-_Last updated: 2026-11-01, end of Stage 00._
+_Last updated: 2026-11-01, after language correction R0. No stage work has happened since Stage 00._
 
 ## Current position
 
@@ -35,6 +35,11 @@ _Last updated: 2026-11-01, end of Stage 00._
 - Exercises 1 (`azk_odoo_partner_monitor`) and 2 (`azk_dynamic_trial_balance`); Exercise 3 out of scope. See [assumptions.md](assumptions.md) A-01, A-03.
 - Odoo 18 Community, unconfirmed by the assessor (A-02).
 - This repository holds the solution only. The assessment PDF and prompt kit live in the parent kit directory and are never committed.
+- English only for terminal output, new documentation, code comments and commit messages (AGENTS.md rule 7, set by correction R0). Each stage also writes an English handoff to [handoffs/](handoffs/) (AGENTS.md rule 9).
+
+## Corrections applied
+
+- **R0, 2026-11-01:** switched the project from Egyptian Arabic explanations to English-only output. AGENTS.md rules 7 and 9 now match the revised kit, the Stage 00 English handoff is in [handoffs/stage_00_en.md](handoffs/stage_00_en.md), and [ai/README.md](ai/README.md) records the change. The kit-root CLAUDE.md (outside this repository) was aligned as well. No scope, requirement or completion status changed, and the historical Stage 00 transcript is unchanged.
 
 ## Missing inputs
 
