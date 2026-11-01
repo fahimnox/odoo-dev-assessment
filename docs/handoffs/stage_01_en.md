@@ -4,7 +4,7 @@ Stage 01: build and verify the local development environment. Written on 2026-11
 
 ## Status
 
-- Stage 01 is complete. One manual check is still open: the browser login and the Apps list (NOT RUN, see below).
+- Stage 01 is complete. The browser check of login and the Apps list passed, as the user reported after the stage report.
 - No business features are implemented. Both addons are installable skeletons with smoke tests.
 - Tests: `scripts/dev.sh test` ran 4 tests, with 0 failed and 0 errors.
 - Next stage: 02, requirements, assumptions, architecture and acceptance plan.
@@ -43,9 +43,10 @@ Stage 01: build and verify the local development environment. Written on 2026-11
 - No-match run: Odoo exited 0 with "0 tests"; the script rejected it with exit code 1. PASS (the guard works).
 - Each addon installed alone in a fresh `azk_clean`: PASS. Installing the second addon into that database later also worked.
 - `update` with the server running (reload and restart): PASS. `reset-db azk_dev` was refused: PASS. The stop/start cycle: PASS.
-- NOT RUN: the browser check, a deliberately failing test, `scripts/dev.sh source` itself (an equivalent command made the copy), and `logs`.
+- Checked after the stage report: a deliberately failing test made `scripts/dev.sh test` exit with 1 (PASS), and `logs` works (PASS).
+- NOT RUN: `scripts/dev.sh source` itself (an equivalent command made the copy).
 
-## Manual check for the user (NOT RUN until reported)
+## Manual check by the user (PASS, reported after the stage report)
 
 1. Open http://127.0.0.1:8069/web/login while the server runs.
 2. Log in as `admin` with password `admin`.

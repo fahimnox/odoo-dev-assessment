@@ -199,3 +199,64 @@ Read prompts/02_requirements_and_design.txt and execute Stage 02 only, following
 ```
 
 ---
+
+## Follow-up after the stage report
+
+User message (verbatim):
+
+```text
+okay i logged in and searched, found the apps skeleton azk 
+don't start the next step before i tell you 
+is there anything else to check or make now
+```
+
+### Summary of tool activity (summary, not verbatim)
+
+1. Created a temporary addon `azk_failcheck` with one deliberately failing test, plus a matching `odoo.conf` and a compose override. All of it lived in the kit's `runtime/failcheck` folder, outside this repository.
+2. With `COMPOSE_FILE` naming both compose files, confirmed the merged mounts, then ran `scripts/dev.sh test azk_failcheck`. It reported "1 failed, 0 error(s) of 1 tests"; Odoo exited with 1, and so did the script.
+3. Dropped `azk_test` with `scripts/dev.sh reset-db azk_test` and deleted the temporary folder.
+4. Ran `scripts/dev.sh logs` under `timeout 8`; it printed the server log.
+5. Recorded the user's browser check and the two new results in `docs/environment.md`, `docs/STATE.md`, the Stage 01 handoff and this log, then committed.
+
+### Assistant final response (verbatim)
+
+Everything between the two rules below is the final visible response.
+
+---
+
+Thanks, I've recorded your browser check as PASS. I didn't start Stage 02.
+
+I also closed the two Stage 01 gaps that could be closed quickly:
+- Failing-test path: PASS. A temporary addon outside the repo held one deliberately failing test. `scripts/dev.sh test azk_failcheck` reported "1 failed, 0 error(s) of 1 tests" and exited with 1, so a failing test can't slip through as a pass. I removed the temporary files and the test database afterwards.
+- `scripts/dev.sh logs`: PASS. It shows the server log.
+
+The only Stage 01 item still NOT RUN is `scripts/dev.sh source` itself. The equivalent command already made the source copy, so a long re-copy of 34,383 files isn't worth it.
+
+I updated `docs/environment.md`, `docs/STATE.md` (Stage 01 is now fully DONE), the Stage 01 handoff and the AI log, in one new local commit.
+
+Nothing else is required before Stage 02. Since Stage 02 freezes the design, these are worth doing now:
+
+1. Send the team lead the three open questions. The answers can change the Stage 02 design; until they arrive, I'll keep using the documented defaults:
+
+```text
+1. Is Odoo 18 Community acceptable for Exercises 1 and 2?
+2. Can you share the original views specification, the Trial Balance wizard mockup, and the azk_zkteco_machine_proxy documentation link?
+3. Should the Trial Balance match a specific existing report exactly (opening balances / fiscal year, analytic filtering), or is documented ledger-based behavior acceptable?
+```
+
+2. Decide the public identity:
+   - Commits use `fahimnox <mohamed.fahim@noxholding.com>`, which becomes public in Stage 15. If you'd rather use a personal email or a GitHub noreply address, tell me now. Only new commits would change; the 5 existing ones would need a history rewrite, which I'd only do with your explicit go-ahead.
+   - The addon manifests list `fahimnox` as author. Tell me if you want your full name instead.
+
+3. Optional:
+   - Answer the three comprehension questions from the Stage 01 report.
+   - Try `scripts/dev.sh shell` and run `env["res.partner"].search([], limit=5).mapped("name")` to get a feel for the ORM.
+   - Run `scripts/dev.sh stop` when you're not working. The stack uses RAM, and the PC had only about 3 GB free.
+
+When you're ready:
+
+```text
+Read prompts/02_requirements_and_design.txt and execute Stage 02 only, following solution/AGENTS.md.
+```
+
+---

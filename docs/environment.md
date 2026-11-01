@@ -158,18 +158,20 @@ All commands ran on this host through Git Bash. Full logs are kept outside the r
 - `scripts/dev.sh psql` with piped SQL: PASS. Used for the ownership and `azk_clean` module-state queries above. The role query ran directly with `docker compose exec db psql` as `postgres`.
 - `scripts/dev.sh stop`, then `start`: PASS. Both containers stopped, then started, and `/web/login` returned 200 again.
 - From PowerShell, `& "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe" scripts/dev.sh status`: PASS.
-- NOT RUN:
-  - A browser check of login and the Apps list. No browser automation is available in this session; see the manual check below.
-  - A failing test through `scripts/dev.sh test`. The pinned `preload_registries()` adds 1 to the exit code when a test fails, but this path was not exercised.
-  - `scripts/dev.sh source` itself. The same copy was made earlier with the equivalent `docker run ... tar` command.
-  - `scripts/dev.sh logs`, which only follows the log interactively.
+- Failing test, checked after the stage report: PASS.
+  - Setup: a temporary addon `azk_failcheck` with one deliberately failing test, kept outside the repository and mounted through a temporary compose override.
+  - `scripts/dev.sh test azk_failcheck` logged "FAIL: TestDeliberateFailure.test_fails_on_purpose" and "1 failed, 0 error(s) of 1 tests when loading database 'azk_test'". Odoo exited with 1 and so did the script (37s).
+  - The temporary files and `azk_test` were removed afterwards.
+- `scripts/dev.sh logs`, checked after the stage report: PASS. It showed the server log; the check stopped it after 8 seconds with `timeout`.
+- Browser check of login and the Apps list: PASS, reported by the user after the stage report (see the manual check below).
+- NOT RUN: `scripts/dev.sh source` itself. The same copy was made earlier with the equivalent `docker run ... tar` command.
 - Disk use: Docker images now total 6.75 GB and local volumes 3.46 GB. Drive C: had 18.0 GB free before Stage 01 and 10.2 GB after.
 
-### Manual UI check (for the user)
+### Manual UI check (done by the user)
 
 1. With the server running (`scripts/dev.sh status` shows `odoo` running), open http://127.0.0.1:8069/web/login.
 2. Log in as `admin` with password `admin`.
 3. Open Apps, remove the default "Apps" filter in the search bar, and search for `azk`.
 4. Expected: "Odoo Partner Monitor" and "Dynamic Trial Balance" are both listed as installed.
 
-This check stays NOT RUN until the user reports the result.
+Result: PASS, reported by the user on 2026-11-01 after the stage report ("logged in and searched, found the apps skeleton azk").

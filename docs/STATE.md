@@ -1,20 +1,20 @@
 # Project state
 
-_Last updated: 2026-11-01, end of Stage 01._
+_Last updated: 2026-11-01, end of Stage 01, including the follow-up checks._
 
 ## Current position
 
 - **Last completed stage:** 01 - local development environment (Docker Compose with pinned Odoo 18 and PostgreSQL 16 images).
 - **Next stage:** 02 - requirements, assumptions, architecture and acceptance plan.
 - **Business features implemented:** none. Both addons exist as installable skeletons with smoke tests.
-- **Tests run:** `scripts/dev.sh test` on 2026-11-01: 4 tests, 0 failed, 0 errors. Details in [environment.md](environment.md).
+- **Tests run:** `scripts/dev.sh test` on 2026-11-01: 4 tests, 0 failed, 0 errors. A deliberately failing test made the command exit with 1, and the user's browser check of login and the Apps list passed. Details in [environment.md](environment.md).
 
 ## Stage status
 
 | Stage | Title | Status |
 |---|---|---|
 | 00 | Operating contract | DONE |
-| 01 | Environment | DONE (manual UI check pending) |
+| 01 | Environment | DONE |
 | 02 | Requirements, assumptions, architecture | NOT STARTED |
 | 03 | Partner Monitor models, permissions, basic UI | NOT STARTED |
 | 04 | Partner scraping | NOT STARTED |
@@ -50,9 +50,9 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 
 - Clarifications Q-01 to Q-03 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked.
 - Ambiguities D-01 to D-07 are to be resolved in Stage 02.
-- The manual browser check of login and the Apps list is NOT RUN until the user reports it (steps in [environment.md](environment.md)).
 - Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06).
-- Not exercised yet: a failing test through `scripts/dev.sh test`, and `scripts/dev.sh source` itself.
+- Commits use the global Git identity `fahimnox <mohamed.fahim@noxholding.com>`, which becomes public in Stage 15 unless the user decides otherwise.
+- Not exercised: `scripts/dev.sh source` itself (an equivalent command made the source copy).
 
 ## Host facts
 
