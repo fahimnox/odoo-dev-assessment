@@ -1,0 +1,7 @@
+# Normalize line endings: the repository is developed on Windows and published to GitHub.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.pdf binary
+*.xlsx binary

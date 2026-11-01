@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local secrets and runtime configuration (examples are committed)
+.env
+.env.*
+!.env.example
+odoo.conf
+!*.example
+
+# Local Odoo runtime data (normally kept outside this repository)
+filestore/
+sessions/
+*.dump
+*.sql.gz
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
