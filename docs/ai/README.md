@@ -26,6 +26,7 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | Log | Redaction |
 |---|---|
 | All logs | Absolute local paths are replaced with `<kit-root>` |
+| [stage_01b.md](stage_01b.md) | Names of earlier customer projects found in the company-supplied archive, and the Windows user profile of its old virtual environment, are not reproduced (described generically). No credential or subscription value was ever printed |
 
 ## Index
 
@@ -35,6 +36,7 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | [stage_00.md](stage_00.md) | 00 | Operating contract, workspace, state files, first requirement inventory |
 | [correction_r0.md](correction_r0.md) | After 00 | Language correction R0: English-only output, guidance updates, Stage 00 English handoff |
 | [stage_01.md](stage_01.md) | 01 | Docker Compose environment with pinned images, addon skeletons, verification runs |
+| [stage_01b.md](stage_01b.md) | 01B | Inspection of the company-supplied Enterprise archive, Enterprise service and database next to the Community baseline, native Trial Balance findings |
 
 ## Mistakes found and corrected
 
@@ -42,3 +44,7 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 |---|---|---|---|
 | 00 | The agent tried to extract the kit zip based on the state seen in the earlier `/init` session, without re-checking. The user had already extracted it and removed the zip. | The `unzip` command failed: the archive no longer existed | Re-listed the directory, used `reference/assessment.pdf`, and corrected the kit's guidance file |
 | 01 | The first version of `scripts/dev.sh test` trusted Odoo's exit code, which is 0 when no test matches the selection | Reading `ThreadedServer.run()` in the pinned source, which logs "of 0 tests" as a WARNING and still returns 0 | Added a check on the "of N tests" summary line; a no-match run now fails with exit code 1 (verified) |
+| 01B | The first `odoo-ee` port mapping (host 8070 to container 8069) left wkhtmltopdf unable to reach `web.base.url`, so the native PDF came out without CSS | The server log warned "wkhtmltopdf: Exit with code 1 due to network error: ConnectionRefusedError" during the PDF check | `odoo-ee` now listens on the same port inside and outside the container; the rerun produced a styled PDF without warnings |
+| 01B | The docs claimed Compose would refuse a missing Enterprise folder (`create_host_path: false`) | An explicit check: a raw `docker compose run` with a wrong path exited 0 and Docker Desktop created the folder | Removed the empty folder, corrected the docs, added a warning in `compose.yaml` and the default name to `.gitignore`; the `dev.sh` check remains the guard (verified) |
+| 01B | Two commands used POSIX paths while Git Bash path conversion was disabled (`docker compose cp` destination, then `pdftotext`) | Both tools reported that the path did not exist | Reran both with Windows-style paths |
+| 01B | A draft of `docs/STATE.md` attributed most of the lost disk space to Docker growth from this stage's runs, which could not be verified | Review before the commit: the virtual disk's size at the start of the stage was unknown, and another project shares it | Reworded to state only the measured 0.65 GB and leave the rest unattributed |
