@@ -14,6 +14,9 @@ venv/
 # Local Odoo runtime data (normally kept outside this repository)
 filestore/
 sessions/
+# Empty folder Docker Desktop creates if compose runs odoo-ee without
+# ENTERPRISE_ADDONS; the Enterprise source itself always stays outside the repo.
+.enterprise-addons-not-configured/
 *.dump
 *.sql.gz
 

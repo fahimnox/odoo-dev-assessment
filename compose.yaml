@@ -1,4 +1,7 @@
-# Local development environment: Odoo 18 Community + PostgreSQL 16.
+# Local development environment: Odoo 18 + PostgreSQL 16.
+# - odoo:    Odoo 18 Community (Stage 01 baseline), serves azk_dev on port 8069.
+# - odoo-ee: the same pinned image plus a private Enterprise addons folder
+#            (ENTERPRISE_ADDONS in .env), serves azk_ent on port 8070.
 # Images are pinned by digest. Run everything through scripts/dev.sh
 # (see docs/environment.md). Secrets come from the ignored .env file.
 name: azk-odoo-assessment
@@ -48,6 +51,46 @@ services:
       - odoo-data:/var/lib/odoo
     restart: "no"
 
+  odoo-ee:
+    # Enterprise service: the Community server of the same pinned image, with the
+    # Enterprise addons folder added to the addons path, which is how the official
+    # documentation describes running Enterprise. The Enterprise source is
+    # proprietary: it stays outside this repository and is mounted read-only.
+    # Started only by scripts/dev.sh (ODOO_EDITION=enterprise) or --profile enterprise.
+    profiles: ["enterprise"]
+    image: odoo:18.0@sha256:9668abacd894276ed009e8db7db1d1ffb8068af6982f76a3400ed0d68e40432d
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: odoo
+      PGPASSWORD: ${ODOO_DB_PASSWORD:?set ODOO_DB_PASSWORD in .env}
+    # The web server always serves the Enterprise development database only.
+    # It listens on the same port inside and outside the container: wkhtmltopdf
+    # runs inside the container and downloads the report CSS from web.base.url,
+    # which a browser login sets to http://127.0.0.1:<host port>.
+    command: ["odoo", "--http-port=${ODOO_EE_HTTP_PORT:-8070}", "--database=azk_ent", "--db-filter=^azk_ent$$"]
+    ports:
+      - "127.0.0.1:${ODOO_EE_HTTP_PORT:-8070}:${ODOO_EE_HTTP_PORT:-8070}"
+    volumes:
+      - ./config/odoo-enterprise.conf:/etc/odoo/odoo.conf:ro
+      # Docker Desktop on Windows still creates a missing source folder despite
+      # create_host_path: false, so scripts/dev.sh checks ENTERPRISE_ADDONS first.
+      - type: bind
+        source: ${ENTERPRISE_ADDONS:-./.enterprise-addons-not-configured}
+        target: /mnt/enterprise-addons
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./addons:/mnt/extra-addons
+      # Separate data volume: Enterprise filestores and sessions never mix with
+      # the Community ones.
+      - odoo-ee-data:/var/lib/odoo
+    restart: "no"
+
 volumes:
   db-data:
   odoo-data:
+  odoo-ee-data:

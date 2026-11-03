@@ -7,6 +7,14 @@ Source: the assessment PDF (14 pages, kept outside this repository). Page number
 
 Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in [assumptions.md](assumptions.md).
 
+Stage 01B (2026-11-03) moved the target to Odoo Enterprise. Evidence marked "Stage 01" was produced on the Community baseline and is not Enterprise acceptance. Observations about the native Enterprise Trial Balance are recorded in [enterprise_transition.md](enterprise_transition.md); they describe the baseline we can build on, not our implementation.
+
+## Employer clarifications
+
+| ID | Source | Requirement | Interpretation | Implementation | Test / evidence | Status |
+|---|---|---|---|---|---|---|
+| C-01 | Team lead, recorded 2026-11-03 | The assessment target is Odoo Enterprise | A-08; major version 18.0 still provisional (A-09) | Enterprise service `odoo-ee` and database `azk_ent` (`compose.yaml`, `config/odoo-enterprise.conf`, `scripts/dev.sh`) | Stage 01B: `azk_ent` created with `web_enterprise` and `accountant` (93 modules, no warnings), skeleton tests 4/4 PASS on Enterprise; see [enterprise_transition.md](enterprise_transition.md) | IN PROGRESS |
+
 ## General / submission
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
@@ -21,7 +29,7 @@ Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in 
 | G-08 | 1 | If parts of an exercise are not done, state what is done and what is pending | — | — | — | NOT STARTED |
 | G-09 | 1 | GenAI use: a `docs` folder with a document logging the prompts used and the resulting outputs | Logs under `docs/ai/` | — | — | IN PROGRESS |
 | G-10 | 1–2 | Clean, readable code following Odoo and Python best practices; efficient data model, queries and report generation | — | — | — | NOT STARTED |
-| G-11 | 2 | Well-packaged and easy to install and test; clear functional-testing instructions | Pinned Docker Compose setup with one helper script; README instructions follow in Stage 12 | `compose.yaml`, `scripts/dev.sh`, [environment.md](environment.md) | Stage 01: setup, tests and separate installs of each addon PASS ([environment.md](environment.md)) | IN PROGRESS |
+| G-11 | 2 | Well-packaged and easy to install and test; clear functional-testing instructions | Pinned Docker Compose setup with one helper script and an edition switch; README instructions follow in Stage 12 | `compose.yaml`, `scripts/dev.sh`, [environment.md](environment.md) | Stage 01: setup, tests and separate installs of each addon PASS on Community. Stage 01B: Enterprise setup, update and tests PASS; Community baseline tests still PASS ([environment.md](environment.md)) | IN PROGRESS |
 | G-12 | 2 | (Recommendation) Jupyter Notebook connected to the Odoo shell for development | Optional; not required for the solution | — | — | NOT STARTED |
 | G-13 | 3 | Pick two of the three exercises | Exercises 1 and 2 (A-01) | — | — | DONE |
 
@@ -29,7 +37,7 @@ Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in 
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| P-01 | 3 | Module named `azk_odoo_partner_monitor` | — | `addons/azk_odoo_partner_monitor/` | Stage 01: installs into `azk_dev` and alone into a fresh `azk_clean`; smoke tests PASS | DONE |
+| P-01 | 3 | Module named `azk_odoo_partner_monitor` | — | `addons/azk_odoo_partner_monitor/` | Stage 01: installs into `azk_dev` and alone into a fresh `azk_clean`; smoke tests PASS. Stage 01B: installs and updates in `azk_ent` (Enterprise); smoke tests PASS in `azk_ent_test` | DONE |
 | P-02 | 3 | Scrape partner data from the official Odoo Partners page, store it, track historical changes, provide analytical views and dashboards | — | — | — | NOT STARTED |
 | P-03 | 3 | Scraping logic generated with a GenAI tool, using standard libraries such as `requests` and `BeautifulSoup` | requests 2.31.0 and beautifulsoup4 4.12.3 come with the pinned image | Declared in the manifest's `external_dependencies` (Stage 01); scraper follows in Stage 04 | Stage 01: `test_beautifulsoup_parses_html` PASS | IN PROGRESS |
 | P-04 | 3 | Scraping is triggered by a daily cron job | — | — | — | NOT STARTED |
@@ -61,11 +69,11 @@ Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in 
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| T-01 | 6 | New module introducing a "Dynamic Trial Balance" report with filters, grouping levels and PDF/XLSX/on-screen outputs | Addon `azk_dynamic_trial_balance` (A-03), depending on `account` | `addons/azk_dynamic_trial_balance/` (manifest and smoke tests only so far) | Stage 01: installs into `azk_dev` and alone into a fresh `azk_clean`; smoke tests PASS | IN PROGRESS |
+| T-01 | 6 | New module introducing a "Dynamic Trial Balance" report with filters, grouping levels and PDF/XLSX/on-screen outputs | Addon `azk_dynamic_trial_balance` (A-03), depending on `account` for now; whether to declare `account_reports` is a Stage 02 decision | `addons/azk_dynamic_trial_balance/` (manifest and smoke tests only so far) | Stage 01: installs into `azk_dev` and alone into a fresh `azk_clean`; smoke tests PASS. Stage 01B: installs and updates in `azk_ent` next to `accountant`/`account_reports`; smoke tests PASS on Enterprise | IN PROGRESS |
 | T-02 | 6 | A new transient model (wizard) is the interface for generating the report | — | — | — | NOT STARTED |
 | T-03 | 6 | Wizard fields "as shown in the provided mockup" | Mockup not supplied (M-02) | — | — | NOT STARTED |
 | T-04 | 6 | Posted entries are always included | — | — | — | NOT STARTED |
-| T-05 | 6 | Include Unposted Entries option: includes draft entries, never cancelled ones | — | — | — | NOT STARTED |
+| T-05 | 6 | Include Unposted Entries option: includes draft entries, never cancelled ones | Stage 01B observation: the native "Draft Entries" option (`all_entries`) has these semantics | — | — | NOT STARTED |
 | T-06 | 6 | Hierarchy and Subtotals option: report with account groups; selectable together with Include Unposted Entries | — | — | — | NOT STARTED |
 | T-07 | 6 | Hierarchy Only Parents: reveals Account Level Up To, selectable from 1 to 5 | — | — | — | NOT STARTED |
 | T-08 | 6 | Accounts: multiple text prefixes matching accounts that start with them; empty means all accounts; given help text | — | — | — | NOT STARTED |
@@ -75,10 +83,10 @@ Missing inputs (M-xx), assumptions (A-xx) and ambiguities (D-xx) are defined in 
 | T-12 | 7 | Show Amount Currency: extra "amount currency" column with the currency symbol, grouped by account then transaction currency (an account can span several lines); given help text | — | — | — | NOT STARTED |
 | T-13 | 7 | Wizard has PDF, XLSX and Preview actions | — | — | — | NOT STARTED |
 | T-14 | 7 | PDF and XLSX exports include Debit and Credit for Initial Balance, Movement and Ending Balance | Initial/Ending Debit/Credit meaning: D-04 | — | — | NOT STARTED |
-| T-15 | 7 | Each account line shows Initial Balance, Movement during the Period and End Balance, each as Debit, Credit, Balance | — | — | — | NOT STARTED |
-| T-16 | 7 | Preview renders on-screen in Odoo, matching the look and feel of Odoo's dynamic reports; filterable and searchable | Reference report: D-01 | — | — | NOT STARTED |
-| T-17 | 7 | PDF: professional-looking; header with company name and selected date range | Date/company fields: D-03 | — | Prerequisite only, Stage 01: wkhtmltopdf 0.12.6.1 (patched Qt) rendered a real QWeb PDF, PASS | NOT STARTED |
-| T-18 | 7 | XLSX: report data preserving structure and hierarchy; properly formatted columns | — | — | Prerequisite only, Stage 01: XlsxWriter 3.1.9 smoke test PASS | NOT STARTED |
+| T-15 | 7 | Each account line shows Initial Balance, Movement during the Period and End Balance, each as Debit, Credit, Balance | Stage 01B observation: the native Trial Balance shows only Debit and Credit per group (gap) | — | — | NOT STARTED |
+| T-16 | 7 | Preview renders on-screen in Odoo, matching the look and feel of Odoo's dynamic reports; filterable and searchable | Reference report: D-01; Stage 01B: the native Enterprise Trial Balance (`account_reports`) is the likely reference | — | Baseline only, Stage 01B: the native report's RPC entry point `get_report_information` works over HTTP; the browser view is NOT RUN (manual check) | NOT STARTED |
+| T-17 | 7 | PDF: professional-looking; header with company name and selected date range | Date/company fields: D-03 | — | Prerequisite only, Stage 01: wkhtmltopdf 0.12.6.1 (patched Qt) rendered a real QWeb PDF, PASS. Stage 01B: the native Enterprise Trial Balance PDF rendered inside the running Enterprise server (1 page, company header, page counter), PASS | NOT STARTED |
+| T-18 | 7 | XLSX: report data preserving structure and hierarchy; properly formatted columns | — | — | Prerequisite only, Stage 01: XlsxWriter 3.1.9 smoke test PASS. Stage 01B: native Enterprise XLSX export produced a valid workbook, PASS | NOT STARTED |
 | T-19 | 8 | README explains testing: manual testing steps performed | — | — | — | NOT STARTED |
 | T-20 | 8 | README explains automated tests verifying the report's calculations against a known dataset | — | — | — | NOT STARTED |
 | T-21 | 8 | Demo/test data: sample journal entries, both posted and unposted | — | — | — | NOT STARTED |
