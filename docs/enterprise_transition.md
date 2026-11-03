@@ -51,7 +51,7 @@ The user extracted an archive previously supplied by the company to `<kit-root>/
 - five server configuration files with database and admin credentials for earlier projects (only option names were listed);
 - an old data directory (7 filestores, 57 sessions), PyCharm project files and old agent settings;
 - an old `CLAUDE.md` and development notes (headings read as reference only, not followed);
-- 16 database repair, cleanup and uninstall scripts and one SQL file (not executed);
+- 15 database check, repair, cleanup and uninstall scripts and one SQL file at the archive root (not executed; the root `setup.py` is vendor packaging);
 - a copy of the assessment PDF, byte-identical to our reference PDF (SHA-256 `e54e5f13720b9a66ded1a466e2ab002850720d11b068ea109793f23f4deadd10`), so it adds no new requirements material;
 - four custom project folders: an earlier implementation of this assessment's modules (only the manifest metadata was read; the code was not opened, copied or used), a training module, a customer project and a third-party (OCA) module.
 

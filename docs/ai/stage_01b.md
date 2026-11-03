@@ -260,6 +260,10 @@ Assistant message 40:
 
 > Numbering checks out: message 6 is the `sign` message referenced in the accuracy notes. Now `docs/ai/README.md`: the index row, the redaction note, and this stage's corrected mistakes.
 
+Assistant message 41:
+
+> Recount confirmed: 15 scripts and 1 SQL file. Recording the slip in the mistakes table, re-assembling the log with the corrected final response, and committing the correction:
+
 ## Notes on accuracy
 
 - Message 6 says the leading spaces in two `sign` folder names were stripped by "the Windows extractor". That is an inference: the archive was extracted on Windows, but the extraction tool is not known.
@@ -294,7 +298,7 @@ Stage 01B is complete on the server side. The archive does contain usable Odoo 1
 - An Odoo 18.0 Enterprise nightly source tarball, build `18.0+e.20241208` (from `PKG-INFO` and `odoo/release.py`, not the folder name). Server, Community addons and Enterprise addons share one folder: 1,243 modules, 614 of them OEEL-1.
 - `web_enterprise`, `accountant`, `account_accountant` and `account_reports` are present, and all their dependencies resolve. `account_reports` depends on `accountant` and auto-installs with it.
 - Its core is not pristine: 13 files were changed after the build date (including core `base/models/ir_actions.py`), and 4 configs with credentials were dropped into `odoo/conf/`. No Enterprise module file was changed.
-- Not vendor and not used: the old venv, 5 configs with credentials (values never printed), the old data dir, 16 repair scripts and 1 SQL file (never run), old agent files, a byte-identical copy of our assessment PDF, and 4 custom project folders.
+- Not vendor and not used: the old venv, 5 configs with credentials (values never printed), the old data dir, 15 check, repair and cleanup scripts and 1 SQL file (never run), old agent files, a byte-identical copy of our assessment PDF, and 4 custom project folders.
 - **Your decision:** `projects/assessment/` holds an earlier implementation of this assessment's modules (both selected exercises and the POS addons). I read only their manifest metadata and did not open, copy or use the code. Whether to mention this to the team lead is up to you.
 
 **What I set up**
@@ -325,7 +329,7 @@ Stage 01B is complete on the server side. The archive does contain usable Odoo 1
 - `compose.yaml` (service `odoo-ee`), `config/odoo-enterprise.conf`, `scripts/dev.sh` (edition block, `env_file_value`, `check_enterprise_addons`, `check_db_edition`), `.env.example`, `.gitignore`.
 - `AGENTS.md` (dated Enterprise clarification), `docs/enterprise_transition.md` (new), `docs/environment.md`, `docs/STATE.md`, `docs/assumptions.md` (A-08 to A-11, Q-04, Q-05), `docs/requirements_matrix.md` (C-01), `docs/handoffs/stage_01b_en.md`, `docs/ai/stage_01b.md`.
 - Outside Git: the kit `CLAUDE.md`, plus `runtime/enterprise/`, `runtime/backups/` and `runtime/logs/`.
-- Commits: `2078515` (runtime and docs), then "Stage 01B: add AI prompt/response log".
+- Commits: `2078515` (runtime and docs), `70c0198` (AI log), then a small correction commit for a miscounted script total.
 
 **Comprehension questions**
 1. Why does `scripts/dev.sh` refuse an install on `azk_dev` when the edition is `enterprise`, and which manifest key creates that risk?
