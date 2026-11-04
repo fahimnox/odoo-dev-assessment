@@ -2,12 +2,14 @@
 
 Stage 01B: adapt the completed Community setup to the confirmed Enterprise target. Written on 2026-11-03 from the commands and results recorded in `docs/enterprise_transition.md` and `docs/environment.md`.
 
-## Status
+## Status (updated 2026-11-04)
 
-- Server-side transition: PASS. The browser check is still to be done by the user (steps below).
-- One known limitation: a vendor Trial Balance test fails for reports that span companies with different currencies. It passes on the archive's own matched build, so it comes from pairing two different snapshots. This single-company assessment does not use that path.
+- **BLOCKED. The Enterprise environment is not ready.** The failing vendor Trial Balance test is an unresolved compatibility blocker (user decision, 2026-11-04), even though this single-company assessment does not use that code path.
+- The fix is identified and verified by content: the official Community commit `odoo/odoo@4e5027c1` with the Enterprise modules of the same build. Its validation was not run, because drive C: is nearly full. See "Compatibility follow-up" below.
+- The browser smoke check of the Stage 01B environment was reported done by the user (no detailed results given); it was not run by the agent.
+- Server-side Stage 01B checks on the Stage 01B pair: PASS, except the vendor test.
 - No business features are implemented yet. Both addons are installable skeletons with smoke tests.
-- Next stage: 02, on the Enterprise runtime.
+- Next: free disk space, then finish the follow-up. Stage 02 waits.
 
 ## What the archive is
 
@@ -69,13 +71,49 @@ Stage 01B: adapt the completed Community setup to the confirmed Enterprise targe
 - Whether to mention the earlier assessment implementation found in the archive to the team lead is the user's decision.
 - **Disk space is now the main environment risk.** Drive C: went from 7.9 GB free at the start of this stage to 2.0 GB at the end. Our new files and databases account for about 0.65 GB; the rest is not attributed (Docker's shared virtual disk, 14.6 GB, which only grows, and other activity). Free space before Stage 02's long runs; a full disk can damage the PostgreSQL cluster.
 
+## Compatibility follow-up (2026-11-04)
+
+What was done (read-only, no server, database or test run):
+
+- Disk: C: had 2.5 GB free at the start and 1.5 to 1.7 GB during the work, while the agent only read files. Docker's disk did not grow. Large items are the page file (10.9 GB), the hibernation file (6.8 GB) and Docker's disk (14.6 GB). D: has 8.5 GB free.
+- No employer-provided matching pair exists in the workspace.
+- Official baseline: the archive's Community files were compared with the official GitHub tree of `odoo/odoo` commit `4e5027c159a9d9a8dd006618486c8e54cb1eb453` (18.0, 2024-12-08 01:24 UTC) using git blob hashes, which depend on content only.
+  - 36,514 of 37,496 files are identical, including all translations.
+  - The 972 absent files are packaging exclusions (`doc/`, `debian/`, `setup/`, ...).
+  - 10 files differ, all explained.
+  - No commit landed on 18.0 between that commit and the 07:05 UTC checkout.
+  - The archive's 30 theme modules equal `design-themes@3057d466` byte for byte.
+- The 13 files flagged by timestamp in Stage 01B, checked against that baseline:
+  - 2 are unchanged;
+  - 6 differ only in formatting, with identical Python syntax trees (including core `ir_actions.py`);
+  - 2 have real local edits: debugging `print` calls in `website_sale` `shop_checkout`, and rearranged `test_website` data;
+  - 3 are configuration files;
+  - in addition, `release.py` and `setup.cfg` show the expected packaging changes.
+- The 3 Enterprise modules the 2024 pair needs (`certificate`, `l10n_it_edi_website_sale`, `project_hr_skills`) were copied to `<kit-root>/runtime/enterprise/18.0-20241208-moved-to-community/` (0.72 MB, tree SHA-256 `ec0225f5...82c4`). After that, no runtime needs the extracted archive.
+
+The pins for the pair to validate:
+
+- Community: `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453`. Not downloaded yet; 0.20 GB without translations.
+- Enterprise: build 18.0+e.20241208, 623 modules: `runtime/enterprise/18.0-20241208/` (620, SHA-256 `f2c60cc6...b499`) plus the 3-module folder above.
+
+Not run, because of disk space: fetching the source, the new service, fresh databases, the eight `TestTrialBalanceReport` tests, the custom tests, and the login, Trial Balance, PDF and XLSX smoke checks. The exact steps are in `docs/enterprise_transition.md`.
+
+How you could free space (your decision; I deleted nothing):
+
+- Restart Windows: a system-managed page file usually shrinks back. The containers stop, and `scripts/dev.sh start` brings ours back.
+- Delete the extracted archive `<kit-root>/odoo/odoo18` (1.76 GB), only if you keep the original archive file elsewhere.
+- Move Docker Desktop's disk image to D: (Docker Desktop settings). This also affects the other project's containers.
+- Other files of yours on C:.
+
 ## Comprehension questions
 
 1. Why does `scripts/dev.sh` refuse to run an install on `azk_dev` when the edition is `enterprise`, and which manifest key creates that risk?
 2. The server reports `18.0+e-20261015`. Which part of that string comes from the image, which part from `web_enterprise`, and why does it not prove that the Enterprise addons are from 2026?
 3. The vendor test failed on our runtime and passed on the archive's own core. What does that control run tell you that the failing test alone could not?
 
-## Next stage
+## Next step
+
+Not Stage 02 yet. First free at least 5 GB on drive C:, then ask for the remaining compatibility follow-up steps (fetch the pinned Community source, set up the matched-pair service, and run the eight vendor tests, the custom tests and the smoke checks on fresh databases). Stage 02 starts only after the blocker is resolved:
 
 ```text
 Read prompts/02_requirements_and_design.txt and execute Stage 02 only, following solution/AGENTS.md.

@@ -9,7 +9,7 @@ Enterprise source is proprietary. This file names modules, models, methods and X
 - **Edition:** Odoo Enterprise, confirmed by the team lead (A-08). **Major version:** Odoo 18.0, still provisional (A-09, question Q-04).
 - **Runtime:** the pinned image's Community core (Odoo 18.0-20261015) with the Enterprise addons of the company-supplied archive (build 18.0+e.20241208) on the addons path. It runs as a second service, `odoo-ee`, with its own database `azk_ent`, next to the untouched Community baseline.
 - **Result:** the transition passes the server-side checks for this assessment's scope: start, registry load, installed Enterprise modules, our addons, update, tests on both editions, the native Trial Balance with PDF and XLSX, and HTTP access. Details are in [Verification results](#verification-results).
-- **One known incompatibility:** the vendor test `test_trial_balance_comparisons` fails with "division by zero" for reports across companies with different currencies. It passes on the archive's own matched 2024 build, so it comes from this pairing. Single-company use, as in this assessment, does not reach that code.
+- **Unresolved compatibility blocker** (user decision, 2026-11-04): the vendor test `test_trial_balance_comparisons` fails with "division by zero" for reports across companies with different currencies. It passes on the archive's own 2024 build, so it comes from this pairing. Single-company use does not reach that code, but the Enterprise environment stays marked as blocked until a verified matched pair passes all eight tests. See [Compatibility follow-up](#compatibility-follow-up-2026-11-04).
 - **Not run:** the browser check (manual steps at the end), the full vendor `account_reports` suite (stopped because the disk was nearly full) and subscription registration (the employer's action).
 - **Residual risk:** Odoo never released this exact core/Enterprise pair; the two snapshots are about 22 months apart on the same 18.0 branch. A matched Enterprise build is requested in Q-05. It does not block Stage 02, but final acceptance (Stage 11) should state which pair was used.
 
@@ -42,7 +42,7 @@ The user extracted an archive previously supplied by the company to `<kit-root>/
 - 68,688 files under `odoo/`; 6 not listed in `SOURCES.txt`, 2 listed but missing:
   - 4 server configuration files placed into the vendor `odoo/conf/` package folder (credentials of earlier projects; values not read);
   - 2 `sign` module files whose folder names start with a space in the original tarball; the Windows extraction dropped the space (the same 2 files are the "missing" ones).
-- 13 files modified after the build date: core `base/models/ir_actions.py` (2025-01-19; compared with the 2026 Community version it shows IDE line rewrapping mixed with code differences that cannot be attributed without the original file), files in `sale`, `website_sale`, `website` and `test_website` (2024-12 and 2025-01), the 4 configuration files, and an `hr_recruitment` test fixture (changed on 2026-11-03, after extraction).
+- 13 files modified after the build date (by timestamp; the 2026-11-04 follow-up checked their content against the official baseline: 2 are unchanged, 6 differ only in formatting, 2 have real local edits, 3 are configuration files): core `base/models/ir_actions.py` (2025-01-19; compared with the 2026 Community version it shows IDE line rewrapping mixed with code differences that cannot be attributed without the original file; against the build's own official baseline the code is identical), files in `sale`, `website_sale`, `website` and `test_website` (2024-12 and 2025-01), the 4 configuration files, and an `hr_recruitment` test fixture (changed on 2026-11-03, after extraction).
 - No file of an Enterprise-repository module was modified after the build date.
 
 **Not vendor source (inventoried, not used):**
@@ -205,6 +205,87 @@ The native report is a baseline and an extension opportunity, not proof that the
 - Analytic filter semantics: native whole-item inclusion or proportional allocation (D-07).
 - Which edition the final tests run on. The target is Enterprise; Community runs can still catch accidental Enterprise dependencies in the Partner Monitor.
 - PDF tests need a running web server, because wkhtmltopdf downloads the report CSS over HTTP.
+
+## Compatibility follow-up (2026-11-04)
+
+Requested by the user after Stage 01B: resolve the failing `TestTrialBalanceReport` case with a verified compatible source pair, without patching vendor code, skipping the test or changing its expectations, and without adopting the archive's modified core. `azk_ent` and `azk_dev` are preserved and were not opened by any other core.
+
+### Result in short
+
+- **The official Community revision of the archive's build is identified and verified by content:** `odoo/odoo` commit `4e5027c159a9d9a8dd006618486c8e54cb1eb453` on branch 18.0 (committed 2024-12-08 01:24:52 UTC, "[I18N] Update translation terms from Transifex").
+- **The matched pair to validate** is that commit plus the 623 Enterprise-repository modules of the same build, 18.0+e.20241208. Both are pinned below.
+- **Validation was NOT RUN:** drive C: had 2.5 GB free at the start and 1.5 to 1.7 GB during the follow-up. That is too little to fetch the source and build fresh databases safely (see [Disk check](#disk-check)).
+- **The blocker remains unresolved and the Enterprise environment is not ready.**
+
+### User-reported browser check
+
+The user's follow-up message (2026-11-04) says the requested browser smoke check was done. It was done by the user on the Stage 01B environment (http://127.0.0.1:8070, `azk_ent`); the agent did not run it. The message gave no detailed observations, and states that it does not resolve the failing vendor test.
+
+### Disk check
+
+Measured before and during the follow-up:
+
+- C: had 2.5 GB free at the start. It fell to 1.5 GB within minutes while the agent was only reading files, then stood at 1.5 to 1.7 GB.
+- Docker's virtual disk stayed at 14,626,586,624 bytes; its file system holds 12 GB.
+- Windows `pagefile.sys` is 10.9 GB and `hiberfil.sys` 6.8 GB. A system-managed page file grows under memory pressure; that is a possible, unproven cause of the drop.
+- Drive D: has 8.5 GB free. Docker's disk and the PostgreSQL clusters (ours and the other project's) are on C:, so a full C: endangers all of them.
+
+### Employer-provided matching pair
+
+None is available in the workspace. The only supplied Enterprise build is the 2024-12-08 archive. Nothing outside the kit was searched. Question Q-05 (Enterprise addons matching our 2026 core, enterprise commit `08df1575b018ef7682a40b1ddac26c7fcde6b983`) is still open.
+
+### Official baseline for the archive's Community part
+
+Method: no download of the repository. The archive's files were compared with the official GitHub trees by git blob SHA-1, which is computed from file content only, so it does not depend on timestamps.
+
+- The archive's files were checked out at 2024-12-08 07:05-07:06 UTC: 422 of `account`'s files share that minute, packaging edited `release.py` at 07:06:46, and `PKG-INFO` was built at 07:55.
+- The GitHub commits API lists no `odoo/odoo` 18.0 commit dated between `4e5027c1` (01:24:52 UTC) and 07:06 UTC that day. The date filter alone was not taken as proof; the content comparison below is the proof.
+- Comparison with the recursive tree of `4e5027c1` (37,496 files):
+  - 36,514 files are byte-identical in the archive, including all 15,650 translation files.
+  - The 972 official files absent from the archive are all outside `addons/` and `odoo/` (`doc/` 929, `debian/` 17, `setup/` 17, `.github` 3, `.tx`, and root files such as `odoo-bin` and `CONTRIBUTING.md`), so they are packaging exclusions. No module file is missing. The only official trace of `website_twitter` is one translation file, which the archive also has.
+  - 10 files differ; see the next section.
+- The archive's remaining modules have three sources: 623 Enterprise-repository modules (the 620 copied in Stage 01B plus `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills`, all OEEL-1 in this build), and 30 `theme_*`/`test_themes` modules. The 30 themes are byte-identical to official `odoo/design-themes` commit `3057d4661952300a5725159dd2df412af0f2da85` (2024-12-08 02:04:57 UTC, that repository's head before the checkout): 4,266 of 4,268 files, with only `.gitignore` and `.tx/config` absent.
+- Conclusion: the archive is Odoo's 18.0+e.20241208 nightly composition of `odoo/odoo@4e5027c1`, `design-themes@3057d466` and the Enterprise repository at the same time, plus the local changes listed next. The Enterprise part itself could not be compared with an official baseline, because the Enterprise repository is private. Its only integrity evidence is the tarball's own file list (`SOURCES.txt`) and build-time timestamps, and timestamps alone prove neither modification nor its absence.
+
+### Verification of the files flagged in Stage 01B
+
+Stage 01B flagged 13 files with timestamps after the build date. Against the official baseline:
+
+- **Identical content, only the timestamp changed (2):** `website/views/website_templates.xml` and `hr_recruitment/tests/resume.eml`.
+- **Same code, formatting only (6):** `base/models/ir_actions.py`, `sale/controllers/product_configurator.py`, `website_sale/controllers/combo_configurator.py`, `website_sale/controllers/product_configurator.py` and `website_sale/controllers/variant.py` have an identical Python syntax tree (AST), with only line wrapping and indentation differing; `sale/static/src/js/product/product.xml` differs only in whitespace. This corrects the Stage 01B note that `ir_actions.py` "shows code differences that cannot be attributed": against the build's own baseline it has none.
+- **Real local changes (2):**
+  - `website_sale/controllers/main.py`: function `shop_checkout` gained two debugging `print(...)` statements, plus re-indentation.
+  - `test_website/data/test_website_data.xml`: records rearranged and content reduced (213 fewer non-whitespace characters).
+- **Not vendor files (3, plus 1 older):** configuration files with credentials in `odoo/conf/`.
+- **Packaging changes, expected:** `odoo/release.py` gained only the line `version += '+e-20241208'`, and `setup.cfg` was re-serialized by setuptools with an `[egg_info]` section.
+
+So the archive's core is not pristine, as Stage 01B said, but its server package differs from official only in formatting. It is still not adopted: the official commit is used instead.
+
+### Identified matched pair (pins)
+
+- **Community:** `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453` (GitHub, branch 18.0). Official tree: 37,496 files; without translations 21,846 files, 0.20 GB. Not downloaded yet.
+- **Enterprise:** build 18.0+e.20241208, 623 Enterprise-repository modules in two private folders:
+  - `<kit-root>/runtime/enterprise/18.0-20241208/`: 620 modules, tree SHA-256 `f2c60cc6b5145e41bafe9271f36840900e4bc44b3ef963201b2c342bf369b499` (unchanged from Stage 01B);
+  - `<kit-root>/runtime/enterprise/18.0-20241208-moved-to-community/`: the 3 modules that later moved to Community, copied on 2026-11-04, 106 files, 722,254 bytes, tree SHA-256 `ec0225f50aacc43c90c38fdc2c80a88c2e1ce16705e8203c91ce47a79e9482c4`.
+- **Supporting:** `odoo/design-themes` `3057d4661952300a5725159dd2df412af0f2da85`. Website themes are not needed for this assessment and would not be mounted.
+- Evidence that this is a compatible pair: it is the composition Odoo itself built and shipped as 18.0+e.20241208, verified on the Community side by content. A matching major version or date alone was not taken as proof. Test evidence on the official source is still missing: the Stage 01B control run (8 of 8) used the archive's core, which differs from the official one in the files listed above.
+
+### Remaining steps (blocked by disk space)
+
+Once C: has at least 5 GB free (estimate: 0.20 GB of source, about 0.15 GB of new databases, and an unpredictable growth of Docker's disk during installs and tests, with a margin for the shared PostgreSQL clusters):
+
+1. Fetch `odoo/odoo@4e5027c1` from GitHub without `i18n/` to `<kit-root>/runtime/community/18.0-4e5027c1/`. Check every file's git blob SHA against the official tree, and write `SHA256SUMS.txt` and a tree digest.
+2. Add a separate Compose service for the pair, using the same pinned image for Python and wkhtmltopdf:
+   - the official `odoo/` mounted read-only over the image's server package;
+   - the official `addons/` and both Enterprise folders on the addons path, then our `addons/`;
+   - its own data volume, its own port (8071, the same inside and outside the container) and its own database prefix.
+   - Add a `dev.sh` edition with the same guards. The Stage 01B `odoo-ee` service and `azk_ent` stay as they are, and no older core ever opens `azk_ent`.
+3. On fresh databases:
+   - all eight `TestTrialBalanceReport` tests, including `test_trial_balance_comparisons`;
+   - both custom addons' tests;
+   - a new development database with `web_enterprise`, `accountant` and both addons for the login, Trial Balance, XLSX and PDF smoke checks.
+   - No full accounting suite.
+4. Only if all of that passes: make the new edition the default and mark the blocker resolved.
 
 ## Manual browser check (for the user)
 

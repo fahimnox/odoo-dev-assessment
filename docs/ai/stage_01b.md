@@ -341,3 +341,176 @@ Next stage: 02. Run it after the disk space and the browser check:
 Read prompts/02_requirements_and_design.txt and execute Stage 02 only, following solution/AGENTS.md.
 
 ---
+
+## Follow-up after the stage report (2026-11-04): compatibility repair
+
+### User prompt (verbatim)
+
+The whole message was pasted text.
+
+```text
+<pasted_content id="91b6">
+Complete a Stage 01B compatibility follow-up before starting Stage 02.
+
+Read solution/AGENTS.md, docs/enterprise_transition.md,
+docs/handoffs/stage_01b_en.md, and docs/STATE.md.
+
+The browser smoke check does not resolve the known failing
+TestTrialBalanceReport test. Keep the Enterprise environment marked
+as having an unresolved compatibility blocker until it is fixed.
+
+1. Check current free disk space before running further setup or tests.
+   Preserve existing commits, custom addons, databases, and backups.
+   Limit changes to the assessment's Enterprise development environment.
+
+2. Resolve the incompatibility between the 2026 Community core and
+   the 2024 Enterprise addons using a verified compatible source pair.
+
+   Prefer an employer-provided matching pair if already available.
+   Otherwise, investigate a clean official Community revision
+   corresponding to the existing Enterprise build.
+
+   Pin and document both source identities separately. A matching
+   major version or a nearby date alone is not proof of compatibility.
+
+3. Do not adopt the archive's old core merely because its tests passed.
+   Verify the allegedly modified files against an official baseline;
+   timestamps alone do not prove content changes.
+
+   Do not patch vendor code, monkey-patch the exception, skip the failing
+   test, or change its expectations to make the result pass.
+
+4. Validate the selected pair on a fresh isolated database.
+   Do not run an older core against azk_ent, which was initialized using
+   newer code. Preserve azk_ent and azk_dev.
+
+5. Rerun all eight TestTrialBalanceReport tests, including the failing
+   comparison case, plus the custom addon tests and relevant login,
+   Trial Balance, PDF, and XLSX smoke checks.
+
+   Keep testing scoped to this repair; do not launch the full accounting
+   suite just to repeat unrelated checks.
+
+6. Update the environment documentation, STATE, handoff, and actual AI
+   log with source pins, changes, test results, and remaining blockers.
+   Distinguish my reported browser check from checks you execute.
+
+Keep the earlier implementation under projects/assessment outside
+our solution; do not copy or use its code.
+
+If compatible official sources cannot be obtained with existing access,
+report exactly what source/build/access is missing. Do not declare the
+environment ready.
+
+Use English only. Stop after this compatibility follow-up.
+Do not execute Stage 02 automatically.
+</pasted_content id="91b6">
+```
+
+### Conversation during the follow-up (recorded text, verbatim, in order)
+
+Follow-up assistant message 1:
+
+> I'll start with the required reads and the free-disk check, before any setup or test.
+
+Follow-up assistant message 2:
+
+> Still hashing. I'll wait for the completion notice rather than poll.
+
+Follow-up assistant message 3:
+
+> The comparison process is alive and disk is stable at 1.5 GB. Rather than poll repeatedly, I'll load the Monitor tool to wait for the result line:
+
+CLI text in the user position, attached to the result of loading the Monitor tool (not typed by the user):
+
+```text
+Tool loaded.
+```
+
+Follow-up assistant message 4:
+
+> The comparison finished, so the Monitor isn't needed. Reading the result:
+
+Follow-up assistant message 5:
+
+> I'll add a pointer from the Stage 01B integrity note to the corrected finding, so the outdated sentence can't mislead:
+
+Follow-up assistant message 6:
+
+> Now `docs/STATE.md`: Stage 01B is marked **blocked**, with the follow-up's real evidence and the next step:
+
+Follow-up assistant message 7:
+
+> Now `assumptions.md` (A-10 blocked, new A-12 for the matched pair) and the requirements matrix row C-01:
+
+Follow-up assistant message 8:
+
+> Now the Stage 01B handoff: the status becomes blocked, a follow-up section is added, and the next step no longer points to Stage 02.
+
+Follow-up assistant message 9:
+
+> Next, the kit-root `CLAUDE.md`, so a future session doesn't treat the Stage 01B edition as ready:
+
+### Notes on accuracy
+
+- As in the stage log above, intermediate messages that the CLI stored only in condensed form are not reproduced; their findings are recorded in `docs/enterprise_transition.md` (section "Compatibility follow-up").
+- This section was assembled from the transcript just before its own commit. The few short progress messages written after that point, while committing, are not included; the final response is.
+
+### Summary of tool activity (summary, not verbatim)
+
+1. Read `solution/AGENTS.md`, `docs/STATE.md`, `docs/enterprise_transition.md` and `docs/handoffs/stage_01b_en.md`, and checked Git: clean at `444474d`.
+2. **Disk check first:** C: 2.5 GB free. During the follow-up it fell to 1.5 GB and stood at 1.5 to 1.7 GB, while Docker's virtual disk stayed at 14,626,586,624 bytes. Also measured the page file (10.9 GB) and hibernation file (6.8 GB), and found D: with 8.5 GB free.
+3. Read the build time from the archive's file timestamps: checkout 2024-12-08 07:05-07:06 UTC.
+4. GitHub API (public, unauthenticated, 5 requests): listed `odoo/odoo` 18.0 commits around the build, fetched the recursive tree of candidate `4e5027c1`, checked that no commit is dated between it and the checkout, listed `design-themes` 18.0 commits, and fetched the tree of `3057d466`.
+5. A scratchpad script computed git blob SHA-1 for the archive's Community files and compared them with the official tree, which took about 11 minutes of reading. It classified the absent and extra files and the modules by source repository, and compared the 30 theme modules with `design-themes`.
+6. For the 10 differing files, downloaded the official versions from `raw.githubusercontent.com` and compared them in three ways: a whitespace-insensitive comparison, Python AST comparison for the `.py` files, and a function-level diff of `shop_checkout`.
+7. Copied the 3 Enterprise modules that the 2024 pair needs (0.72 MB) to a new private folder with `SHA256SUMS.txt`. Nothing else was written outside the scratchpad, apart from documentation.
+8. Did not start any server, create or open any database, run any test, or download the Community source, because of the disk space. No vendor file was modified.
+9. Updated `docs/enterprise_transition.md`, `docs/environment.md`, `docs/STATE.md`, `docs/assumptions.md`, `docs/requirements_matrix.md`, `docs/handoffs/stage_01b_en.md`, this log and `docs/ai/README.md`, plus the kit-root `CLAUDE.md` (outside Git). Committed the documentation only.
+
+### Assistant final response (verbatim)
+
+Everything between the two rules below is the final visible response.
+
+---
+
+Compatibility follow-up: stopped before setup, and the Enterprise environment stays **blocked**. I identified and verified the matched source pair, but I could not validate it because drive C: is nearly full.
+
+**Disk check (first step)**
+- C: had 2.5 GB free at the start, then 1.5 to 1.7 GB while I was only reading files. Docker's disk did not grow; the 10.9 GB page file may have grown, but that is unproven. D: has 8.5 GB free, but Docker's disk and both PostgreSQL clusters are on C:.
+- So I did not download the source, create databases or run any test. No server or database was touched; `azk_ent`, `azk_dev`, the commits and the backups are unchanged.
+
+**Matched pair found (verified by content, not by date)**
+- No employer-provided matching pair exists in the workspace.
+- I compared every Community file of the archive with the official GitHub tree using git blob hashes, which depend on content only. Against commit `odoo/odoo` `4e5027c1` (18.0, 2024-12-08 01:24 UTC): 36,514 of 37,496 files are identical, including all translations; the 972 absent files are packaging exclusions; 10 differ, all explained. No commit landed between it and the 07:05 UTC checkout.
+- The archive's 30 theme modules are byte-identical to official `design-themes` `3057d466`. So the archive is Odoo's own 18.0+e.20241208 composition, plus local edits.
+- Pins: Community `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453`. Enterprise build 18.0+e.20241208, 623 modules: `runtime/enterprise/18.0-20241208/` (620, `f2c60cc6...b499`) plus `runtime/enterprise/18.0-20241208-moved-to-community/` (3 modules, `ec0225f5...82c4`, 0.72 MB, copied today).
+- Limitation: the Enterprise files cannot be checked against an official baseline, because the Enterprise repository is private.
+
+**The 13 "modified" files, checked against that baseline**
+- 2 are unchanged; only their timestamps moved (`website_templates.xml`, `resume.eml`).
+- 6 differ only in formatting, with identical Python syntax trees, including core `base/models/ir_actions.py`. This corrects my Stage 01B note.
+- 2 have real local edits: debugging `print` calls in `website_sale` `shop_checkout`, and rearranged `test_website` data.
+- 3 are config files with credentials. `release.py` and `setup.cfg` show the expected packaging changes.
+- I did not adopt the archive's core.
+
+**Checks**
+- PASS: the read-only content comparisons above.
+- NOT RUN (disk): the source fetch, the new service, fresh databases, the 8 `TestTrialBalanceReport` tests, the custom tests, and the login, Trial Balance, PDF and XLSX smoke checks.
+- User-reported, not run by me: your browser check of the Stage 01B environment. Your message gave no details; tell me if you want specific observations recorded.
+
+**What you need to do**
+1. Free at least 5 GB on C:. The options are your decision; I deleted nothing:
+   - restart Windows, since a system-managed page file usually shrinks;
+   - delete the extracted archive `odoo/odoo18` (1.76 GB; no runtime needs it now, but only do this if you keep the original archive file);
+   - move Docker Desktop's disk image to D:, which affects the other project too.
+2. Then ask me to continue the follow-up. The steps are in `docs/enterprise_transition.md`: fetch `4e5027c1` without translations (0.20 GB, every file hash-checked), set up a separate service on port 8071 with its own fresh databases, then run the eight tests, the custom tests and the smoke checks. `azk_ent` stays on its own core.
+
+**Changed files**
+- `docs/enterprise_transition.md` (new follow-up section, corrected `ir_actions.py` note), `docs/environment.md`, `docs/STATE.md` (Stage 01B: BLOCKED), `docs/assumptions.md` (A-10 blocked, new A-12), `docs/requirements_matrix.md` (C-01: BLOCKED), `docs/handoffs/stage_01b_en.md`, `docs/ai/stage_01b.md`, `docs/ai/README.md`.
+- Outside Git: the kit `CLAUDE.md` and the new `runtime/enterprise/18.0-20241208-moved-to-community/`.
+- No code, Compose or `dev.sh` change. Commit: "Stage 01B follow-up: identify the matched Community revision; blocked by disk space".
+
+Stopping here, as asked. Stage 02 does not start until the blocker is resolved.
+
+---

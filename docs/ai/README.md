@@ -36,7 +36,7 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | [stage_00.md](stage_00.md) | 00 | Operating contract, workspace, state files, first requirement inventory |
 | [correction_r0.md](correction_r0.md) | After 00 | Language correction R0: English-only output, guidance updates, Stage 00 English handoff |
 | [stage_01.md](stage_01.md) | 01 | Docker Compose environment with pinned images, addon skeletons, verification runs |
-| [stage_01b.md](stage_01b.md) | 01B | Inspection of the company-supplied Enterprise archive, Enterprise service and database next to the Community baseline, native Trial Balance findings |
+| [stage_01b.md](stage_01b.md) | 01B | Inspection of the company-supplied Enterprise archive, Enterprise service and database next to the Community baseline, native Trial Balance findings; follow-up of 2026-11-04: official Community revision of the archive's build identified by content, validation blocked by disk space |
 
 ## Mistakes found and corrected
 
@@ -48,4 +48,6 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | 01B | The docs claimed Compose would refuse a missing Enterprise folder (`create_host_path: false`) | An explicit check: a raw `docker compose run` with a wrong path exited 0 and Docker Desktop created the folder | Removed the empty folder, corrected the docs, added a warning in `compose.yaml` and the default name to `.gitignore`; the `dev.sh` check remains the guard (verified) |
 | 01B | Two commands used POSIX paths while Git Bash path conversion was disabled (`docker compose cp` destination, then `pdftotext`) | Both tools reported that the path did not exist | Reran both with Windows-style paths |
 | 01B | `docs/enterprise_transition.md` (commit `2078515`) counted 16 helper scripts at the archive root; the 16th Python file there is the vendor `setup.py` | A recount (`ls *.py`, excluding `setup.py`) while fact-checking the final response | Corrected to 15 scripts in a follow-up commit; the final response states 15 |
+| 01B | Stage 01B judged the archive's files by timestamp: it reported 13 files "changed after the build date" (also in the final response) and suspected code changes in `ir_actions.py` | Follow-up of 2026-11-04: content comparison with the official build commit `4e5027c1` | 2 of those files are unchanged, 6 differ only in formatting (identical Python syntax trees, including `ir_actions.py`), 2 have real local edits, 3 are config files; documents corrected |
+| 01B follow-up | A `df -h /` check of Docker's file system failed because Git Bash rewrote `/` into a Windows path | The command printed a "No such file or directory" error for the Git install path | Reran with path conversion disabled |
 | 01B | A draft of `docs/STATE.md` attributed most of the lost disk space to Docker growth from this stage's runs, which could not be verified | Review before the commit: the virtual disk's size at the start of the stage was unknown, and another project shares it | Reworded to state only the measured 0.65 GB and leave the rest unattributed |

@@ -13,7 +13,7 @@ Stage 01B (2026-11-03) moved the target to Odoo Enterprise. Evidence marked "Sta
 
 | ID | Source | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| C-01 | Team lead, recorded 2026-11-03 | The assessment target is Odoo Enterprise | A-08; major version 18.0 still provisional (A-09) | Enterprise service `odoo-ee` and database `azk_ent` (`compose.yaml`, `config/odoo-enterprise.conf`, `scripts/dev.sh`) | Stage 01B: `azk_ent` created with `web_enterprise` and `accountant` (93 modules, no warnings), skeleton tests 4/4 PASS on Enterprise; see [enterprise_transition.md](enterprise_transition.md) | IN PROGRESS |
+| C-01 | Team lead, recorded 2026-11-03 | The assessment target is Odoo Enterprise | A-08; major version 18.0 still provisional (A-09) | Enterprise service `odoo-ee` and database `azk_ent` (`compose.yaml`, `config/odoo-enterprise.conf`, `scripts/dev.sh`) | Stage 01B: `azk_ent` created with `web_enterprise` and `accountant` (93 modules, no warnings), skeleton tests 4/4 PASS on Enterprise, but vendor `TestTrialBalanceReport` 7/8 FAIL on that pair. 2026-11-04: matched pair `odoo/odoo@4e5027c1` with Enterprise 18.0+e.20241208 identified by content; its validation NOT RUN (disk space); see [enterprise_transition.md](enterprise_transition.md) | BLOCKED |
 
 ## General / submission
 
