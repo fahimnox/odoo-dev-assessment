@@ -7,9 +7,10 @@ Enterprise source is proprietary. This file names modules, models, methods and X
 ## Outcome
 
 - **Edition:** Odoo Enterprise, confirmed by the team lead (A-08). **Major version:** Odoo 18.0, still provisional (A-09, question Q-04).
-- **Runtime:** the pinned image's Community core (Odoo 18.0-20261015) with the Enterprise addons of the company-supplied archive (build 18.0+e.20241208) on the addons path. It runs as a second service, `odoo-ee`, with its own database `azk_ent`, next to the untouched Community baseline.
+- **Runtime (since 2026-11-05):** the matched pair. The official Community source `odoo/odoo@4e5027c1` and the Enterprise addons of the same build, 18.0+e.20241208, run as service `odoo-ee-20241208` with databases `azk_ee24*` on port 8071; this is the default edition. See [Follow-up continuation](#follow-up-continuation-2026-11-05).
+- **Stage 01B runtime (kept, blocked):** the pinned image's Community core (Odoo 18.0-20261015) with the same Enterprise addons on the addons path, as service `odoo-ee` with database `azk_ent`, next to the untouched Community baseline.
 - **Result:** the transition passes the server-side checks for this assessment's scope: start, registry load, installed Enterprise modules, our addons, update, tests on both editions, the native Trial Balance with PDF and XLSX, and HTTP access. Details are in [Verification results](#verification-results).
-- **Unresolved compatibility blocker** (user decision, 2026-11-04): the vendor test `test_trial_balance_comparisons` fails with "division by zero" for reports across companies with different currencies. It passes on the archive's own 2024 build, so it comes from this pairing. Single-company use does not reach that code, but the Enterprise environment stays marked as blocked until a verified matched pair passes all eight tests. See [Compatibility follow-up](#compatibility-follow-up-2026-11-04).
+- **Compatibility blocker: resolved on 2026-11-05 by the matched pair.** On the Stage 01B pair, the vendor test `test_trial_balance_comparisons` fails with "division by zero" for reports across companies with different currencies, and the user made that a blocker on 2026-11-04. On the matched pair all eight `TestTrialBalanceReport` tests pass on fresh databases. The Stage 01B pair keeps its failure and stays blocked. See [Compatibility follow-up](#compatibility-follow-up-2026-11-04) and [Follow-up continuation](#follow-up-continuation-2026-11-05).
 - **Not run:** the browser check (manual steps at the end), the full vendor `account_reports` suite (stopped because the disk was nearly full) and subscription registration (the employer's action).
 - **Residual risk:** Odoo never released this exact core/Enterprise pair; the two snapshots are about 22 months apart on the same 18.0 branch. A matched Enterprise build is requested in Q-05. It does not block Stage 02, but final acceptance (Stage 11) should state which pair was used.
 
@@ -65,7 +66,7 @@ Options considered:
 
 Both parts are on the 18.0 release branch, so release branches are not mixed. Stage 01B accepts different revisions of the same major release once the combined installation is validated. The static evidence:
 
-- **Module sets.** The Enterprise-repository subset is 620 modules: 611 OEEL-1, 3 OPL-1, and 6 LGPL-3 modules that depend on OEEL-1 modules. Three modules moved from Enterprise to Community during 18.0 (`certificate`, `l10n_it_edi_website_sale`, `project_hr_skills`); they are left out of the copy and the image's versions are used. Odoo always searches its own core addons folder first (`initialize_sys_path()` and `get_module_path()` in `odoo/modules/module.py`), so a duplicate name would resolve to the image anyway. 27 shared Community modules have newer manifest versions in the image (for example `analytic` 1.1 to 1.2), and the image has 62 Community modules the archive lacks.
+- **Module sets.** The Enterprise-repository subset is 620 modules: 611 OEEL-1, 3 OPL-1, and 6 LGPL-3 modules that depend on OEEL-1 modules. Three modules (`certificate`, `l10n_it_edi_website_sale`, `project_hr_skills`) carry the OEEL-1 license in the archive but LGPL-3 in the 2026 image; they are left out of the copy and the image's versions are used. (Corrected 2026-11-05: these three are not Enterprise-repository modules. They are already in the official Community repository at the archive's commit, with `license: OEEL-1` in their manifests; only the license key changed later. See [Follow-up continuation](#follow-up-continuation-2026-11-05).) Odoo always searches its own core addons folder first (`initialize_sys_path()` and `get_module_path()` in `odoo/modules/module.py`), so a duplicate name would resolve to the image anyway. 27 shared Community modules have newer manifest versions in the image (for example `analytic` 1.1 to 1.2), and the image has 62 Community modules the archive lacks.
 - **Reporting data model.** The field definitions of `account.report` and its related models are identical in the archive's Community `account` module and in the image's.
 - **Client-side audit.** A script checked all 620 modules for JS imports and named exports, OWL `t-inherit` parents and xpaths, and manifest asset directives that name Community files. It ran twice: against the image's 2026 Community code, and, as a control, against the archive's own 2024 Community code. Only two findings are unique to the 2026 pairing, both in the Knowledge app, which is not installed: `website_knowledge` imports an Excalidraw component that `html_editor` no longer has, and one `knowledge` toolbar xpath no longer matches. Findings about the spreadsheet library were false positives: the 2026 library is pre-transpiled and exports through `Object.assign(__exports, ...)`. Nothing was flagged in `web_enterprise`, `account_accountant` or `account_reports`.
 
@@ -213,7 +214,7 @@ Requested by the user after Stage 01B: resolve the failing `TestTrialBalanceRepo
 ### Result in short
 
 - **The official Community revision of the archive's build is identified and verified by content:** `odoo/odoo` commit `4e5027c159a9d9a8dd006618486c8e54cb1eb453` on branch 18.0 (committed 2024-12-08 01:24:52 UTC, "[I18N] Update translation terms from Transifex").
-- **The matched pair to validate** is that commit plus the 623 Enterprise-repository modules of the same build, 18.0+e.20241208. Both are pinned below.
+- **The matched pair to validate** is that commit plus the Enterprise-repository modules of the same build, 18.0+e.20241208. Both are pinned below. (This section said 623 modules; the correct number is 620, see the correction under "Follow-up continuation".)
 - **Validation was NOT RUN:** drive C: had 2.5 GB free at the start and 1.5 to 1.7 GB during the follow-up. That is too little to fetch the source and build fresh databases safely (see [Disk check](#disk-check)).
 - **The blocker remains unresolved and the Enterprise environment is not ready.**
 
@@ -244,7 +245,7 @@ Method: no download of the repository. The archive's files were compared with th
   - 36,514 files are byte-identical in the archive, including all 15,650 translation files.
   - The 972 official files absent from the archive are all outside `addons/` and `odoo/` (`doc/` 929, `debian/` 17, `setup/` 17, `.github` 3, `.tx`, and root files such as `odoo-bin` and `CONTRIBUTING.md`), so they are packaging exclusions. No module file is missing. The only official trace of `website_twitter` is one translation file, which the archive also has.
   - 10 files differ; see the next section.
-- The archive's remaining modules have three sources: 623 Enterprise-repository modules (the 620 copied in Stage 01B plus `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills`, all OEEL-1 in this build), and 30 `theme_*`/`test_themes` modules. The 30 themes are byte-identical to official `odoo/design-themes` commit `3057d4661952300a5725159dd2df412af0f2da85` (2024-12-08 02:04:57 UTC, that repository's head before the checkout): 4,266 of 4,268 files, with only `.gitignore` and `.tx/config` absent.
+- The archive's remaining modules have two sources: the 620 Enterprise-repository modules copied in Stage 01B, and 30 `theme_*`/`test_themes` modules. (Corrected 2026-11-05: this line first counted `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills` as Enterprise modules too, making 623. They belong to the 593 `odoo/odoo` modules, with an OEEL-1 license key there.) The 30 themes are byte-identical to official `odoo/design-themes` commit `3057d4661952300a5725159dd2df412af0f2da85` (2024-12-08 02:04:57 UTC, that repository's head before the checkout): 4,266 of 4,268 files, with only `.gitignore` and `.tx/config` absent.
 - Conclusion: the archive is Odoo's 18.0+e.20241208 nightly composition of `odoo/odoo@4e5027c1`, `design-themes@3057d466` and the Enterprise repository at the same time, plus the local changes listed next. The Enterprise part itself could not be compared with an official baseline, because the Enterprise repository is private. Its only integrity evidence is the tarball's own file list (`SOURCES.txt`) and build-time timestamps, and timestamps alone prove neither modification nor its absence.
 
 ### Verification of the files flagged in Stage 01B
@@ -264,9 +265,8 @@ So the archive's core is not pristine, as Stage 01B said, but its server package
 ### Identified matched pair (pins)
 
 - **Community:** `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453` (GitHub, branch 18.0). Official tree: 37,496 files; without translations 21,846 files, 0.20 GB. Not downloaded yet.
-- **Enterprise:** build 18.0+e.20241208, 623 Enterprise-repository modules in two private folders:
-  - `<kit-root>/runtime/enterprise/18.0-20241208/`: 620 modules, tree SHA-256 `f2c60cc6b5145e41bafe9271f36840900e4bc44b3ef963201b2c342bf369b499` (unchanged from Stage 01B);
-  - `<kit-root>/runtime/enterprise/18.0-20241208-moved-to-community/`: the 3 modules that later moved to Community, copied on 2026-11-04, 106 files, 722,254 bytes, tree SHA-256 `ec0225f50aacc43c90c38fdc2c80a88c2e1ce16705e8203c91ce47a79e9482c4`.
+- **Enterprise:** build 18.0+e.20241208, the 620 Enterprise-repository modules in `<kit-root>/runtime/enterprise/18.0-20241208/`, tree SHA-256 `f2c60cc6b5145e41bafe9271f36840900e4bc44b3ef963201b2c342bf369b499` (unchanged from Stage 01B).
+  - Corrected 2026-11-05: on 2026-11-04 a second folder, `18.0-20241208-moved-to-community/` (tree SHA-256 `ec0225f5...82c4`), was also listed here as holding 3 more Enterprise modules. Those 3 modules are part of the official Community source, and the folder's code files were identical to it. The folder was removed from the configuration and deleted on 2026-11-05.
 - **Supporting:** `odoo/design-themes` `3057d4661952300a5725159dd2df412af0f2da85`. Website themes are not needed for this assessment and would not be mounted.
 - Evidence that this is a compatible pair: it is the composition Odoo itself built and shipped as 18.0+e.20241208, verified on the Community side by content. A matching major version or date alone was not taken as proof. Test evidence on the official source is still missing: the Stage 01B control run (8 of 8) used the archive's core, which differs from the official one in the files listed above.
 
@@ -287,13 +287,77 @@ Once C: has at least 5 GB free (estimate: 0.20 GB of source, about 0.15 GB of ne
    - No full accounting suite.
 4. Only if all of that passes: make the new edition the default and mark the blocker resolved.
 
+## Follow-up continuation (2026-11-05)
+
+Requested by the user after freeing disk space: resume from commit `658da7c`, fetch the verified Community source, set up the matched pair on port 8071 with fresh databases, and run the agreed checks. `azk_dev`, `azk_ent`, their services and the backups were preserved, and the other project's Docker resources were not touched.
+
+### Disk
+
+C: had 17 GB free at the start (Docker's disk was 15.43 GB). A background monitor checked free space every 30 seconds and would have reported anything under 8 GB; it never did. Observed values stayed between 16.8 and 19 GB. Space used by this continuation: the 0.20 GB source plus the new databases.
+
+### Community source: fetched and verified
+
+- Official GitHub archive of commit `4e5027c159a9d9a8dd006618486c8e54cb1eb453`, streamed straight into `<kit-root>/runtime/community/18.0-4e5027c1/` (no tarball stored) with `i18n/` excluded. It took 529 s.
+- The official tree has no symlinks or submodules: 37,496 regular files, 73 of them executable.
+- Every extracted file was checked by git blob SHA-1 against the official tree: **21,846 of 21,846 identical, 0 different, 0 missing, 0 extra**. Pinned with `SHA256SUMS.txt`: 21,846 files, 204,583,581 bytes, tree SHA-256 `7699e4183dd7e4c0eb9ab8de93fd126a6ed47273b18849918f44550f19c6e0e6`.
+
+### Correction: the Enterprise side is 620 modules
+
+The first matched-pair database showed `certificate` loading from the official Community folder. A check then confirmed that `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills` are part of the official `odoo/odoo` tree at `4e5027c1`, with `license: OEEL-1` in their manifests; the 2026 image declares LGPL-3. The 2026-11-04 classification had treated them as Enterprise modules because of that license key. The extra 3-module folder created on 2026-11-04 was identical to the official copies (code files compared), and those copies already won on the addons path. So it was removed from the configuration and deleted, and both test commands were rerun on the final configuration. The Enterprise side of the pair is the 620-module folder, unchanged since Stage 01B (tree SHA-256 `f2c60cc6...b499`).
+
+### Matched-pair service
+
+- `compose.yaml`, service `odoo-ee-20241208` (profile `enterprise`):
+  - the same pinned image, which provides Python, its libraries and wkhtmltopdf;
+  - the official `odoo/` folder mounted read-only over `/usr/lib/python3/dist-packages/odoo`, hiding the image's own Odoo package without changing any file;
+  - the official `addons/` at `/mnt/community-addons`, the 620-module Enterprise folder at `/mnt/enterprise-addons` (both read-only), and our `addons/` at `/mnt/extra-addons`;
+  - its own data volume `odoo-ee-20241208-data`, port 8071 inside and outside the container, and only `azk_ee24` served.
+- `config/odoo-enterprise-20241208.conf`: `addons_path = /mnt/community-addons,/mnt/enterprise-addons,/mnt/extra-addons`. The server logs the effective order `/usr/lib/python3/dist-packages/odoo/addons` (official `base` and core test modules), `/var/lib/odoo/addons/18.0`, `/mnt/community-addons`, `/mnt/enterprise-addons`, `/mnt/extra-addons`.
+- `scripts/dev.sh`, edition `enterprise-20241208`:
+  - databases `azk_ee24` (development), `azk_ee24_test` and `azk_ee24_clean`;
+  - every database belongs to exactly one edition by prefix (`azk_ent*`, `azk_ee24*`, otherwise Community), so no other core can open `azk_ent`;
+  - both source folders are checked before any command.
+  - Ten refusal cases were verified, with no container started: other editions' databases in all directions, dev databases for reset, and missing source folders.
+- `.env.example` and the local `.env`: `COMMUNITY_SOURCE_20241208`, `ODOO_EE_20241208_HTTP_PORT`, and `ODOO_EDITION=enterprise-20241208` as the default since all checks passed.
+
+### Results (fresh databases)
+
+- `scripts/dev.sh test account_reports /account_reports:TestTrialBalanceReport`: **PASS**, "0 failed, 0 error(s) of 8 tests when loading database 'azk_ee24_test'", exit 0, 0 warnings.
+  - All eight ran: `test_action_general_ledger`, `test_trial_balance_account_group_with_hole`, **`test_trial_balance_comparisons`**, `test_trial_balance_filter_journals`, `test_trial_balance_unaffected_earnings_current_fiscal_year`, `test_trial_balance_unaffected_earnings_previous_fiscal_year`, `test_trial_balance_whole_report`, `test_trial_with_disabled_comparison_filter`.
+  - It passed on the first configuration (473 s) and again on the final one (261 s).
+- `scripts/dev.sh test` (both custom addons): **PASS**, "0 failed, 0 error(s) of 4 tests when loading database 'azk_ee24_test'", on both configurations, 0 warnings.
+- `scripts/dev.sh setup`: **PASS**. It created `azk_ee24` with `web_enterprise`, `accountant` and both addons with demo data: 92 modules, 0 warnings, 396 s.
+- Odoo shell on `azk_ee24` (final configuration): **PASS**.
+  - The version is `18.0+e`: the official source's `18.0`, without a nightly date suffix, plus the `+e` that `web_enterprise` adds.
+  - The Enterprise modules load from `/mnt/enterprise-addons`, `account` (18.0.1.3) and the other Community modules from `/mnt/community-addons`, and our addons from `/mnt/extra-addons`.
+  - 92 modules installed (44 OEEL-1), none pending; PostgreSQL 16.15, role `odoo`.
+- Trial Balance smoke (shell, 2026, with and without drafts): **PASS**. 9 account lines; totals Initial 0.00 / 0.00, period 301,429.03 / 301,429.03, End 12,444.87 / 12,444.87; debit equals credit in all three groups; no line has both a debit and a credit in Initial or End.
+- `scripts/dev.sh start` and the HTTP smoke against http://127.0.0.1:8071: **PASS**.
+  - `/web/login` returned 200. JSON-RPC login as `admin` returned uid 2, with `server_version` `18.0+e` and `server_version_info` ending in `'e'`.
+  - `/odoo` returned 200, and the JS bundle (5,568,287 bytes) and both CSS bundles returned 200. The CSS has no compilation-error marker. The JS has 854 template registrations and 41 extensions, and no server-side missing-parent error: the only match for that text is again the checker function's own definition.
+  - The Trial Balance's `get_options` and `get_report_information` work over RPC (10 lines).
+  - The same call without a session was refused with `SessionExpiredException`.
+- PDF and XLSX, rendered inside the running server: **PASS**, no warning.
+  - `export_to_pdf`: 19,058 bytes, `%PDF-1.4`, one page. `pdftotext` shows the "TRIAL BALANCE" title, the company name and address, the Initial Balance / 2026 / End Balance groups with Debit and Credit, the account lines, the total and the "1/1" footer.
+  - `export_to_xlsx`: 6,724 bytes, a valid workbook.
+- Server log since start: 0 WARNING, 0 ERROR or CRITICAL lines.
+
+Not run, outside the agreed checks: the full vendor accounting suite, and a browser check of the matched-pair environment (the agent has no browser here; steps below). The user's earlier browser check concerned the Stage 01B environment on port 8070.
+
+### Status
+
+- The compatibility blocker is resolved for the matched pair. `enterprise-20241208` is the default edition and the Enterprise environment for Stage 02.
+- The Stage 01B pair (`odoo-ee`, `azk_ent`) is preserved and stays blocked; nothing opens `azk_ent` with the 2024 core.
+- The Enterprise files are still verified only through the tarball's own file list, because the Enterprise repository is private.
+- The matched pair is older than the 2026 image: it is Odoo's 18.0+e.20241208 build. A newer matched pair could still come from the employer (Q-05).
+
 ## Manual browser check (for the user)
 
-Not run by the agent, which has no browser here:
+Not run by the agent, which has no browser here. Since 2026-11-05 the default edition is the matched pair on port 8071; the user's earlier check of 2026-11-04 was on the Stage 01B environment (port 8070).
 
-1. `scripts/dev.sh start` (the Enterprise edition is the default in this workspace), then open http://127.0.0.1:8070/web/login.
+1. `scripts/dev.sh start` (the matched pair, `enterprise-20241208`, is the default edition in this workspace), then open http://127.0.0.1:8071/web/login.
 2. Log in as `admin` with password `admin`.
 3. Expected: the Enterprise home menu with app icons, and a registration or expiration banner for administrators. Don't register and don't click "buy". There should be no red error dialog and no blank page.
-4. Open Accounting > Reporting > Trial Balance (in the "Audit Reports" section of the Reporting menu), or go directly to http://127.0.0.1:8070/odoo/trial-balance. Expected: the report shows Initial Balance, the period and End Balance. Change the date filter, toggle "Draft Entries", then click PDF and "Download Excel" and open both files.
+4. Open Accounting > Reporting > Trial Balance (in the "Audit Reports" section of the Reporting menu), or go directly to http://127.0.0.1:8071/odoo/trial-balance. Expected: the report shows Initial Balance, the period and End Balance. Change the date filter, toggle "Draft Entries", then click PDF and "Download Excel" and open both files.
 5. Open Apps, remove the "Apps" filter and search for `azk`. Expected: both addons are installed.
 6. Report anything unexpected, especially error dialogs or messages in the browser console.

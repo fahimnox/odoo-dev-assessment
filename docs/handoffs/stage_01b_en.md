@@ -2,14 +2,13 @@
 
 Stage 01B: adapt the completed Community setup to the confirmed Enterprise target. Written on 2026-11-03 from the commands and results recorded in `docs/enterprise_transition.md` and `docs/environment.md`.
 
-## Status (updated 2026-11-04)
+## Status (updated 2026-11-05)
 
-- **BLOCKED. The Enterprise environment is not ready.** The failing vendor Trial Balance test is an unresolved compatibility blocker (user decision, 2026-11-04), even though this single-company assessment does not use that code path.
-- The fix is identified and verified by content: the official Community commit `odoo/odoo@4e5027c1` with the Enterprise modules of the same build. Its validation was not run, because drive C: is nearly full. See "Compatibility follow-up" below.
-- The browser smoke check of the Stage 01B environment was reported done by the user (no detailed results given); it was not run by the agent.
-- Server-side Stage 01B checks on the Stage 01B pair: PASS, except the vendor test.
+- **DONE. Stage 02 is ready.** The compatibility blocker is resolved by the matched pair: the official Community source `odoo/odoo@4e5027c1` with the 620 Enterprise modules of build 18.0+e.20241208, run as edition `enterprise-20241208` (the default). See "Follow-up continuation" below.
+- On fresh databases, all eight `TestTrialBalanceReport` tests passed (including `test_trial_balance_comparisons`), the custom addon tests passed 4 of 4, and the login, Trial Balance, PDF and XLSX smoke checks passed.
+- The Stage 01B pair (`odoo-ee`, `azk_ent`) still fails that vendor test. It stays blocked and is kept only as evidence.
+- Browser checks: the user reported one for the Stage 01B environment (no detailed results given). None has been done yet for the matched pair on port 8071; it is recommended and was not part of the agreed checks.
 - No business features are implemented yet. Both addons are installable skeletons with smoke tests.
-- Next: free disk space, then finish the follow-up. Stage 02 waits.
 
 ## What the archive is
 
@@ -42,7 +41,7 @@ Stage 01B: adapt the completed Community setup to the confirmed Enterprise targe
 
 ## Manual check for the user (NOT RUN by the agent)
 
-1. `scripts/dev.sh start`, then open http://127.0.0.1:8070/web/login and log in as `admin` / `admin`.
+1. `scripts/dev.sh start`, then open http://127.0.0.1:8071/web/login (the matched pair, the default edition since 2026-11-05; the Stage 01B environment was on 8070) and log in as `admin` / `admin`.
 2. Expected: the Enterprise home menu with app icons, and a registration banner for administrators. Don't register and don't buy.
 3. Open Accounting > Reporting > Trial Balance (in the "Audit Reports" section), change the date, toggle "Draft Entries", and click PDF and "Download Excel".
 4. Open Apps, remove the "Apps" filter, search for `azk`: both addons should be installed.
@@ -89,12 +88,12 @@ What was done (read-only, no server, database or test run):
   - 2 have real local edits: debugging `print` calls in `website_sale` `shop_checkout`, and rearranged `test_website` data;
   - 3 are configuration files;
   - in addition, `release.py` and `setup.cfg` show the expected packaging changes.
-- The 3 Enterprise modules the 2024 pair needs (`certificate`, `l10n_it_edi_website_sale`, `project_hr_skills`) were copied to `<kit-root>/runtime/enterprise/18.0-20241208-moved-to-community/` (0.72 MB, tree SHA-256 `ec0225f5...82c4`). After that, no runtime needs the extracted archive.
+- The 3 modules `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills` were copied to a separate folder as "Enterprise modules the 2024 pair needs". Corrected 2026-11-05: they are part of the official Community source, which carries an OEEL-1 license key for them, so the copy was redundant and has been deleted. No runtime needs the extracted archive.
 
 The pins for the pair to validate:
 
 - Community: `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453`. Not downloaded yet; 0.20 GB without translations.
-- Enterprise: build 18.0+e.20241208, 623 modules: `runtime/enterprise/18.0-20241208/` (620, SHA-256 `f2c60cc6...b499`) plus the 3-module folder above.
+- Enterprise: build 18.0+e.20241208, the 620 modules in `runtime/enterprise/18.0-20241208/` (SHA-256 `f2c60cc6...b499`). This line first said 623 plus a 3-module folder; corrected 2026-11-05.
 
 Not run, because of disk space: fetching the source, the new service, fresh databases, the eight `TestTrialBalanceReport` tests, the custom tests, and the login, Trial Balance, PDF and XLSX smoke checks. The exact steps are in `docs/enterprise_transition.md`.
 
@@ -105,15 +104,44 @@ How you could free space (your decision; I deleted nothing):
 - Move Docker Desktop's disk image to D: (Docker Desktop settings). This also affects the other project's containers.
 - Other files of yours on C:.
 
+## Follow-up continuation (2026-11-05)
+
+What was done (the user had freed disk space first: 17 GB, watched by a background monitor):
+
+- Fetched the official GitHub archive of `odoo/odoo@4e5027c1` without translations into `<kit-root>/runtime/community/18.0-4e5027c1/`. All 21,846 files are identical to the official tree by git blob SHA (0 different, 0 missing, 0 extra). Pinned: tree SHA-256 `7699e418...e0e6`.
+- Correction: `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills` are in the official Community source (with an OEEL-1 license key in their manifests). So the Enterprise side is the 620-module folder, and the extra 3-module folder from 2026-11-04 was redundant. It was removed and deleted, and both test commands were rerun on the final configuration.
+- New service `odoo-ee-20241208`:
+  - the same pinned image, with the official `odoo/` mounted read-only over its Odoo package;
+  - the official `addons/`, the 620 Enterprise modules and our addons on the addons path;
+  - its own volume and port 8071, serving `azk_ee24`.
+- New `dev.sh` edition `enterprise-20241208`, with prefix-based database ownership (10 refusal cases verified).
+
+Results, all PASS, on fresh databases:
+
+- `scripts/dev.sh test account_reports /account_reports:TestTrialBalanceReport`: 8 tests, 0 failed, 0 errors.
+- `scripts/dev.sh test`: 4 tests, 0 failed, 0 errors.
+- `scripts/dev.sh setup`: `azk_ee24` with 92 modules, 0 warnings.
+- Shell: Enterprise modules from `/mnt/enterprise-addons`, Community from `/mnt/community-addons`, version `18.0+e`. The Trial Balance is balanced and net-side.
+- HTTP: login uid 2, web client and bundles 200, report RPC OK, refusal without a session.
+- PDF (one page, with header and footer) and XLSX (a valid workbook), both rendered inside the running server. The server log has 0 warnings.
+
+Preserved: `azk_dev`, `azk_ent`, the `odoo` and `odoo-ee` services and volumes, the backups, and the other project's containers.
+
+Follow-up comprehension questions:
+
+1. Why does mounting the official `odoo/` folder over the image's Odoo package not count as patching vendor code?
+2. What could go wrong if `azk_ent`, created by the 2026 core, were opened by the 2024 core?
+3. Why was a matching build date not accepted as proof that `4e5027c1` is the build's Community revision, and what was?
+
 ## Comprehension questions
 
 1. Why does `scripts/dev.sh` refuse to run an install on `azk_dev` when the edition is `enterprise`, and which manifest key creates that risk?
 2. The server reports `18.0+e-20261015`. Which part of that string comes from the image, which part from `web_enterprise`, and why does it not prove that the Enterprise addons are from 2026?
 3. The vendor test failed on our runtime and passed on the archive's own core. What does that control run tell you that the failing test alone could not?
 
-## Next step
+## Next stage
 
-Not Stage 02 yet. First free at least 5 GB on drive C:, then ask for the remaining compatibility follow-up steps (fetch the pinned Community source, set up the matched-pair service, and run the eight vendor tests, the custom tests and the smoke checks on fresh databases). Stage 02 starts only after the blocker is resolved:
+Stage 02, on edition `enterprise-20241208` (the default in `.env`). Recommended first: a quick browser check of http://127.0.0.1:8071 (steps in `docs/enterprise_transition.md`).
 
 ```text
 Read prompts/02_requirements_and_design.txt and execute Stage 02 only, following solution/AGENTS.md.

@@ -2,6 +2,10 @@
 # - odoo:    Odoo 18 Community (Stage 01 baseline), serves azk_dev on port 8069.
 # - odoo-ee: the same pinned image plus a private Enterprise addons folder
 #            (ENTERPRISE_ADDONS in .env), serves azk_ent on port 8070.
+#            Stage 01B pair (2026 core, 2024 Enterprise); blocked, kept for azk_ent.
+# - odoo-ee-20241208: matched pair (official Community 4e5027c1 with the
+#            Enterprise addons of the same 2024-12-08 build), serves azk_ee24 on
+#            port 8071.
 # Images are pinned by digest. Run everything through scripts/dev.sh
 # (see docs/environment.md). Secrets come from the ignored .env file.
 name: azk-odoo-assessment
@@ -90,7 +94,58 @@ services:
       - odoo-ee-data:/var/lib/odoo
     restart: "no"
 
+  odoo-ee-20241208:
+    # Matched Enterprise pair (Stage 01B follow-up): the official Community source
+    # odoo/odoo 4e5027c159a9d9a8dd006618486c8e54cb1eb453 (18.0, 2024-12-08) with
+    # the Enterprise addons of build 18.0+e.20241208, the composition Odoo built
+    # and shipped. The pinned image provides Python, its libraries and wkhtmltopdf.
+    # Its own Odoo package is hidden by the read-only mount of the official odoo/
+    # folder; no file is changed. Sources stay outside this repository.
+    # Started only by scripts/dev.sh (ODOO_EDITION=enterprise-20241208) or --profile enterprise.
+    profiles: ["enterprise"]
+    image: odoo:18.0@sha256:9668abacd894276ed009e8db7db1d1ffb8068af6982f76a3400ed0d68e40432d
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: odoo
+      PGPASSWORD: ${ODOO_DB_PASSWORD:?set ODOO_DB_PASSWORD in .env}
+    # Serves its own development database only, on the same port inside and
+    # outside the container (wkhtmltopdf reaches web.base.url from inside).
+    command: ["odoo", "--http-port=${ODOO_EE_20241208_HTTP_PORT:-8071}", "--database=azk_ee24", "--db-filter=^azk_ee24$$"]
+    ports:
+      - "127.0.0.1:${ODOO_EE_20241208_HTTP_PORT:-8071}:${ODOO_EE_20241208_HTTP_PORT:-8071}"
+    volumes:
+      - ./config/odoo-enterprise-20241208.conf:/etc/odoo/odoo.conf:ro
+      # Docker Desktop on Windows creates missing source folders despite
+      # create_host_path: false, so scripts/dev.sh checks both sources first.
+      - type: bind
+        source: ${COMMUNITY_SOURCE_20241208:-./.community-source-not-configured}/odoo
+        target: /usr/lib/python3/dist-packages/odoo
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${COMMUNITY_SOURCE_20241208:-./.community-source-not-configured}/addons
+        target: /mnt/community-addons
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ENTERPRISE_ADDONS:-./.enterprise-addons-not-configured}
+        target: /mnt/enterprise-addons
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./addons:/mnt/extra-addons
+      # Own data volume: never shares filestores or sessions with other services.
+      - odoo-ee-20241208-data:/var/lib/odoo
+    restart: "no"
+
 volumes:
   db-data:
   odoo-data:
   odoo-ee-data:
+  odoo-ee-20241208-data:

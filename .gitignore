@@ -17,6 +17,7 @@ sessions/
 # Empty folder Docker Desktop creates if compose runs odoo-ee without
 # ENTERPRISE_ADDONS; the Enterprise source itself always stays outside the repo.
 .enterprise-addons-not-configured/
+.community-source-not-configured/
 *.dump
 *.sql.gz
 

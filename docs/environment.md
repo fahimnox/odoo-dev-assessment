@@ -6,7 +6,9 @@ Set up and verified in Stage 01 on 2026-11-01 (Community). Extended in Stage 01B
 
 - **Enterprise (target):** service `odoo-ee`, http://127.0.0.1:8070, databases `azk_ent` (development, demo data), `azk_ent_test` and `azk_ent_clean`. It runs the image's Community server with a private Enterprise addons folder on the addons path, which is how the official documentation describes running Enterprise.
 - **Community (Stage 01 baseline):** service `odoo`, http://127.0.0.1:8069, databases `azk_dev`, `azk_test` and `azk_clean`. Unchanged since Stage 01; its results are baseline evidence, not Enterprise acceptance.
-- `scripts/dev.sh` works on one edition at a time, chosen by `ODOO_EDITION` (environment or `.env`; default `community`). In this workspace `.env` sets `enterprise`. Example: `ODOO_EDITION=community scripts/dev.sh test`.
+- **Enterprise, matched pair (`enterprise-20241208`, Stage 01B follow-up of 2026-11-05):** service `odoo-ee-20241208`, http://127.0.0.1:8071, databases `azk_ee24` (development, demo data), `azk_ee24_test` and `azk_ee24_clean`. It runs the official Community source `odoo/odoo@4e5027c1`, mounted read-only over the image's own Odoo package, with the Enterprise addons of the same build 18.0+e.20241208. The image still provides Python, its libraries and wkhtmltopdf. Sources: `COMMUNITY_SOURCE_20241208`, `ENTERPRISE_ADDONS` and `ENTERPRISE_EXTRA_20241208` in `.env`.
+- The `enterprise` edition above (the Stage 01B pair) is blocked by a vendor test failure and kept only so that `azk_ent` stays usable with the core that created it.
+- `scripts/dev.sh` works on one edition at a time, chosen by `ODOO_EDITION` (environment or `.env`; default `community`). In this workspace `.env` sets `enterprise-20241208` (the matched pair) since 2026-11-05; before that it set `enterprise`. Example: `ODOO_EDITION=community scripts/dev.sh test`.
 
 ## Route and why
 
@@ -28,10 +30,14 @@ Set up and verified in Stage 01 on 2026-11-01 (Community). Extended in Stage 01B
 - Both images were pulled by digest, so no local image tag was moved (other projects use `postgres:16-alpine` and `postgres:18`).
 - Community core revision: the image's `odoo/release.py` records the git heads of its nightly build, `odoo` `8e50ecb100695e2d4c98bf3bd88463f2cfb53cad` (and `enterprise` `08df1575b018ef7682a40b1ddac26c7fcde6b983`, `design-themes` `9a621969625c30867e90608796d2c84465a23350`, which are not part of the public image).
 - Enterprise addons (Stage 01B): build `18.0+e.20241208` (Odoo 18.0 Enterprise nightly source tarball of 2024-12-08, supplied by the company; no git metadata). Curated copy of the 620 Enterprise-repository modules in `<kit-root>/runtime/enterprise/18.0-20241208/`: 27,897 files, 404,523,903 bytes, tree SHA-256 `f2c60cc6b5145e41bafe9271f36840900e4bc44b3ef963201b2c342bf369b499` (from `SHA256SUMS.txt` in that folder). Same 18.0 release branch as the core; about 22 months older.
-- **Unresolved compatibility blocker (2026-11-04):** the Stage 01B pair above (2026 core with 2024 Enterprise addons) fails the vendor test `TestTrialBalanceReport.test_trial_balance_comparisons`. The user decided that the Enterprise environment stays blocked until a verified matched pair passes all eight tests.
-- Matched pair identified on 2026-11-04, **not set up yet** (blocked by disk space; see [enterprise_transition.md](enterprise_transition.md#compatibility-follow-up-2026-11-04)):
-  - Community `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453` (18.0, 2024-12-08 01:24:52 UTC). Verified by git blob SHA as the Community source of the archive's build: 36,514 identical files and 10 explained differences.
-  - Enterprise build 18.0+e.20241208, 623 modules: the 620-module folder above plus `<kit-root>/runtime/enterprise/18.0-20241208-moved-to-community/` (`certificate`, `l10n_it_edi_website_sale`, `project_hr_skills`), tree SHA-256 `ec0225f50aacc43c90c38fdc2c80a88c2e1ce16705e8203c91ce47a79e9482c4`.
+- **Compatibility blocker (2026-11-04), resolved 2026-11-05 by the matched pair:** the Stage 01B pair above (2026 core with 2024 Enterprise addons) fails the vendor test `TestTrialBalanceReport.test_trial_balance_comparisons`, and it stays blocked.
+- **Matched pair (edition `enterprise-20241208`, the default since 2026-11-05):**
+  - Community: `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453` (18.0, 2024-12-08 01:24:52 UTC). It is the Community source of the archive's build, established by git blob comparison (36,514 identical files, 10 explained differences).
+    - Fetched from GitHub without translations to `<kit-root>/runtime/community/18.0-4e5027c1/`: 21,846 files, all identical to the official tree, 204,583,581 bytes, tree SHA-256 `7699e4183dd7e4c0eb9ab8de93fd126a6ed47273b18849918f44550f19c6e0e6`.
+  - Enterprise: build 18.0+e.20241208, the 620-module folder above (tree SHA-256 `f2c60cc6...b499`).
+  - Corrected 2026-11-05: an extra 3-module folder listed here on 2026-11-04 duplicated modules that the official Community source already contains. It was removed.
+  - Python, libraries and wkhtmltopdf come from the same pinned image.
+  - Server version string: `18.0` (the official source has no nightly date suffix), shown as `18.0+e` once `web_enterprise` loads.
 - With `web_enterprise` loaded, the server reports its version as `18.0+e-20261015` and `server_version_info` `[18, 0, 0, 'final', 0, 'e']`: `web_enterprise/version.py` adds the `+e` marker to the Community build string at import time. It does not mean that the Enterprise addons are from 2026-10-15.
 - Host: Windows 11 Pro 10.0.26200, Intel Core i7-8650U (4 cores, 8 threads), 15.9 GB RAM (3.2 GB free at inspection), 18.0 GB free on C:. Docker Desktop VM: 8 CPUs, 8,263,008,256 bytes of memory. Git Bash with git 2.53.0.windows.2.
 
@@ -78,6 +84,14 @@ odoo-ee container  (same pinned odoo:18.0 image, compose profile "enterprise")
 ```
 
 - Effective addons path, as logged by the server: `/usr/lib/python3/dist-packages/odoo/addons` (image core, always first), `/var/lib/odoo/addons/18.0`, `/mnt/enterprise-addons`, `/mnt/extra-addons`.
+
+Matched-pair service `odoo-ee-20241208` (since 2026-11-05), also sharing the `db` service:
+
+- http://127.0.0.1:8071, with the same port inside the container; it serves only `azk_ee24`.
+- `/usr/lib/python3/dist-packages/odoo` is the official `odoo/` of `<kit-root>/runtime/community/18.0-4e5027c1` (read-only), which hides the image's own Odoo package.
+- `/mnt/community-addons` is the official `addons/` of that folder (read-only), `/mnt/enterprise-addons` is the 620-module Enterprise folder (read-only), and `/mnt/extra-addons` is `./addons`.
+- `/etc/odoo/odoo.conf` comes from `./config/odoo-enterprise-20241208.conf`, and `/var/lib/odoo` is the volume `odoo-ee-20241208-data`.
+- Effective addons path, as logged: `/usr/lib/python3/dist-packages/odoo/addons` (official `base` and core test modules), `/var/lib/odoo/addons/18.0`, `/mnt/community-addons`, `/mnt/enterprise-addons`, `/mnt/extra-addons`.
 - Compose project name: `azk-odoo-assessment`. Its network and volumes are prefixed with that name, so they cannot collide with other projects.
 - Odoo core stays inside the image. It is not vendored into this repository and not modified.
 - Matching source for reading: `scripts/dev.sh source` copies `/usr/lib/python3/dist-packages/odoo` from the same pinned image to `../runtime/odoo18` (outside this repository), without translations. This is the exact code that runs. On Windows a few font symlinks cannot be created; code files are unaffected.
@@ -103,7 +117,8 @@ odoo-ee container  (same pinned odoo:18.0 image, compose profile "enterprise")
 - `azk_clean`: disposable. Every `scripts/dev.sh clean-install` run drops and recreates it.
 - `scripts/dev.sh reset-db NAME` accepts only `azk_test` or `azk_clean`. It drops that database (`dropdb --force`) and its filestore folder `/var/lib/odoo/filestore/NAME`, and refuses any other name.
 - Removing the Docker volumes (`docker compose down --volumes`) deletes all databases and filestores. No script does that.
-- Enterprise (Stage 01B): `azk_ent` is the development database with demo data, created by `scripts/dev.sh setup` in Enterprise mode with `web_enterprise`, `accountant` and both addons (93 modules). The Enterprise web server serves only `azk_ent`. `azk_ent_test` and `azk_ent_clean` are disposable, like their Community counterparts.
+- Enterprise (Stage 01B): `azk_ent` is the development database with demo data, created by `scripts/dev.sh setup` in Enterprise mode with `web_enterprise`, `accountant` and both addons (93 modules). The Enterprise web server serves only `azk_ent`. `azk_ent_test` and `azk_ent_clean` are disposable, like their Community counterparts. Since 2026-11-05 this pair is blocked, and the database is kept only as preserved evidence.
+- Matched pair (2026-11-05): `azk_ee24` is the development database with demo data, created fresh by `scripts/dev.sh setup` in edition `enterprise-20241208` with `web_enterprise`, `accountant` and both addons (92 modules); its web server serves only `azk_ee24`. `azk_ee24_test` and `azk_ee24_clean` are disposable. `azk_ent` was never opened by this core.
 - Each edition keeps to its own databases: `scripts/dev.sh` refuses `azk_ent*` names in Community mode and any other name in Enterprise mode. `web_enterprise` auto-installs as soon as `web` is installed, so running a Community database with the Enterprise addons path would convert it on the next install.
 - `azk_ent` is unregistered (trial). Registration needs the employer's subscription code; see [enterprise_transition.md](enterprise_transition.md).
 
@@ -166,11 +181,27 @@ ODOO_EDITION=community scripts/dev.sh test                                    # 
 - Harmless log noise: the Odoo shell prints "Warn: Can't find .pfb for face 'Courier'" when it starts, and docutils prints two RST formatting messages while the core `mail` module installs. Neither affected the checks below.
 - `scripts/dev.sh source` reports "Cannot create symlink" for a few font files on Windows. This is expected.
 - "ODOO_EDITION=enterprise needs ENTERPRISE_ADDONS" or "has no web_enterprise module": set `ENTERPRISE_ADDONS` in `.env` to the Enterprise addons folder (the one that directly contains `web_enterprise/`). `scripts/dev.sh` checks this before every Enterprise command. Raw `docker compose` commands do not: on this host Docker Desktop silently creates a missing bind-mount folder (despite `create_host_path: false`) and starts Odoo without the Enterprise addons. Use `scripts/dev.sh`, and delete any empty folder created that way.
-- "the enterprise edition only uses azk_ent* databases" or "is an Enterprise database": the command targeted the other edition's database. Switch `ODOO_EDITION` instead of forcing it.
+- "'<db>' belongs to the <edition> edition, not <edition>": the command targeted another edition's database. Database prefixes decide the owner: `azk_ent*` belongs to `enterprise`, `azk_ee24*` to `enterprise-20241208`, everything else to `community`. Switch `ODOO_EDITION` instead of forcing it. This also guarantees that no older core ever opens `azk_ent`.
+- "COMMUNITY_SOURCE_20241208 (...) has no odoo/addons/base/__manifest__.py" (or the same for `ENTERPRISE_EXTRA_20241208`): a source folder of the matched pair is missing or incomplete. See [enterprise_transition.md](enterprise_transition.md) for how it was fetched and pinned.
 - Enterprise PDF without styling, with "wkhtmltopdf: Exit with code 1 due to network error: ConnectionRefusedError" in the log: wkhtmltopdf runs inside the container and downloads the CSS from `report.url` or else `web.base.url`, which a browser login sets to the host URL. That is why `odoo-ee` listens on the same port inside and outside the container. If you change `ODOO_EE_HTTP_PORT`, recreate the service (`docker compose up -d odoo-ee`, or `stop` then `start`). The Community service has the same constraint with `ODOO_HTTP_PORT`: its container port is fixed at 8069.
 - Low disk space: Docker Desktop keeps all images, containers and volumes in one virtual disk (`%LOCALAPPDATA%\Docker\wsl\disk\docker_data.vhdx`, 14.6 GB on 2026-11-03). It grows with every write, including test runs and PostgreSQL WAL, and does not shrink by itself. Pruning inside Docker frees space for reuse but returns none to Windows. Keep several GB free on C: before long test runs: a full disk can damage the PostgreSQL cluster that holds every assessment database. On 2026-11-03 C: had 2.0 GB free, so the full vendor `account_reports` suite was stopped. On 2026-11-04 C: had 2.5 GB, then 1.5 to 1.7 GB free while the agent was only reading files, so the matched-pair setup was not started. Large items on C: then were `pagefile.sys` (10.9 GB, system-managed; it usually shrinks after a restart), `hiberfil.sys` (6.8 GB) and Docker's disk (14.6 GB, holding 12 GB). Drive D: had 8.5 GB free.
 - Registration or expiration banner in the Enterprise web client: expected for an unregistered trial database. Registering needs the employer's subscription code; don't edit the `database.*` parameters to hide it.
 - `release.version` shows `18.0+e-20261015`: added by `web_enterprise` at import time; the Enterprise addons are still the 2024-12-08 build (see [Pinned versions](#pinned-versions)).
+
+## Verification results (2026-11-05, matched pair)
+
+All on fresh databases, final configuration. Details and log names are in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
+
+- Community source fetched from GitHub and verified: 21,846 of 21,846 files identical to the official tree of `4e5027c1`: PASS.
+- `scripts/dev.sh` guards of the new edition (10 refusal cases): PASS.
+- `scripts/dev.sh test account_reports /account_reports:TestTrialBalanceReport`: 8 tests, 0 failed, 0 errors, including `test_trial_balance_comparisons`: PASS.
+- `scripts/dev.sh test` (both custom addons): 4 tests, 0 failed, 0 errors: PASS.
+- `scripts/dev.sh setup` (`azk_ee24`, 92 modules) and the Odoo shell checks: PASS.
+- `scripts/dev.sh start` with HTTP login, the web client, the asset bundles and the native report RPC: PASS.
+- Native Trial Balance lines, PDF (one page, rendered inside the server) and XLSX: PASS.
+- Server log: 0 warnings, 0 errors.
+- NOT RUN: a browser check of this environment (manual), and the full vendor accounting suite (outside the agreed checks).
+- Disk: 16.8 to 19 GB free during the work, watched by a background monitor.
 
 ## Verification results (2026-11-01)
 

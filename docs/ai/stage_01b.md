@@ -514,3 +514,213 @@ Compatibility follow-up: stopped before setup, and the Enterprise environment st
 Stopping here, as asked. Stage 02 does not start until the blocker is resolved.
 
 ---
+
+## Follow-up continuation (2026-11-05): matched pair set up and validated
+
+Between the follow-up above and this continuation, the user made an unrelated machine-maintenance request (freeing disk space outside the project). It is not part of the assessment work and is not reproduced here.
+
+### User prompt (verbatim)
+
+The whole message was pasted text.
+
+```text
+<pasted_content id="91b6">
+I have finished freeing disk space on C:.
+
+Recheck the actual available space, then resume the Stage 01B
+compatibility follow-up from commit 658da7c.
+
+Read solution/AGENTS.md, docs/STATE.md, and the continuation plan
+in docs/enterprise_transition.md. Reuse the completed source
+comparisons and verified pins.
+
+Proceed with:
+1. Fetching the verified clean Community source.
+2. Configuring the matched core and Enterprise addons in the
+   isolated service on port 8071, using fresh databases.
+3. Running all eight TestTrialBalanceReport tests, the custom
+   addon tests, and login, Trial Balance, PDF, and XLSX smoke checks.
+
+Preserve azk_dev, azk_ent, their existing services, and backups.
+Keep the other project's Docker resources unchanged.
+
+Monitor disk space during the work. Keep validation limited to
+the agreed checks.
+
+Record actual results and update the handoff and STATE.
+If all required checks pass, report that Stage 02 is ready.
+Otherwise, report the precise remaining blocker.
+
+Use English only. Stop before executing Stage 02.
+</pasted_content id="91b6">
+```
+
+### Conversation during the continuation (recorded text, verbatim, in order)
+
+Continuation assistant message 1:
+
+> I'll recheck the disk first, then read the files you named.
+
+Continuation assistant message 2:
+
+> One inconsistency to fix first: the Enterprise copies' digests sort the checksum lines by path, but I sorted by the full line here. Making it identical so all three digests use one method:
+
+Continuation assistant message 3:
+
+> While the download runs, I'll prepare the isolated service. It is new and separate: the existing `odoo` and `odoo-ee` services, their databases and volumes stay untouched. First its config file:
+
+Continuation assistant message 4:
+
+> Updating the Compose header to list the third service:
+
+Continuation assistant message 5:
+
+> Now the environment template, the local `.env` (three non-secret keys appended, no values printed), and the placeholder folders in `.gitignore`:
+
+Continuation assistant message 6:
+
+> The configuration is in place and port 8071 is free. The download is the next dependency, so I'm checking it:
+
+Continuation assistant message 7:
+
+> Still downloading. Meanwhile, validating the Compose file and the new service's resolved mounts (without printing the environment, which holds the password):
+
+Continuation assistant message 8:
+
+> My inline script had a backslash-escaping slip in the path replacement (the Compose config itself is valid). Rerunning without the cosmetic replacement:
+
+Continuation assistant message 9:
+
+> The documentation now waits on the test result, so I'm waiting for the test run to finish:
+
+Continuation assistant message 10:
+
+> The monitor shows 16,847 MB free: about 260 MB used so far, which fits the 205 MB source plus the new databases. Waiting for the chain:
+
+Continuation assistant message 11:
+
+> My comparison tripped over translation files: the extra copy has them, while the fetched source excludes `i18n/` by design. Rerunning without translations:
+
+Continuation assistant message 12:
+
+> Now removing the extra source from `dev.sh`, the template, `.gitignore` and the local `.env` (one non-secret line deleted):
+
+Continuation assistant message 13:
+
+> Correcting each statement in place, starting with `enterprise_transition.md`:
+
+Continuation assistant message 14:
+
+> Now the same correction in `environment.md`, `assumptions.md`, `STATE.md`, the handoff and the kit `CLAUDE.md`:
+
+Continuation assistant message 15:
+
+> The remaining statements, in `STATE.md` and the kit `CLAUDE.md` editions paragraph, will be rewritten with the final results. Waiting for the final-configuration test runs:
+
+Continuation assistant message 16:
+
+> The browser-check steps further down still point to port 8070; fixing that line:
+
+Continuation assistant message 17:
+
+> More `environment.md` updates: the default edition, the databases, the architecture note, and a 2026-11-05 results section that points to the detailed record.
+
+Continuation assistant message 18:
+
+> Next, the databases line and the open items in `STATE.md`:
+
+Continuation assistant message 19:
+
+> That note refers to my own scripted edit of `STATE.md`; no stale "623" or "BLOCKED" text remains there. Now the assumptions (A-10, A-12) and the requirements matrix row C-01:
+
+Continuation assistant message 20:
+
+> Now the handoff: the status at the top, a continuation section, and the next step, which is Stage 02 again:
+
+Continuation assistant message 21:
+
+> The handoff's manual-check section still names port 8070; checking for stale port references:
+
+Continuation assistant message 22:
+
+> Two more kit `CLAUDE.md` lines are now stale: the "two editions" intro and the bullet naming the source folders to read APIs from.
+
+Continuation assistant message 23:
+
+> The docs are updated. Next, the AI log and its mistakes table. The main error to record is my 2026-11-04 misclassification of the three modules; I also had two small script slips today.
+
+Continuation assistant message 24:
+
+> Now the final response and the labeled summary for the AI log:
+
+### Notes on accuracy
+
+- As above, intermediate messages that the CLI stored only in condensed form are not reproduced; the results are recorded with evidence in `docs/enterprise_transition.md` (section "Follow-up continuation").
+- This section was assembled from the transcript just before its own commit. The few short progress messages written after that point, while committing, are not included; the final response is.
+
+### Summary of tool activity (summary, not verbatim)
+
+1. Checked free space first: C: had 17 GB, and Docker's disk was 15.43 GB. Git was clean at `658da7c`. Our containers were stopped; the other project's five containers were running and were not touched. Read `AGENTS.md`, `docs/STATE.md` and the continuation plan.
+2. Armed a background disk monitor: every 30 seconds, it reports below 8 GB and below 5 GB. It ran twice for 30 minutes and never reported anything.
+3. Re-fetched the official tree of `4e5027c1` from the GitHub API (no symlinks or submodules). Streamed the official GitHub archive of that commit, without `i18n/`, into `<kit-root>/runtime/community/18.0-4e5027c1/` (529 s). Checked every file by git blob SHA-1 (21,846 identical, nothing missing or extra) and wrote `SHA256SUMS.txt`.
+4. Added the service `odoo-ee-20241208` to `compose.yaml`, `config/odoo-enterprise-20241208.conf`, the `dev.sh` edition `enterprise-20241208` with prefix-based database ownership and source checks, and the `.env.example` keys. Appended the keys to the local `.env` without printing values, validated the Compose configuration, and ran 10 refusal cases with no container started.
+5. Ran `TestTrialBalanceReport` (8 of 8), the custom tests (4 of 4) and `setup` (`azk_ee24`, 92 modules) on fresh databases.
+6. The shell verification showed `certificate` loading from the official Community folder. Checked the three modules against the official tree and found them to be Community-repository modules, with an OEEL-1 license key. Removed the redundant extra folder from the configuration and deleted it. Reran both test commands on the final configuration: 8 of 8 and 4 of 4.
+7. Started the server on 8071. Ran the HTTP smoke checks (login, web client, bundles, report RPC, refusal without a session), the PDF and XLSX rendering inside the running server (with `pdftotext` on the PDF), and the shell verification on the final configuration, and scanned the server log (0 warnings).
+8. Set `ODOO_EDITION=enterprise-20241208` in the local `.env`.
+9. Updated `docs/enterprise_transition.md`, `docs/environment.md`, `docs/STATE.md`, `docs/assumptions.md`, `docs/requirements_matrix.md`, `docs/handoffs/stage_01b_en.md`, `docs/ai/README.md`, this log, and the kit-root `CLAUDE.md` (outside Git). Scanned the changes for secret values, absolute paths and non-ASCII text, and committed only the intended files.
+
+### Assistant final response (verbatim)
+
+Everything between the two rules below is the final visible response.
+
+---
+
+Stage 01B is complete and **Stage 02 is ready**. The matched pair passed every agreed check on fresh databases, and the compatibility blocker is resolved.
+
+**Disk**
+- C: had 17 GB free at the start. A background monitor checked every 30 seconds; free space stayed between 16.8 and 19 GB and never came near the 8 GB warning level.
+
+**1. Clean Community source, fetched and verified**
+- I streamed the official GitHub archive of `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453`, without translations, into the kit's `runtime/community/18.0-4e5027c1/`.
+- All 21,846 files are identical to the official tree by git blob hash: 0 different, 0 missing, 0 extra. Pinned with tree SHA-256 `7699e418...e0e6`.
+
+**2. Matched pair on port 8071**
+- New service `odoo-ee-20241208`:
+  - the same pinned image, which provides Python, its libraries and wkhtmltopdf;
+  - the official `odoo/` mounted read-only over the image's Odoo package;
+  - the official `addons/`, the 620 Enterprise modules (`f2c60cc6...b499`) and our addons;
+  - its own volume, serving only `azk_ee24`.
+- New `dev.sh` edition `enterprise-20241208`, now the default in `.env`. Each database belongs to one edition by prefix (`azk_ent*`, `azk_ee24*`, the rest Community). I verified 10 refusal cases, so no other core can open `azk_ent`.
+- Correction to my 2026-11-04 work: `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills` are part of the official Community source (their manifests just say OEEL-1 there); they are not Enterprise modules. The extra 3-module folder was redundant. I removed it from the configuration, deleted it, and reran both test commands on the final configuration.
+
+**3. Checks (fresh databases, final configuration)**
+- PASS: `TestTrialBalanceReport`, 8 of 8, including `test_trial_balance_comparisons`, with 0 warnings.
+- PASS: custom addon tests, 4 of 4.
+- PASS: `azk_ee24` created with web_enterprise, accountant, both addons and demo data: 92 modules, 0 warnings.
+- PASS: login over HTTP (uid 2, version `18.0+e`), the web client and its bundles, the report RPC, and refusal without a session.
+- PASS: native Trial Balance (balanced and net-side), PDF (one page with header and footer, rendered inside the server) and XLSX (a valid workbook). Server log: 0 warnings.
+- NOT RUN: a browser check of the new environment (I have no browser; it's recommended but wasn't among the agreed checks), and the full accounting suite (excluded as agreed).
+
+**Preserved**
+- `azk_dev`, `azk_ent`, the `odoo` and `odoo-ee` services and volumes, the backups, and the other project's containers. The Stage 01B pair stays blocked and is kept only as evidence.
+
+**Recommended before Stage 02 (about 5 minutes)**
+- Browser check: run `scripts/dev.sh start`, open http://127.0.0.1:8071/web/login (admin/admin), open Accounting > Reporting > Trial Balance, click PDF and Download Excel, then search `azk` in Apps.
+
+**Changed files**
+- `compose.yaml` (service `odoo-ee-20241208`), `config/odoo-enterprise-20241208.conf` (new), `scripts/dev.sh` (edition `enterprise-20241208`; `resolve_path`, `require_source`, `db_edition`, `check_db_edition`, `check_enterprise_addons`), `.env.example`, `.gitignore`.
+- `docs/enterprise_transition.md`, `docs/environment.md`, `docs/STATE.md` (Stage 01B: DONE), `docs/assumptions.md` (A-12 validated), `docs/requirements_matrix.md` (C-01: DONE), `docs/handoffs/stage_01b_en.md`, `docs/ai/stage_01b.md`, `docs/ai/README.md`.
+- Outside Git: the kit `CLAUDE.md`, the new `runtime/community/18.0-4e5027c1/`, the deleted redundant 3-module folder, and the local `.env`.
+- Commit: "Stage 01B: validate the matched Enterprise pair on port 8071".
+
+**Comprehension questions**
+1. Why does mounting the official `odoo/` folder over the image's Odoo package not count as patching vendor code?
+2. What could go wrong if `azk_ent`, created by the 2026 core, were opened by the 2024 core?
+3. Why was a matching build date not accepted as proof that `4e5027c1` is the build's Community revision, and what was?
+
+I'm stopping here, as asked. When you're ready:
+
+Read prompts/02_requirements_and_design.txt and execute Stage 02 only, following solution/AGENTS.md.
+
+---

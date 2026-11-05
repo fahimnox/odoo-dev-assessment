@@ -1,15 +1,16 @@
 # Project state
 
-_Last updated: 2026-11-04, Stage 01B compatibility follow-up (stopped, blocked by disk space)._
+_Last updated: 2026-11-05, end of the Stage 01B compatibility follow-up._
 
 ## Current position
 
-- **Stage 01B: BLOCKED. The Enterprise environment is not ready.**
-  - The Stage 01B pair (2026 core with 2024 Enterprise addons) fails `TestTrialBalanceReport.test_trial_balance_comparisons`, and the user has made that an unresolved compatibility blocker (2026-11-04).
-  - The follow-up identified and content-verified the matched pair: official `odoo/odoo` `4e5027c1` with the 623 Enterprise modules of build 18.0+e.20241208. Its validation was NOT RUN because drive C: had only 1.5 to 1.7 GB free.
-  - Details in [enterprise_transition.md](enterprise_transition.md#compatibility-follow-up-2026-11-04).
-- **Next step:** free space on drive C: (at least 5 GB), then finish the compatibility follow-up: fetch the pinned Community source, set up the matched-pair service, and run the eight vendor tests, the custom tests and the smoke checks on fresh databases. Stage 02 waits until the blocker is resolved.
-- **Browser check:** reported done by the user on the Stage 01B environment (2026-11-04 message, no detailed results given). The agent did not run it, and it does not resolve the blocker.
+- **Stage 01B: DONE. The compatibility blocker is resolved by the matched pair, and Stage 02 is ready.**
+  - Matched pair: official `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453` (fetched from GitHub; 21,846 files verified identical) with the 620 Enterprise-repository modules of build 18.0+e.20241208.
+  - It runs as edition `enterprise-20241208` (service `odoo-ee-20241208`, databases `azk_ee24*`, port 8071), which is the default in `.env`.
+  - On fresh databases: all eight `TestTrialBalanceReport` tests passed, including `test_trial_balance_comparisons`; the custom addon tests passed 4 of 4; and the login, Trial Balance, PDF and XLSX smoke checks passed.
+  - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
+- **Next stage:** 02 - requirements, assumptions, architecture and acceptance plan, on edition `enterprise-20241208`.
+- **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. No browser check of the matched-pair environment (port 8071) has been done yet; the agent has no browser here. It was not part of the agreed checks, but is recommended (steps in [enterprise_transition.md](enterprise_transition.md)).
 - **Business features implemented:** none. Both addons are installable skeletons with smoke tests.
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
@@ -17,6 +18,14 @@ _Last updated: 2026-11-04, Stage 01B compatibility follow-up (stopped, blocked b
   - Community baseline: `ODOO_EDITION=community scripts/dev.sh test`, 4 tests, 0 failed, 0 errors.
   - Vendor `account_reports` Trial Balance class on our runtime: 7 of 8 passed (one known incompatibility); the same class on the archive's matched 2024 build: 8 of 8. The full vendor suite was NOT RUN: it was stopped because drive C: was nearly full.
 - **Checks run on 2026-11-04 (follow-up):** read-only content verification against official GitHub trees, not tests. `odoo/odoo@4e5027c1`: 36,514 of 37,496 files identical, 10 explained differences. `design-themes@3057d466`: 4,266 of 4,268 identical. No server, database or test run.
+- **Checks run on 2026-11-05 (continuation, matched pair, fresh databases):**
+  - source verification: 21,846 of 21,846 files identical;
+  - `TestTrialBalanceReport`: 8 of 8;
+  - custom addon tests: 4 of 4;
+  - `azk_ee24` setup: 92 modules, 0 warnings;
+  - shell, HTTP, PDF and XLSX smoke checks: PASS;
+  - server log: 0 warnings.
+  - Both test commands were rerun on the final configuration after removing a redundant mount.
 
 ## Stage status
 
@@ -24,7 +33,7 @@ _Last updated: 2026-11-04, Stage 01B compatibility follow-up (stopped, blocked b
 |---|---|---|
 | 00 | Operating contract | DONE |
 | 01 | Environment (Community baseline) | DONE |
-| 01B | Enterprise transition | BLOCKED: unresolved compatibility blocker; matched pair identified, validation waits for disk space |
+| 01B | Enterprise transition | DONE (2026-11-05): matched pair validated; the Stage 01B pair stays blocked and preserved |
 | 02 | Requirements, assumptions, architecture | NOT STARTED |
 | 03 | Partner Monitor models, permissions, basic UI | NOT STARTED |
 | 04 | Partner scraping | NOT STARTED |
@@ -44,13 +53,14 @@ _Last updated: 2026-11-04, Stage 01B compatibility follow-up (stopped, blocked b
 
 - Exercises 1 (`azk_odoo_partner_monitor`) and 2 (`azk_dynamic_trial_balance`); Exercise 3 out of scope. See [assumptions.md](assumptions.md) A-01, A-03.
 - Odoo Enterprise is the target (A-08, clarification C-01 dated 2026-11-03). Odoo 18.0 is provisional (A-09). Justified Enterprise dependencies such as `account_reports` are allowed and must be declared; the native Trial Balance is a baseline, not proof that the assessment is met.
-- Enterprise runtime (A-10): the pinned image's Community core 18.0-20261015 with the company-supplied Enterprise addons, build 18.0+e.20241208, as service `odoo-ee` serving `azk_ent` on 127.0.0.1:8070. It is **blocked** by the failing vendor test, and is kept, together with `azk_ent`, only as preserved evidence. The candidate replacement is the matched pair of A-12. The Community baseline (`odoo`, `azk_dev`, 8069) is kept for comparison. See [environment.md](environment.md) and [enterprise_transition.md](enterprise_transition.md).
-- No older core ever opens `azk_ent` (it was initialized by the 2026 core); a matched pair gets its own fresh databases.
-- `scripts/dev.sh` selects the edition with `ODOO_EDITION` (`enterprise` in this workspace's `.env`) and refuses the other edition's databases.
-- The Enterprise source stays private, outside this repository: a curated copy in `<kit-root>/runtime/enterprise/18.0-20241208/`, pinned by a tree digest. It is referenced by names only, never copied or quoted.
+- **Enterprise runtime (A-12):** the matched pair as edition `enterprise-20241208`: service `odoo-ee-20241208` serving `azk_ee24` on 127.0.0.1:8071, with the official Community source `odoo/odoo@4e5027c1` mounted over the pinned image's package and the 620 Enterprise modules of build 18.0+e.20241208. See [environment.md](environment.md) and [enterprise_transition.md](enterprise_transition.md).
+- The Stage 01B pair (A-10: the 2026 core with the same Enterprise addons, service `odoo-ee`, `azk_ent`, port 8070) is blocked by the vendor test failure and kept only as preserved evidence. The Community baseline (`odoo`, `azk_dev`, 8069) is kept for comparison.
+- Each database belongs to one edition by prefix (`azk_ent*`, `azk_ee24*`, otherwise Community), and `scripts/dev.sh` refuses the others. So no older core ever opens `azk_ent`, which the 2026 core initialized.
+- `scripts/dev.sh` selects the edition with `ODOO_EDITION` (`enterprise-20241208` in this workspace's `.env`).
+- The Enterprise source stays private, outside this repository: a curated copy in `<kit-root>/runtime/enterprise/18.0-20241208/`, pinned by a tree digest. It is referenced by names only, never copied or quoted. The official Community source is in `<kit-root>/runtime/community/18.0-4e5027c1/`, also outside the repository and pinned.
 - This repository holds the solution only. The assessment PDF and prompt kit live in the parent kit directory and are never committed.
 - English only for terminal output, new documentation, code comments and commit messages (AGENTS.md rule 7, set by correction R0). Each stage also writes an English handoff to [handoffs/](handoffs/) (AGENTS.md rule 9).
-- Databases: `azk_ent` (Enterprise development, demo data), `azk_ent_test` and `azk_ent_clean` (disposable); `azk_dev` (Community development), `azk_test` and `azk_clean` (disposable). See [environment.md](environment.md) and A-04 to A-07.
+- Databases: `azk_ee24` (Enterprise development on the matched pair, demo data), `azk_ee24_test` and `azk_ee24_clean` (disposable); `azk_ent` (Stage 01B pair, preserved, blocked), `azk_ent_test` and `azk_ent_clean`; `azk_dev` (Community development), `azk_test` and `azk_clean` (disposable). See [environment.md](environment.md) and A-04 to A-07.
 
 ## Corrections applied
 
@@ -63,14 +73,14 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 
 ## Open items
 
-- **Disk space (blocking, user):** drive C: had 2.5 GB free at the start of the 2026-11-04 follow-up and 1.5 to 1.7 GB during it. At least 5 GB are needed for the matched-pair validation. The options and their trade-offs are listed in the Stage 01B handoff.
-- **Compatibility blocker (unresolved):** the Stage 01B pair fails `test_trial_balance_comparisons` ("division by zero" for reports across companies with different currencies). The fix is the matched pair `odoo/odoo@4e5027c1` with Enterprise 18.0+e.20241208 (A-12), which still needs validation on fresh databases.
-- **Browser check:** reported done by the user on the Stage 01B environment (no detailed results given). A browser check of the matched-pair environment will be needed once it exists.
+- **Disk space:** resolved by the user before the 2026-11-05 continuation. C: had 17 to 19 GB free during the work. Keep several GB free before long test runs (see [environment.md](environment.md)).
+- **Compatibility blocker:** resolved on 2026-11-05 for the matched pair (all eight `TestTrialBalanceReport` tests pass). The Stage 01B pair still fails `test_trial_balance_comparisons` and stays blocked; it is kept only for `azk_ent`.
+- **Browser check (user, recommended):** the user reported a browser check of the Stage 01B environment (no detailed results given). The matched-pair environment on port 8071 has not been checked in a browser yet; steps are in [enterprise_transition.md](enterprise_transition.md).
 - **Enterprise source verification:** the Enterprise files cannot be checked against an official baseline without access to the private repository. Only the tarball's file list and timestamps support them.
 - **Matched Enterprise build for the 2026 core:** question Q-05 for the team lead. It would be an alternative to the 2024 pair.
-- **Extracted archive:** after the 2026-11-04 copy of the 3 remaining Enterprise modules, no runtime needs `<kit-root>/odoo/odoo18`. Deleting it (1.76 GB) is the user's decision, and only sensible if the original archive file is kept elsewhere.
+- **Extracted archive:** no runtime needs `<kit-root>/odoo/odoo18`: the matched pair uses the official Community source and the 620-module Enterprise copy. Deleting it (1.76 GB) is the user's decision, and only sensible if the original archive file is kept elsewhere.
 - **Decision for the user:** the supplied archive contains an earlier implementation of this assessment's modules (`projects/assessment/`, not opened or used). Whether to mention it to the team lead is the user's decision.
-- **Subscription:** `azk_ent` is an unregistered trial; registering needs the employer's subscription code.
+- **Subscription:** `azk_ee24` and `azk_ent` are unregistered trials; registering needs the employer's subscription code.
 - Clarifications Q-02 to Q-05 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked.
 - Ambiguities D-01 to D-07 are to be resolved in Stage 02; D-01, D-04 and D-07 now carry observations from the native Trial Balance.
 - Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06).

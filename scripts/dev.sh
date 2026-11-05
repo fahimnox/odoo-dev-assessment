@@ -21,12 +21,17 @@ env_file_value() {
     grep -E "^$1=" .env | tail -n 1 | cut -d= -f2- || true
 }
 
-# Edition: "community" (the Stage 01 baseline) or "enterprise" (the confirmed
-# target, Stage 01B). Set ODOO_EDITION in .env, or per command, for example
-# ODOO_EDITION=community scripts/dev.sh test
+# Edition, set in .env (ODOO_EDITION) or per command:
+#   community            Stage 01 baseline (2026 Community core)
+#   enterprise           Stage 01B pair: 2026 core with 2024 Enterprise addons
+#                        (blocked by a vendor test failure; kept for azk_ent)
+#   enterprise-20241208  matched pair: official Community 4e5027c1 with the
+#                        Enterprise addons of the same 2024-12-08 build
+# Example: ODOO_EDITION=community scripts/dev.sh test
 EDITION="${ODOO_EDITION:-$(env_file_value ODOO_EDITION)}"
 EDITION="${EDITION:-community}"
 ENTERPRISE_ADDONS="${ENTERPRISE_ADDONS:-$(env_file_value ENTERPRISE_ADDONS)}"
+COMMUNITY_SOURCE_20241208="${COMMUNITY_SOURCE_20241208:-$(env_file_value COMMUNITY_SOURCE_20241208)}"
 
 case "$EDITION" in
     community)
@@ -45,7 +50,14 @@ case "$EDITION" in
         # web_enterprise: the Enterprise web client. accountant: the Accounting
         # app, which brings account_accountant and, by auto-install, account_reports.
         SETUP_MODULES="web_enterprise,accountant,$ADDONS_ALL" ;;
-    *) die "ODOO_EDITION must be community or enterprise, not '$EDITION'" ;;
+    enterprise-20241208)
+        SERVICE="odoo-ee-20241208"
+        DEV_DB="azk_ee24"
+        TEST_DB="azk_ee24_test"
+        CLEAN_DB="azk_ee24_clean"
+        PORT_KEY="ODOO_EE_20241208_HTTP_PORT"; PORT_DEFAULT=8071
+        SETUP_MODULES="web_enterprise,accountant,$ADDONS_ALL" ;;
+    *) die "ODOO_EDITION must be community, enterprise or enterprise-20241208, not '$EDITION'" ;;
 esac
 RESETTABLE_DBS=("$TEST_DB" "$CLEAN_DB")  # the only databases this script may drop
 
@@ -58,10 +70,13 @@ usage() {
     cat <<'EOF'
 Usage: scripts/dev.sh COMMAND [ARGS]
 
-The edition comes from ODOO_EDITION (environment or .env): "community"
-(service odoo, databases azk_dev/azk_test/azk_clean, port 8069) or
-"enterprise" (service odoo-ee, databases azk_ent/azk_ent_test/azk_ent_clean,
-port 8070, needs ENTERPRISE_ADDONS). Default: community.
+The edition comes from ODOO_EDITION (environment or .env), default community:
+  community            service odoo, databases azk_dev/azk_test/azk_clean, port 8069
+  enterprise           service odoo-ee, databases azk_ent/azk_ent_test/azk_ent_clean,
+                       port 8070, needs ENTERPRISE_ADDONS (Stage 01B pair, blocked)
+  enterprise-20241208  service odoo-ee-20241208, databases azk_ee24/azk_ee24_test/
+                       azk_ee24_clean, port 8071, needs COMMUNITY_SOURCE_20241208
+                       and ENTERPRISE_ADDONS (matched pair)
 Example: ODOO_EDITION=community scripts/dev.sh test
 
   setup                     create .env (random passwords) if missing, pull images,
@@ -102,29 +117,55 @@ ensure_env() {
         echo "ODOO_EDITION=community"
         echo "ENTERPRISE_ADDONS="
         echo "ODOO_EE_HTTP_PORT=8070"
+        echo "COMMUNITY_SOURCE_20241208="
+        echo "ODOO_EE_20241208_HTTP_PORT=8071"
     } > .env
 }
 
-# Enterprise commands need a readable Enterprise addons folder.
-check_enterprise_addons() {
-    [[ "$EDITION" == enterprise ]] || return 0
-    [[ -n "$ENTERPRISE_ADDONS" ]] || die "ODOO_EDITION=enterprise needs ENTERPRISE_ADDONS in .env (see .env.example)"
-    local dir="$ENTERPRISE_ADDONS"
+# A relative path from .env is resolved from the repository root, as compose does.
+resolve_path() {
+    local dir="$1"
     [[ "$dir" = /* || "$dir" =~ ^[A-Za-z]: ]] || dir="$REPO_ROOT/$dir"
-    [[ -f "$dir/web_enterprise/__manifest__.py" ]] \
-        || die "ENTERPRISE_ADDONS ($ENTERPRISE_ADDONS) has no web_enterprise module"
+    echo "$dir"
 }
 
-# Keep each edition on its own databases. Opening a Community database with the
-# Enterprise addons path would auto-install web_enterprise into it on the next
-# install, and an Enterprise database cannot load without the Enterprise addons.
-check_db_edition() {
-    local db="$1"
-    if [[ "$EDITION" == enterprise && ! "$db" =~ ^azk_ent(_|$) ]]; then
-        die "the enterprise edition only uses azk_ent* databases, not '$db'"
-    elif [[ "$EDITION" == community && "$db" =~ ^azk_ent(_|$) ]]; then
-        die "'$db' is an Enterprise database; use ODOO_EDITION=enterprise"
+# Require a configured folder (by .env key) that contains the given marker file.
+require_source() {
+    local key="$1" value="$2" marker="$3"
+    [[ -n "$value" ]] || die "ODOO_EDITION=$EDITION needs $key in .env (see .env.example)"
+    [[ -f "$(resolve_path "$value")/$marker" ]] || die "$key ($value) has no $marker"
+}
+
+# Enterprise editions need their source folders before anything starts: Docker
+# Desktop would otherwise create empty folders and start Odoo without them.
+check_enterprise_addons() {
+    case "$EDITION" in
+        enterprise)
+            require_source ENTERPRISE_ADDONS "$ENTERPRISE_ADDONS" web_enterprise/__manifest__.py ;;
+        enterprise-20241208)
+            require_source ENTERPRISE_ADDONS "$ENTERPRISE_ADDONS" web_enterprise/__manifest__.py
+            require_source COMMUNITY_SOURCE_20241208 "$COMMUNITY_SOURCE_20241208" odoo/addons/base/__manifest__.py
+            require_source COMMUNITY_SOURCE_20241208 "$COMMUNITY_SOURCE_20241208" addons/web/__manifest__.py ;;
+    esac
+}
+
+# The edition a database name belongs to (by prefix).
+db_edition() {
+    if [[ "$1" =~ ^azk_ent(_|$) ]]; then echo enterprise
+    elif [[ "$1" =~ ^azk_ee24(_|$) ]]; then echo enterprise-20241208
+    else echo community
     fi
+}
+
+# Keep each edition on its own databases. Opening a Community database with an
+# Enterprise addons path would auto-install web_enterprise into it on the next
+# install, an Enterprise database cannot load without its Enterprise addons, and
+# a database must never be opened by an older core than the one that created it.
+check_db_edition() {
+    local db="$1" owner
+    owner="$(db_edition "$db")"
+    [[ "$owner" == "$EDITION" ]] \
+        || die "'$db' belongs to the $owner edition, not $EDITION; use ODOO_EDITION=$owner"
 }
 
 db_up() { compose up --detach --wait db; }
