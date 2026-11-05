@@ -1,0 +1,440 @@
+# Architecture (Stage 02)
+
+_Written 2026-11-05 in Stage 02. This is the agreed design; nothing in it is implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+
+## 1. Target and sources used
+
+- **Runtime:** edition `enterprise-20241208` (service `odoo-ee-20241208`, port 8071). It is the official Community source `odoo/odoo@4e5027c1` plus the 620 Enterprise modules of build 18.0+e.20241208 (A-12). Odoo Enterprise is confirmed (A-08); the major version 18.0 is provisional (A-09, Q-04).
+- **How the design was checked:** every version-sensitive API below was read in the pinned sources, `runtime/community/18.0-4e5027c1/` and `runtime/enterprise/18.0-20241208/`, both outside this repository. Enterprise code is cited by module, model, method and XML ID names only.
+- **Native Trial Balance probe (2026-11-05):** a read-only script ran the native Trial Balance on a small known dataset in the disposable database `azk_ee24_clean`, then rolled back. Its results are in section 4.8. The full log is private (`<kit-root>/runtime/logs/stage02_native_tb_probe.log`).
+
+## 2. Components
+
+```text
+EXERCISE 1: azk_odoo_partner_monitor (depends: mail; no Enterprise dependency)
+
+  odoo.com/partners (public HTML, untrusted input)
+        |
+        v
+  [Fetch layer]   services/http_client.py   requests: timeouts, limited retries,
+        |                                   polite delay, error classification
+        v  (status, final URL, HTML)
+  [Parse layer]   services/parsers.py       pure functions: HTML -> typed results
+  [URL rules]     services/urls.py          country_id check, canonical identity
+        |  (records + expected counts + completeness flags)
+        v
+  [Sync engine]   models/work_item.py, models/sync_run.py (ORM)
+        |  claim units -> one savepoint per unit -> upsert by source keys
+        |  -> status/reference diffs -> validation flags -> errors
+        v
+  [Business models] country, partner, status.history, reference
+        |
+        v  ORM _read_group as the calling user
+  [Dashboard]  client action (OWL, small) with shared filters
+               + 4 embedded standard graph views defined in XML
+
+  Crons (ir.cron): daily discovery, worker, country validation,
+  reference validation. Producers enqueue work items; only the worker
+  processes them. A failed run posts a note to the configured user.
+
+EXERCISE 2: azk_dynamic_trial_balance (depends: account_reports)
+
+  [Wizard] TransientModel, one record per user and run
+        |  Preview / PDF / XLSX buttons
+        v
+  options = the normalized filter contract (plain JSON-able values)
+        |
+        v
+  [Report adapter] our own account.report record "Dynamic Trial Balance"
+                   + our custom handler (account.report.custom.handler)
+        |  validates every option on every call
+        v
+  [Engine] AbstractModel service: grouped ORM queries on account.move.line
+           -> leaf rows -> hierarchy rows -> totals -> warnings
+        |  one normalized result
+        v
+  native report UI (Preview) | native PDF export | native XLSX export
+  (+ the handler's display hooks, e.g. a PDF header with company and dates)
+```
+
+## 3. Security boundary
+
+```text
+  Browser / RPC client  (untrusted: ids, options, domains, filter values)
+        |  session-authenticated JSON-RPC and HTTP routes
+  ======|=========================== server boundary ===================
+        v
+  Entry points: wizard buttons, report handler, dashboard method,
+                manual sync buttons, download route
+        |  check groups; re-validate every id and option; never trust a
+        |  client-sent company, journal, analytic account or domain
+        v
+  ORM as the calling user: ACLs + record rules (incl. multi-company)
+        |  no blanket sudo(); raw SQL only for row locks, parameterized
+        v
+  PostgreSQL
+```
+
+- **Accounting data** (Exercise 2) is read as the calling user. Every query goes through the ORM's `_read_group` on `account.move.line`, which applies ACLs and record rules. The selected company must be one of the user's active, authorized companies (`env.companies`). Journal and analytic account ids must be readable by the user and belong to that company (analytic accounts may also be shared). These checks run in the engine itself, because the native download route can pass client-sent options straight to the export method.
+- **Wizard isolation:** Odoo 18 has no implicit owner rule for transient models: `BaseModel._check_access` only applies `ir.model.access` and `ir.rule`. So the wizard gets an explicit record rule, `create_uid = user`. Another user's wizard id cannot be read, previewed or exported.
+- **Scraped data** (Exercise 1) is public website data and is not company-specific. It is shared across companies on purpose: no `company_id`, no multi-company rules. Readers can read the business data and the dashboard. Managers can also see sync runs, work items and errors, and can schedule a sync or a retry. Nobody can create status history or edit sync checkpoints through ACLs; only the sync engine writes them.
+- **Cron engine:** crons run as `base.user_root`. In this version `api.Environment` turns superuser mode on for that uid, so the engine bypasses ACLs by design, as every Odoo cron does. Interactive actions never call the engine directly: they enqueue work and call the worker cron's `_trigger()`. `_trigger()` creates an `ir.cron.trigger` record, which only system administrators may create, so this one call uses a narrow, documented `sudo()`.
+- **Untrusted HTML:** parsed text is stored as plain strings and rendered by QWeb/OWL with escaping. Nothing from the site is evaluated, and no site HTML is rendered as markup.
+
+## 4. Exercise 2: Dynamic Trial Balance
+
+### 4.1 Why our own engine inside the native report framework
+
+The native Trial Balance (`account_reports.trial_balance_report`, handler `account.trial.balance.report.handler`, built on `account.general.ledger.report.handler`) lacks several required features:
+
+- the Balance columns;
+- account-prefix filtering;
+- Skip Zero Balance;
+- per-currency rows;
+- a level limit.
+
+Its journal and analytic filters are multi-select. So:
+
+- **Reused natively:** the report framework (`account.report`) provides the on-screen UI, which is the "look and feel of Odoo's dynamic reports" (T-16), plus the date filter, the Draft Entries toggle, the search bar, the PDF export and the XLSX export. All of them consume the lines produced by our handler, so the three outputs cannot drift apart (K-01).
+- **Ours:** the arithmetic, the engine. It reproduces the native conventions verified in section 4.8 and adds the assessment's features. It is a small service: three grouped ORM queries and plain Python aggregation, and it is testable without the UI.
+- **Not done:** we do not prototype-inherit the native Trial Balance handler for its numbers. That would leave two engines (native sums plus our currency and level logic) and break the "one normalized result" rule.
+- **Not modified:** the native Trial Balance itself. Our report is a separate `account.report` record, not a variant of `trial_balance_report`.
+
+Verified extension points (names only):
+
+- report fields: `custom_handler_model_id`, `filter_date_range`, `filter_show_draft`, `filter_multi_company`, `filter_hierarchy`, `filter_journals`, `filter_analytic`, `search_bar`;
+- handler hooks: `_custom_options_initializer`, `_dynamic_lines_generator`, `_custom_line_postprocessor` (runs after the native hierarchy step in `_get_lines`), `_get_custom_display_config` (keys `components`, `templates`, `pdf_export`);
+- line helpers: `_get_generic_line_id`, `_build_column_dict`;
+- exports: `export_file(options, file_generator)`, which returns the `ir_actions_account_report_download` action, plus `export_to_pdf` and `export_to_xlsx`;
+- the download route `/account_reports` (`auth='user'`);
+- the client action `account_report`, which reads `context.report_id` and `params.options` with `params.ignore_session`. The native `account.move` code opens reports the same way.
+
+### 4.2 Wizard (TransientModel `azk_dynamic_trial_balance.wizard`)
+
+Fields, with the PDF's labels and help texts:
+
+- `date_from`, `date_to` (Date, required; default: the current month, like the native report). Added because the PDF requires a period and a header date range (D-03).
+- `company_id` (one company, required; default `env.company`; domain: the active allowed companies).
+- Posted Entries: a read-only, always-true display field mirroring "Posted entries are always set to True".
+- `include_unposted` "Include Unposted Entries": drafts join posted; cancelled entries never do.
+- `hierarchy_subtotals` "Hierarchy and Subtotals".
+- `hierarchy_only_parents` "Hierarchy Only Parents": visible and valid only with Hierarchy and Subtotals. It reveals `account_level` "Account Level Up To" (selection 1 to 5), which is required while Only Parents is set.
+- `account_prefix_ids` "Accounts": several literal code prefixes (OR), entered as tags. The tags are a small transient model, `azk_dynamic_trial_balance.account.prefix` (transient-to-transient many2many is allowed). Empty means all accounts.
+- `journal_id` "Journals" (Many2one `account.journal`) and `analytic_account_id` "Analytic Accounts" (Many2one `account.analytic.account`). The PDF's cardinality is kept despite the plural help texts (D-02). Empty means all.
+- `skip_zero_balance` "Skip Zero Balance".
+- `show_amount_currency` "Show Amount Currency". The help text is the PDF's, plus one sentence giving the column's date scope (D-11).
+- Buttons: Preview, PDF, XLSX.
+
+Server-side validation (constraints plus engine checks):
+
+- `date_from <= date_to`;
+- the company is in `env.companies`;
+- the journal belongs to the company; the analytic account belongs to it or is shared;
+- Only Parents requires Hierarchy and Subtotals, and the level must be 1 to 5;
+- prefixes are trimmed, non-empty, at most 64 characters and de-duplicated.
+
+Prefixes are matched literally: `%`, `_` and `\` are escaped before the `=like` search, so `1_` never acts as a wildcard. Account codes are company-dependent in 18.0: `account.account.code` is computed from `code_store` and searched by `_search_code`, using the root company of `env.company`. So the engine always runs with `with_company(company)`.
+
+### 4.3 Flow and the normalized filter contract
+
+1. A wizard button validates the record and converts it to plain option values: dates, company id, include_unposted, hierarchy flags and level, prefix strings, journal id, analytic id, skip_zero, show_amount_currency.
+2. `report.get_options(previous_options)` builds the full native options. Our `_custom_options_initializer` copies only our known keys, re-validates them, and pins `options['companies']` to the one validated company.
+3. Each button returns a different action:
+   - Preview returns the `account_report` client action with `params.options` and `ignore_session`;
+   - PDF returns `report.export_file(options, 'export_to_pdf')`;
+   - XLSX returns `report.export_file(options, 'export_to_xlsx')`.
+4. Every path ends in `report._get_lines(options)`, then our `_dynamic_lines_generator`, then `engine.compute(params)`, which returns the normalized result. From there the native UI renders the lines and the native exporters write them.
+5. **Exports from the preview** send the preview's current options back to the server. So they match what the user sees, including filter changes made in the preview.
+6. **Isolation:**
+   - the options travel with each request;
+   - each wizard is private to its creator (section 3);
+   - nothing is cached between requests or users;
+   - each output is a live recalculation from the same options. Stage 09 tests that the three outputs are equivalent on an unchanged database.
+
+Preview filters:
+
+- **Native:** the date range, Draft Entries (mapped to Include Unposted Entries) and the search bar. These are native because their semantics match ours.
+- **Disabled native filters:**
+  - the multi-select journal and analytic filters (they would break the Many2one contract);
+  - native multi-company (we use one company per report);
+  - the native hierarchy builder (our engine builds the hierarchy rows, section 4.6).
+- **Our other options** travel as custom option keys. Stage 09 shows them in the preview through the handler's `_get_custom_display_config` filter component. If that hook proves unsuitable, the preview shows them read-only with a button that reopens the wizard.
+
+### 4.4 Calculation contract (summary; the full contract is Stage 07's `docs/calculation_contract.md`)
+
+Notation: report company K, period [F, T], S = start of the fiscal year that contains F (from `res.company.compute_fiscalyear_dates(F)`), all amounts in K's currency.
+
+**Scope of every query** (opening, carry-forward and movement alike):
+
+- `company_id = K`;
+- `parent_state = 'posted'`, or `parent_state != 'cancel'` with Include Unposted Entries;
+- `display_type` not in (`line_section`, `line_note`);
+- the journal, if one is selected;
+- the analytic account, if one is selected: `('analytic_distribution', 'in', [id])`;
+- the user's record rules.
+
+**Opening (Initial) balance per account:**
+
+- Balance-sheet accounts (`include_initial_balance` true, computed from `internal_group`): all scope items dated before F.
+- Income and expense accounts: scope items dated S <= date < F. This is zero when F = S.
+- Carry-forward: income and expense items dated before S are added to the opening balance of K's "Current Year Earnings" account (`account_type = 'equity_unaffected'`). This is a report presentation, as in the native report, not a journal entry. If K has no such account, the engine returns a warning instead of inventing a row.
+- The carry-forward sums all income and expense accounts within the scope; the account-prefix filter only decides whether the earnings row is displayed. This matches the native report, whose search filter does not restrict the carry-forward.
+
+**Movement:** gross debit and gross credit of the scope items with F <= date <= T, inclusive. Movement Balance = debit - credit.
+
+**Ending:** Ending Balance = Opening Balance + Movement Balance.
+
+**Display:**
+
+- Initial and End Debit/Credit are the net side of the signed balance: debit = max(balance, 0), credit = max(-balance, 0).
+- Each group also shows its signed Balance (debit positive), so a line has nine numbers (T-15).
+- Every number is rounded to K's currency, and zero tests use `currency.is_zero`.
+
+**Grain, groups and totals:**
+
+- A row is an account, or an (account, currency) pair with Show Amount Currency.
+- A group row is the sum of its descendant leaf rows: debit and credit separately, so a group can show both sides, as the native hierarchy does.
+- The Total row is the sum of the leaf rows, never of group rows.
+
+**Skip Zero Balance:**
+
+- On: a row is hidden when its opening balance, movement debit and movement credit are all zero. An account with equal debit and credit movement stays visible.
+- Off: every non-deprecated account of K that matches the account filter is listed, even without journal items. Any account with amounts is also listed (D-12).
+
+**Show Amount Currency** (T-12):
+
+- Rows are grouped by account and the journal item's `currency_id`, sorted by account code, then currency.
+- The extra column is the period movement in that transaction currency, the sum of `amount_currency` for F <= date <= T, shown with its currency symbol (D-11).
+- Group and total rows leave the column empty. A separate section lists one total per currency, so different currencies are never added together.
+- Historical company-currency amounts are used as stored; nothing is revalued at today's rate.
+- The carry-forward is attributed to the earnings row in company currency.
+
+**Analytic** (D-07): native whole-item inclusion. A journal item is included at its full amount once when any key of its distribution contains the selected account. Composite keys such as `"12,40"` count once. Without a filter every item counts once, and items are never multiplied by analytic plans. An analytic-scoped report need not balance. Proportional allocation remains a documented alternative (Q-03).
+
+### 4.5 Why these conventions
+
+They are the native conventions, observed on the same dataset with the same options (section 4.8). They are also read in the pinned code by name:
+
+- `account.general.ledger.report.handler._get_options_initial_balance`, `_get_query_sums` and `_get_options_unaffected_earnings`;
+- `account.trial.balance.report.handler._dynamic_lines_generator`, which nets Initial and End and computes End from the other groups;
+- `account.report._get_options_all_entries_domain`;
+- the analytic condition in `account.report._get_report_query` (the `analytic.mixin` overlap test).
+
+The only deliberate differences from the native report are the assessment's additions: Balance columns, prefixes, Skip Zero Balance, currency rows, the level limit and the single journal and analytic account.
+
+### 4.6 Hierarchy (T-06, T-07)
+
+- An account's group is `account.account.group_id`: the most specific `account.group` of K's root company whose prefix range contains the code. Ancestors follow `parent_id`, which Odoo maintains from the prefixes. Level = number of ancestors + 1. Accounts without a group go under "(No Group)" at level 1, after the real groups, as in the native report.
+- **Hierarchy and Subtotals:** group rows in code order, each followed by its child groups and accounts.
+- **Hierarchy Only Parents** with Account Level Up To N shows only group rows of level N or less, plus "(No Group)", and no account rows. A shown group still aggregates all of its descendants, so deeper groups and ungrouped accounts are never dropped.
+- The engine builds these rows itself, so it can apply the level limit and keep currencies apart. The native hierarchy builder (`account.report._create_hierarchy`) sums every numeric column, including a currency column. Its grouping and subtotal behavior is the parity reference (probe R8).
+
+### 4.7 Outputs (T-13 to T-18)
+
+- **Preview:** the native UI on our report record (search bar, date filter, Draft Entries, fold and unfold of group rows).
+- **PDF:** the native `export_to_pdf`, which needs a real wkhtmltopdf. The native header shows the company name and address, but the period appears only as the column header (for example "Jan 2026"). So a small header template, supplied through the handler's `pdf_export` display hook, adds an explicit "From F to T" line and the selected filters (T-17).
+- **XLSX:** the native `export_to_xlsx`. Stage 09 checks numeric cells, indentation by level and number formats against the specification, and adds a writer hook only for a verified gap.
+- **Fallback:** if a native exporter cannot meet a requirement, a custom QWeb `ir.actions.report` or a custom xlsxwriter writer consumes the same engine result.
+
+### 4.8 Evidence: native Trial Balance on the matched pair (probe, 2026-11-05)
+
+Dataset: company "AZK TB Probe" (EGP, generic chart, calendar fiscal year), created in `azk_ee24_clean` and rolled back. All moves are in the Misc journal except M4, which is in the bank journal:
+
+- M1 2025-06-30: Current Assets debit 700 / Revenue credit 700;
+- M2 2025-12-31: Bank debit 1,000 / Capital credit 1,000;
+- M3 2026-01-10: Expense debit 300 / Bank credit 300;
+- M4 2026-01-20, bank journal: Bank debit 500 / Revenue credit 500;
+- M5 2026-01-25: draft, Expense debit 200 / Bank credit 200;
+- M6 2026-01-26: cancelled, Expense debit 400 / Bank credit 400;
+- M7 2026-02-01: Expense debit 50 / Bank credit 50;
+- M8 2026-03-10: Expense debit 1,000 with distribution A1 60% / A2 40%; Bank credit 1,000;
+- M9 2026-03-12: Expense debit 200 with the composite key "A1,B1" at 100%; Bank credit 200.
+
+Observed (Initial D/C, period D/C, End D/C):
+
+- **R1, January, posted:**
+  - Bank 1,000/0, 500/300, 1,200/0.
+  - Revenue 0/0, 0/500, 0/500.
+  - Expense 0/0, 300/0, 300/0.
+  - Undistributed Profits/Losses (999999) 0/700, 0/0, 0/700: the prior-year revenue is carried forward.
+  - Totals 1,700/1,700, 800/800, 2,200/2,200.
+- **R2, January, with drafts:** Bank period credit 500 and End 1,000/0; Expense End 500. The cancelled M6 never counts.
+- **R3, February** (the period starts after the fiscal-year start):
+  - Revenue Initial 0/500 and Expense Initial 300/0: income and expense open from the fiscal-year start.
+  - Earnings row Initial 0/700: prior years only.
+  - Bank Initial 1,200/0.
+- **R4, March, analytic A1:** only Expense, period debit 1,200 = M8 at 1,000 (full item, not 600) + M9 at 200. The report does not balance.
+- **R5, March, analytic B1:** only Expense, 200 (M9's composite key, counted once).
+- **R6, March, no analytic filter:** Expense period debit 1,200, each item once. Bank End 0/50: a negative balance is shown on the credit side.
+- **R7, January, bank journal only:** Bank Initial 0/0 (M2 is in Misc), period 500/0; Revenue 0/500. The journal filter also applies to the opening balance.
+- **R8, January, hierarchy on:**
+  - Five nested groups above Bank appear at levels 1 to 5, with Bank at level 6. Current Assets (101000) sits under group "101" at level 4.
+  - Group "4" holds codes 400000 and 443000 by prefix. Its period and End show both sides, 300/500, because subtotals sum the children's netted values.
+  - "(No Group)" (level 1) holds Capital and 999999.
+  - The Total row equals R1's totals.
+
+The Stage 07 base fixture expects Bank 1,000 / +500 / -300 = 1,200 (posted) and 1,000 (with drafts). R1 and R2 show the native report computing the same values with the same options. Stage 07 still keeps hand-calculated expectations, so no test only compares our code with the native code.
+
+## 5. Exercise 1: Odoo Partner Monitor
+
+### 5.1 What the source looks like (verified in Odoo 18's own module; live site checked in Stage 04)
+
+The public `/partners` pages come from the `website_crm_partner_assign` module. Its pinned 18.0 controller (`WebsiteCrmPartnerAssign.partners`) and templates show:
+
+- **Routes:** `/partners`, `/partners/page/<n>`, `/partners/country/<slug>`, `/partners/grade/<slug>` and their combinations. Pages hold 40 partners (`_references_per_page = 40`).
+- **Geo-IP default:** without a country, the page infers the visitor's country from geo-IP. The `country_all=True` parameter shows all countries.
+- **Country counts:** every listing page renders the country list with a partner count per country.
+- **Empty-country fallback:** when the selected country has no partners, the controller drops the country and lists all partners, with the alert "There are no matching partners found for the selected country. Displaying results across all countries instead." This is the PDF's "No Matching Partners" case (P-22).
+- **Partner links:** `/partners/<name-id>?grade_id=<g>&country_id=<c>`. `country_id` is present only while a country is selected, and it need not be the first parameter.
+- **Ordering and cards:** partners are sorted by grade sequence, then reference count. The card shows "<N> references". The detail page lists references by avatar and name, without links.
+- **Unknown until Stage 04:** odoo.com runs its own version of this module, and the PDF's retention rate and project-size metrics are not in the Community template. Stage 04 confirms against a small live sample and records any difference (A-19).
+
+### 5.2 Data model
+
+Required by the PDF (names and types kept exactly; P-09 to P-12):
+
+- `azk_odoo_partner_monitor.country`: `name`, `active` (default True), `total_partner_count`, `to_reprocess_partners`. It stays a standalone model, not `res.country`.
+- `azk_odoo_partner_monitor.partner`: `name`, `partner_url`, `current_status` (selection `ready`/`silver`/`gold`), `country_id`, `first_seen_on`, `retention_rate`, `total_references_count`, `largest_project_size`, `average_project_size`, `to_reprocess_references`, `status_history_ids`, `reference_ids`.
+- `azk_odoo_partner_monitor.status.history`: `partner_id`, `previous_status`, `new_status`, `change_date`, `change_type` (`promoted`/`demoted`/`initial`).
+- `azk_odoo_partner_monitor.reference`: `partner_id`, `name`, `is_active`, `added_on`, `removed_on`.
+
+Supporting fields and models (each justified by a requirement):
+
+- **Stable identities** (P-13, P-22, K-03):
+  - `country.source_key`: the site's country id from the `/country/<slug-id>` link; `UNIQUE`.
+  - `partner.source_id`: the numeric id from the partner slug; `UNIQUE`.
+  - `reference.source_key`: a link or id if the live site provides one, otherwise the normalized name (Stage 04 tests the fallback).
+  - Names alone are never identities.
+- **Partner activity** (P-23 analogue for partners): `partner.active` (archived when absent from a validated complete snapshot of its country) and `partner.last_seen_on`.
+- **Unknown versus zero:** `retention_rate_known`, `largest_project_size_known`, `average_project_size_known`. Odoo reads a NULL numeric column as 0, so a flag is needed. Plus `details_synced_at` and `details_fingerprint` (a hash of the normalized detail data).
+- **Dashboard support:** `project_size_bucket` (stored selection computed from the average and its known flag) and `first_seen_year` (stored integer).
+- **Validation bookkeeping** (P-18, P-20, K-04):
+  - on countries: the expected count (`total_partner_count`, PDF), `snapshot_partner_count` (actual, from the last complete snapshot), `validation_state`, `reprocess_attempts`, `next_reprocess_at`;
+  - on partners: `active_reference_count`, plus the same retry fields.
+- **`azk_odoo_partner_monitor.sync.run`** (inherits `mail.thread`): one record per discovery or manual run, with trigger, state (`running`/`done`/`partial`/`failed`), times, unit counters and `notified_at`. Its chatter carries the failure note (P-07).
+- **`azk_odoo_partner_monitor.work.item`:** the durable unit of work. Kind is `country_list`, `country_partners` or `partner_details`, with a target country or partner, state (`pending`/`done`/`failed`/`cancelled`), `attempt_count`, `next_attempt_at`, `last_error` and `run_id`. A partial unique index on (kind, target) WHERE state = 'pending' de-duplicates enqueueing. It is created in `init()` through `odoo.tools.sql.create_index(..., where=...)`, because `_sql_constraints` cannot express a partial index.
+- **`azk_odoo_partner_monitor.sync.error`:** one row per failed unit (run, work item, URL, error class, message, short trace) for P-06. The Python logger records the same errors.
+- **Uniqueness:**
+  - `_sql_constraints` (the 18.0 mechanism, verified in `odoo/models.py`) on `country.source_key` and `partner.source_id`;
+  - partial unique indexes for one active reference per (partner, source_key), one `initial` history row per partner, and one pending work item per (kind, target).
+
+### 5.3 Status and history rules (P-13, P-14)
+
+- **Ordering:** ready < silver < gold.
+- **First observation:** create the partner with `first_seen_on` = run date. Also create one `initial` history row with an empty previous status and new status = the observed status. `first_seen_on` is never rewritten afterwards.
+- **Transitions:** a status change creates exactly one row, `promoted` if the new status ranks higher and `demoted` if lower. An unchanged status creates none. The comparison and the write happen under a row lock in the unit's transaction, so a replayed unit cannot record the same transition twice.
+- **Unknown site labels:** an unknown status is a parse error for that partner. The unit fails, the error is logged and retried, and nothing is written. It is never coerced to Ready, and no fourth change type is invented (D-09).
+- **Disappearance and return:** absence from a validated complete snapshot archives the partner (`active = False`) without a history row. If the partner reappears, it is reactivated; `first_seen_on` is kept, and a status difference is recorded as a promotion or demotion.
+
+### 5.4 References (P-15, P-16, P-20)
+
+- **New:** a new reference creates a record with `is_active = True` and `added_on` = run date.
+- **Removed:** a reference missing from a complete, validated reference snapshot of that partner gets `is_active = False` and `removed_on` = run date.
+- **Reactivation (D-10):** each record is one listing interval. A reference that comes back starts a new record, so earlier intervals keep their dates. At most one active record exists per (partner, source_key).
+- **Validation:** after a detail fetch, if the active reference count differs from the expected count (`total_references_count`, as shown by the site), set `to_reprocess_references`. A changed retention rate, largest or average project size, or reference count on the listing also schedules a detail refresh. The refresh does not loop on itself: retries are bounded and the flag is cleared only by a complete, matching fetch.
+
+### 5.5 Snapshot completeness (K-04)
+
+Removal or archiving needs a complete, validated snapshot of exactly that scope:
+
+- **Countries** (P-23): deactivated only from a country list that parsed fully, is not empty, and is not an error or blocked page.
+- **Partners of a country:** archived only when every listing page of that country was fetched and parsed, every kept record passed the country-scope check, and the number of distinct partners equals the count shown for that country on the same fetch.
+- **References of a partner:** removed only when the reference list was fully retrieved and its size equals the expected count.
+- **What does not count as a snapshot:** a timeout, an HTTP error, a login, rate-limit or unexpected page, or a parse failure is a failed unit, never an empty result. A count mismatch sets the reprocess flag and blocks removals, but additions and updates from the fetched data still apply.
+- **The PDF's empty-country rule** (P-22): for a country-scoped fetch, the `country_id` query value of every partner link is checked against the expected country before the URL is canonicalized. Links without it, or with another country, are ignored and logged. The fallback alert also marks the page as unscoped. A country absent from a validated country list is deactivated, and its partners are archived unless they are seen in another country.
+
+### 5.6 Sync workflow, commit boundaries and overlap (P-04, P-05, P-08, P-19, P-21)
+
+Verified Odoo 18.0 cron behavior (`odoo/addons/base/models/ir_cron.py`):
+
+- **Commits:** `_run_job` runs the server action up to 10 times (`MAX_BATCH_PER_CRON_JOB`). Each run gets a fresh `ir.cron.progress` record, commits before the callback, and commits again after it returns. On an exception, `_callback` rolls back and re-raises.
+- **Progress:** a callback reports `_notify_progress(done=..., remaining=...)`. Remaining work makes the job run again at once, and after 10 rounds it is rescheduled as soon as possible.
+- **One job, one worker:** `_acquire_one_job` locks the job row with `FOR NO KEY UPDATE SKIP LOCKED`, so the same cron never runs twice at once.
+- **Timeouts:** three consecutive time-outs without progress count as a failure. Deactivation needs 5 failures over at least 7 days.
+- **Time limits:** a cron thread's real-time limit is `limit_time_real_cron`, or `limit_time_real` (default 120 s) when that is -1.
+
+Design:
+
+- **Daily discovery cron:**
+  - creates a run;
+  - finalizes a still-open older run as `partial`, cancelling its pending units because the new run rediscovers everything;
+  - enqueues a `country_list` unit and triggers the worker. It does no scraping itself.
+- **Worker cron**, every 10 minutes and triggered on demand. Each callback:
+  - claims due pending units with `SELECT ... FOR UPDATE SKIP LOCKED` (parameterized SQL; 18.0 has no ORM lock helper), up to a unit limit and a time budget (provisional: 20 units, 60 s);
+  - processes each unit in its own savepoint;
+  - records failures outside the savepoint;
+  - reports progress and returns.
+  The scheduler's commit after the callback is the durability boundary: a crash loses at most the current batch, and those units are replayed. The claim is a row lock held until that commit, so it dies with a crashed transaction and needs no lease or stale-claim cleanup. The units are:
+  - `country_list`: upsert countries and their expected counts. A validated list deactivates missing countries and enqueues a `country_partners` unit per active country.
+  - `country_partners`: fetch all listing pages of one country, upsert partners and status history, check completeness, then archive or flag. Enqueue `partner_details` for new partners, for partners whose card changed, and for stale details (default 7 days).
+  - `partner_details`: metrics, references and validation.
+  When no unit of a run remains, the worker finalizes it.
+- **Country validation cron** (default every 6 hours): flagged countries whose retry is due get a `country_partners` unit (de-duplicated), then the worker is triggered. The country page itself shows a fresh count for that country, so a genuine change in partner numbers does not leave a permanent false mismatch.
+- **Reference validation cron** (default every 6 hours): the same pattern for flagged partners, with `partner_details` units.
+- **Retries:** HTTP calls get at most 3 attempts with backoff and honor `Retry-After`. Units get at most 5 attempts with exponential backoff (15 minutes doubling, capped at 24 hours). After the last attempt a unit stays `failed` and visible. A manager can reset it with "Retry".
+- **Isolation:** one unit's failure rolls back only its savepoint, so the cursor stays usable and other units continue (P-05). Errors are never swallowed: each one is logged, stored and counted.
+- **Manual actions:** "Sync now" and "Retry" only enqueue and call `_trigger()`. The UI never runs a crawl.
+- **Change-aware pulling** (P-08.3):
+  - listing pages are fetched daily, since they are the discovery source;
+  - detail pages only for new partners, changed cards, flags or stale details;
+  - conditional HTTP headers (`ETag`/`Last-Modified`) only if Stage 04 shows the site sends them, and a 304 is accepted only when a known-good snapshot exists;
+  - an unchanged detail fingerprint skips writes.
+  A country count alone cannot reveal status, reference or metric changes, which is why stale details are revalidated periodically.
+
+### 5.7 Failure notification (P-07)
+
+- **Recipient:** the configured user is stored as `ir.config_parameter` `azk_odoo_partner_monitor.notify_user_id` and set in Settings, which is restricted to system administrators.
+- **Default:** a post-init hook sets it to the installing user when that is a real internal user. Otherwise it uses `base.user_admin`: a command-line install runs as the superuser.
+- **When a run ends `partial` or `failed`**, the worker posts one internal note on the run's chatter (`message_post` with `partner_ids` = the recipient's partner). It lists the counts, the failed scopes and the scheduled recovery.
+- **Delivery:** Odoo delivers the note according to the recipient's own `notification_type` (`res.users`, mail module): Inbox for "Handle in Odoo", an email for "Handle by Emails". In a fresh database of this build, `admin` has `email`; only `__system__` has `inbox` (checked in `azk_ee24_clean`). So the note is always visible in the run's chatter. The demo instructions tell the reviewer to switch the recipient to "Handle in Odoo" to see it in the Discuss Inbox. We do not override user preferences (D-08).
+- **Once per run:** `notified_at` prevents a second note. Tests use Odoo's mail mocks and assert the `mail.notification` rows, so no real email is sent.
+
+### 5.8 Dashboard (P-24 to P-27)
+
+Options checked in this build:
+
+- **`board`:** embeds standard views with `View` from `@web/views/view`, but each action keeps its own domain. It has no shared filters.
+- **`spreadsheet_dashboard`:** its global filters support only `date`, `relation` and `text`, so there is no selection filter for the status. Its content is JSON data, not an XML definition. Top or Bottom 5 after filters would need spreadsheet formulas.
+- **Plain menus with four graph actions:** this would not share filters, and the prompt rules it out.
+
+So the module adds a small OWL client action, the module's main menu entry:
+
+- **Filters:** a shared bar with multi-selects for Status (Gold, Silver, Ready), Country and Year First Seen; empty means all.
+- **One server method,** `azk_odoo_partner_monitor.dashboard.get_dashboard_data(filters)`:
+  - validates the filter values;
+  - ranks countries with ORM `_read_group` as the calling user;
+  - returns the Top 5 and Bottom 5 country ids, the counts, the last-sync status and empty-state flags.
+- **Four embedded standard graph views**, defined in XML on the partner model:
+  - stacked bars by country and status, in descending order for Top 5 and ascending for Bottom 5;
+  - stacked bars by country and project-size bucket for each cohort.
+  Each receives the shared domain plus its cohort's country ids, and is remounted when a filter changes. Clicking a bar opens the matching partners.
+- **Ranking (D-06):**
+  - counts active partners in active countries after all three filters;
+  - only countries with at least one matching partner take part;
+  - ties are broken by count, then country name, then id;
+  - with fewer than 5 countries a chart shows all of them; with fewer than 10 the two cohorts may overlap, and the dashboard says so;
+  - an empty result shows a clear message.
+- **Buckets (D-05):** [0, 5) "Below 5", [5, 11) "5 to below 11", [11, 25) "11 to below 25", [25, inf) "25 and above", and "Unknown" when the average is not known. 25 belongs only to "25 and above".
+- **Dependencies:** only Community web components (`View`, the graph view, OWL), so the dashboard works on both editions.
+
+### 5.9 Views, menus and permissions (P-17, M-01)
+
+The original views specification was not supplied. The proposed views are an assumption (A-16):
+
+- **Countries:** list, form and search (filters Active, Archived and Needs reprocess; group by validation state).
+- **Partners:**
+  - list, form with Status History and References tabs, and search (Gold, Silver, Ready, Active, Archived, Needs reference reprocess; group by Country, Status, Year First Seen, Project size bucket);
+  - pivot (country by status, count and average project size) and graph.
+- **Status History:** list, search (promoted, demoted, initial; group by type, partner, month), pivot (month by change type) and graph.
+- **References:** list, search (active or removed; group by partner, month added) and pivot.
+- **Sync (managers):** runs with chatter, work items with Retry, and errors.
+- **Menus:** Partner Monitor > Dashboard (the root action) / Partners / Countries / Status History / References / Sync / Configuration.
+- **Groups:** "Partner Monitor / Reader" (read business data, dashboard and runs) and "Partner Monitor / Manager" (implies Reader; work items, errors, Sync now, Retry). `base.user_admin` is a manager by default.
+
+## 6. Version and edition notes
+
+- The PDF's option names come from older Enterprise releases: "Include Unposted Entries" is "Draft Entries" in 18.0. The wizard keeps the PDF's labels and maps them to the 18.0 semantics, which are the same.
+- In 18.0 an account can be shared by several companies (`account.account.company_ids`), and its code is company-dependent. Prefix matching therefore always runs in the report company's context.
+- `account_reports` is an Enterprise module (OEEL-1). `azk_dynamic_trial_balance` must declare it, and it only installs where the Enterprise addons are present. Its own license (A-06, Q-06) is a decision for the user or team lead.
+- The cron progress API (`_notify_progress`, `ir.cron.progress`) and the 10-callback loop are specific to this release line; they were read in the pinned 18.0 source. If the required major version changes (Q-04), section 5.6 must be checked again.
+- The live partners site is a newer, customized deployment. Section 5.1 is our working model until Stage 04 verifies it.

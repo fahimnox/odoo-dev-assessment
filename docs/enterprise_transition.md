@@ -207,6 +207,15 @@ The native report is a baseline and an extension opportunity, not proof that the
 - Which edition the final tests run on. The target is Enterprise; Community runs can still catch accidental Enterprise dependencies in the Partner Monitor.
 - PDF tests need a running web server, because wkhtmltopdf downloads the report CSS over HTTP.
 
+Resolved in Stage 02 (2026-11-05) on the matched pair:
+
+- **Framework:** `azk_dynamic_trial_balance` declares `account_reports`. It uses its own engine inside our own `account.report` record and handler (A-13).
+- **Conventions:** opening balances and netting follow the native fiscal-year-aware rules (A-14); the analytic filter follows native whole-item inclusion (A-15, D-07).
+- **Edition for final tests:** `enterprise-20241208`, with an optional Community install check of the Partner Monitor (TP-G-03).
+- **Evidence:** a native Trial Balance probe on the same dataset and options; see [architecture.md](architecture.md) sections 4.1 to 4.8 and [test_plan.md](test_plan.md).
+
+The 2026-11-03 observations above came from the Stage 01B pair. The Stage 02 probe repeated them on the matched pair.
+
 ## Compatibility follow-up (2026-11-04)
 
 Requested by the user after Stage 01B: resolve the failing `TestTrialBalanceReport` case with a verified compatible source pair, without patching vendor code, skipping the test or changing its expectations, and without adopting the archive's modified core. `azk_ent` and `azk_dev` are preserved and were not opened by any other core.

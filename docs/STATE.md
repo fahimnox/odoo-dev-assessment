@@ -1,16 +1,29 @@
 # Project state
 
-_Last updated: 2026-11-05, end of the Stage 01B compatibility follow-up._
+_Last updated: 2026-11-05, end of Stage 02._
 
 ## Current position
 
-- **Stage 01B: DONE. The compatibility blocker is resolved by the matched pair, and Stage 02 is ready.**
+- **Stage 02: DONE (2026-11-05).** Requirements, assumptions, architecture and the test plan are agreed on paper; no feature code was written.
+  - [requirements_matrix.md](requirements_matrix.md): every selected requirement (fields, options, help texts and charts) with its interpretation, planned location, planned test and status (mostly DESIGNED).
+  - [architecture.md](architecture.md): components, security boundary, the Partner Monitor sync design, the Trial Balance calculation contract, and the native Trial Balance probe.
+  - [assumptions.md](assumptions.md): D-01 to D-07 resolved, new decisions D-08 to D-17, version notes V-01 to V-07, open questions Q-02 to Q-06.
+  - [test_plan.md](test_plan.md): test IDs TP-PM-01 to 21, TP-TB-01 to 17 and TP-G-01 to 05, with hand-calculated Trial Balance expectations.
+- **Stage 02 checks** (read-only, on the matched pair):
+  - the version-sensitive APIs were read in the pinned core and Enterprise sources;
+  - the disposable database `azk_ee24_clean` was created with `accountant` (90 modules, 0 warnings, 0 errors, 5 min 20 s);
+  - a native Trial Balance probe ran there with eight option sets and was rolled back (PASS: the conventions were observed and recorded).
+  - No addon tests ran, because no addon code changed.
+- **Stage 01B: DONE (2026-11-05).** The compatibility blocker is resolved by the matched pair.
   - Matched pair: official `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453` (fetched from GitHub; 21,846 files verified identical) with the 620 Enterprise-repository modules of build 18.0+e.20241208.
   - It runs as edition `enterprise-20241208` (service `odoo-ee-20241208`, databases `azk_ee24*`, port 8071), which is the default in `.env`.
-  - On fresh databases: all eight `TestTrialBalanceReport` tests passed, including `test_trial_balance_comparisons`; the custom addon tests passed 4 of 4; and the login, Trial Balance, PDF and XLSX smoke checks passed.
+  - Results on fresh databases:
+    - all eight `TestTrialBalanceReport` tests passed, including `test_trial_balance_comparisons`;
+    - the custom addon tests passed 4 of 4;
+    - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next stage:** 02 - requirements, assumptions, architecture and acceptance plan, on edition `enterprise-20241208`.
-- **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. No browser check of the matched-pair environment (port 8071) has been done yet; the agent has no browser here. It was not part of the agreed checks, but is recommended (steps in [enterprise_transition.md](enterprise_transition.md)).
+- **Next stage:** 03 - Partner Monitor models, permissions and basic UI, on edition `enterprise-20241208`.
+- **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. No browser check of the matched-pair environment (port 8071) has been done yet; the agent has no browser here. It is recommended (steps in [enterprise_transition.md](enterprise_transition.md)).
 - **Business features implemented:** none. Both addons are installable skeletons with smoke tests.
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
@@ -34,7 +47,7 @@ _Last updated: 2026-11-05, end of the Stage 01B compatibility follow-up._
 | 00 | Operating contract | DONE |
 | 01 | Environment (Community baseline) | DONE |
 | 01B | Enterprise transition | DONE (2026-11-05): matched pair validated; the Stage 01B pair stays blocked and preserved |
-| 02 | Requirements, assumptions, architecture | NOT STARTED |
+| 02 | Requirements, assumptions, architecture | DONE (2026-11-05): design agreed; native Trial Balance probed on the matched pair |
 | 03 | Partner Monitor models, permissions, basic UI | NOT STARTED |
 | 04 | Partner scraping | NOT STARTED |
 | 05 | Partner resilience | NOT STARTED |
@@ -60,7 +73,22 @@ _Last updated: 2026-11-05, end of the Stage 01B compatibility follow-up._
 - The Enterprise source stays private, outside this repository: a curated copy in `<kit-root>/runtime/enterprise/18.0-20241208/`, pinned by a tree digest. It is referenced by names only, never copied or quoted. The official Community source is in `<kit-root>/runtime/community/18.0-4e5027c1/`, also outside the repository and pinned.
 - This repository holds the solution only. The assessment PDF and prompt kit live in the parent kit directory and are never committed.
 - English only for terminal output, new documentation, code comments and commit messages (AGENTS.md rule 7, set by correction R0). Each stage also writes an English handoff to [handoffs/](handoffs/) (AGENTS.md rule 9).
-- Databases: `azk_ee24` (Enterprise development on the matched pair, demo data), `azk_ee24_test` and `azk_ee24_clean` (disposable); `azk_ent` (Stage 01B pair, preserved, blocked), `azk_ent_test` and `azk_ent_clean`; `azk_dev` (Community development), `azk_test` and `azk_clean` (disposable). See [environment.md](environment.md) and A-04 to A-07.
+- Databases: `azk_ee24` (Enterprise development on the matched pair, demo data), `azk_ee24_test` and `azk_ee24_clean` (disposable; since Stage 02 `azk_ee24_clean` holds `accountant` with demo data, used for the native probe); `azk_ent` (Stage 01B pair, preserved, blocked), `azk_ent_test` and `azk_ent_clean`; `azk_dev` (Community development), `azk_test` and `azk_clean` (disposable). See [environment.md](environment.md) and A-04 to A-07.
+- **Stage 02 design** ([architecture.md](architecture.md)):
+  - **Trial Balance:**
+    - our own engine inside our own `account.report` record and custom handler;
+    - native preview, PDF and XLSX consume one normalized result (A-13);
+    - native opening, carry-forward and netting conventions (A-14) and native whole-item analytic filtering (A-15);
+    - Many2one journal and analytic account (D-02); one authorized company and Date From/To (D-03);
+    - the Amount Currency column shows the period movement per transaction currency (D-11).
+  - **Partner Monitor:**
+    - stable source keys with database uniqueness;
+    - removals only after complete, validated snapshots;
+    - durable work items processed by one worker cron in bounded batches, using the 18.0 progress API and scheduler commits (A-18);
+    - row-lock claims;
+    - a failure note on the run's chatter to the configured user (D-08);
+    - the dashboard as a small OWL client action embedding four XML graph views with shared filters (A-17).
+  - The manifest dependency change to `account_reports` happens in Stage 07, not in Stage 02.
 
 ## Corrections applied
 
@@ -73,7 +101,7 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 
 ## Open items
 
-- **Disk space:** resolved by the user before the 2026-11-05 continuation. C: had 17 to 19 GB free during the work. Keep several GB free before long test runs (see [environment.md](environment.md)).
+- **Disk space:** resolved by the user before the 2026-11-05 continuation. C: had 17 to 19 GB free during that work, and 13 GB during Stage 02. The drop happened between the two sessions and was not investigated. Keep several GB free before long test runs (see [environment.md](environment.md)).
 - **Compatibility blocker:** resolved on 2026-11-05 for the matched pair (all eight `TestTrialBalanceReport` tests pass). The Stage 01B pair still fails `test_trial_balance_comparisons` and stays blocked; it is kept only for `azk_ent`.
 - **Browser check (user, recommended):** the user reported a browser check of the Stage 01B environment (no detailed results given). The matched-pair environment on port 8071 has not been checked in a browser yet; steps are in [enterprise_transition.md](enterprise_transition.md).
 - **Enterprise source verification:** the Enterprise files cannot be checked against an official baseline without access to the private repository. Only the tarball's file list and timestamps support them.
@@ -81,9 +109,12 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - **Extracted archive:** no runtime needs `<kit-root>/odoo/odoo18`: the matched pair uses the official Community source and the 620-module Enterprise copy. Deleting it (1.76 GB) is the user's decision, and only sensible if the original archive file is kept elsewhere.
 - **Decision for the user:** the supplied archive contains an earlier implementation of this assessment's modules (`projects/assessment/`, not opened or used). Whether to mention it to the team lead is the user's decision.
 - **Subscription:** `azk_ee24` and `azk_ent` are unregistered trials; registering needs the employer's subscription code.
-- Clarifications Q-02 to Q-05 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked.
-- Ambiguities D-01 to D-07 are to be resolved in Stage 02; D-01, D-04 and D-07 now carry observations from the native Trial Balance.
-- Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06).
+- Clarifications Q-02 to Q-06 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked. None blocks Stage 03.
+- Ambiguities D-01 to D-07 were resolved in Stage 02, and D-08 to D-17 were added and decided ([assumptions.md](assumptions.md)).
+- **Verification still ahead:**
+  - The live partners site is modeled on the 18.0 `website_crm_partner_assign` module (A-19) until Stage 04 checks a small live sample.
+  - The `account_reports` display and export hooks are known by name; their exact mechanics (column groups, the PDF header template, the preview filter component) are verified in Stages 08-09, with the fallback documented in [architecture.md](architecture.md) 4.7.
+- Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06). The license of `azk_dynamic_trial_balance`, which will depend on the OEEL-1 module `account_reports`, is question Q-06.
 - Commits use the global Git identity `fahimnox <mohamed.fahim@noxholding.com>`, which becomes public in Stage 15 unless the user decides otherwise.
 - Not exercised: `scripts/dev.sh source` itself (an equivalent command made the source copy).
 

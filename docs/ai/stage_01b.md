@@ -288,55 +288,91 @@ Assistant message 41:
 
 ## Assistant final response (verbatim)
 
+Corrected in Stage 02 (2026-11-05): this section first held the prepared draft of the response. The text below is the response as it was displayed, extracted from the session transcript. The wording and level of detail differ from the draft (for example, the displayed text names the commit ID and leaves out some details); no reported result or status differs.
+
 Everything between the two rules below is the final visible response.
 
 ---
 
-Stage 01B is complete on the server side. The archive does contain usable Odoo 18.0 Enterprise source, so I continued Stage 01B with it. One real incompatibility and three items for you remain, listed below.
+Stage 01B is done on the server side. The archive contains usable Odoo 18.0 Enterprise source, so I continued Stage 01B with it. One real incompatibility remains, plus three things you need to do, listed below.
 
 **What the archive is**
-- An Odoo 18.0 Enterprise nightly source tarball, build `18.0+e.20241208` (from `PKG-INFO` and `odoo/release.py`, not the folder name). Server, Community addons and Enterprise addons share one folder: 1,243 modules, 614 of them OEEL-1.
-- `web_enterprise`, `accountant`, `account_accountant` and `account_reports` are present, and all their dependencies resolve. `account_reports` depends on `accountant` and auto-installs with it.
-- Its core is not pristine: 13 files were changed after the build date (including core `base/models/ir_actions.py`), and 4 configs with credentials were dropped into `odoo/conf/`. No Enterprise module file was changed.
-- Not vendor and not used: the old venv, 5 configs with credentials (values never printed), the old data dir, 15 check, repair and cleanup scripts and 1 SQL file (never run), old agent files, a byte-identical copy of our assessment PDF, and 4 custom project folders.
-- **Your decision:** `projects/assessment/` holds an earlier implementation of this assessment's modules (both selected exercises and the POS addons). I read only their manifest metadata and did not open, copy or use the code. Whether to mention this to the team lead is up to you.
+- An Odoo 18.0 Enterprise nightly source tarball, build `18.0+e.20241208`. I read the version from `PKG-INFO` and `odoo/release.py`, not from the folder name. It holds the server, the Community addons and the Enterprise addons in one folder: 1,243 modules, 614 of them under the Enterprise license OEEL-1.
+- `web_enterprise`, `accountant`, `account_accountant` and `account_reports` are present, and all their dependencies resolve. `account_reports` depends on `accountant` and installs itself automatically with it.
+- Its core is not clean vendor code. 13 files were changed after the build date, including core `base/models/ir_actions.py`, and 4 config files with credentials were dropped into `odoo/conf/`. No Enterprise module file was changed.
+- Not vendor code, and not used:
+  - the old venv and the old data folder;
+  - 5 config files with credentials (I never printed the values);
+  - 15 check, repair and cleanup scripts and 1 SQL file (none were run);
+  - old AI-agent files (`CLAUDE.md`, settings) and development notes;
+  - a byte-identical copy of our assessment PDF;
+  - 4 custom project folders.
+- **Your decision:** `projects/assessment/` holds an earlier implementation of this assessment's modules: both exercises we chose plus the POS addons. I read only their manifest metadata and did not open, copy or use the code. Whether to tell the team lead is up to you.
 
 **What I set up**
-- I kept our pinned image's Community core (18.0-20261015, git head `8e50ecb1`) and added only the archive's 620 Enterprise-repository modules, copied privately to the kit's `runtime/enterprise/18.0-20241208/` (tree SHA-256 `f2c60cc6...b499`). This is the official "Community server plus Enterprise addons path" model. I rejected the archive's own core because it was modified after its build.
-- A new service `odoo-ee` at http://127.0.0.1:8070 serves the new database `azk_ent` (web_enterprise, accountant, both addons, demo data, 93 modules). The Community baseline (`odoo`, `azk_dev`, port 8069) is unchanged.
-- `scripts/dev.sh` now has `ODOO_EDITION` (your `.env` sets `enterprise`) and refuses the other edition's databases.
-- Backup before the changes: the `azk_dev` dump and filestore, `.env` and configs, in the kit's `runtime/backups/2026-11-03_pre_stage01b/`.
+- Our pinned image's Community core (18.0-20261015) stays as the server. I added only the archive's 620 Enterprise modules, copied privately to the kit's `runtime/enterprise/18.0-20241208/` and pinned by a SHA-256 checksum (`f2c60cc6...b499`). This matches the official setup: the Community server with an Enterprise addons folder. I didn't use the archive's own core because it was modified after its build.
+- A new service `odoo-ee` at http://127.0.0.1:8070 serves a new database, `azk_ent`: `web_enterprise`, `accountant`, both our addons, demo data, 93 modules in all. The Community setup (`odoo`, `azk_dev`, port 8069) is unchanged.
+- `scripts/dev.sh` now takes `ODOO_EDITION`, which your `.env` sets to `enterprise`. It refuses to touch the other edition's databases.
+- Before any change, I backed up the `azk_dev` database and its files, plus `.env` and the configs, to the kit's `runtime/backups/2026-11-03_pre_stage01b/`.
 
-**Checks (2026-11-03)**
-- PASS: `azk_ent` setup (0 warnings), module states and paths, server start, HTTP login, web client page and asset bundles, the report RPC, and refusal without a session.
-- PASS: update of both addons, Enterprise tests 4/4, Community baseline tests 4/4, both servers side by side.
-- PASS: native Trial Balance lines, XLSX, and PDF. The PDF needed a fix first: a port mismatch kept wkhtmltopdf from loading the report CSS.
-- PASS: 8 `dev.sh` guard cases. Compose's own guard for a missing Enterprise folder does not work on Docker Desktop (it created the folder); this is documented, and `dev.sh` remains the guard.
-- FAIL: vendor class `TestTrialBalanceReport`, 7 of 8. `test_trial_balance_comparisons` hits "division by zero" in the 2026 Community currency-table code that 2024 Enterprise calls. The same class passed 8 of 8 on the archive's own 2024 core (a one-off diagnostic run on a disposable database, dropped afterwards), so this is a real incompatibility of the pairing. It affects only reports across companies with different currencies; our single-company database takes the unaffected path.
-- NOT RUN: the full vendor `account_reports` suite (stopped, see disk), the browser UI check, and subscription registration (the employer's action).
+**Checks**
+- PASS: creating `azk_ent` (no warnings), the installed modules and where they load from, server start, login over HTTP, the web client page and its compiled JS/CSS, the Trial Balance's server calls, and refusal of calls without a login.
+- PASS: updating both addons; our tests 4 of 4 on Enterprise and 4 of 4 on Community; both servers running side by side.
+- PASS: the built-in Trial Balance computes, and its XLSX and PDF exports work. The PDF first came out unstyled because of a port mismatch; I fixed that in `compose.yaml` and the rerun was clean.
+- PASS: all 8 safety checks in `dev.sh`.
+  - Docker's own check for a missing Enterprise folder doesn't work on this machine: it created an empty folder instead of failing.
+  - I deleted that empty folder and documented the problem. `dev.sh` stays the real safeguard.
+- FAIL: Odoo's own Trial Balance test class (`TestTrialBalanceReport`) passed 7 of 8.
+  - `test_trial_balance_comparisons` fails with "division by zero" in 2026 Community currency code that the 2024 Enterprise addons call.
+  - The same tests passed 8 of 8 on the archive's own 2024 core, in a one-off throwaway database I deleted afterwards. So it's a real incompatibility between the 2024 Enterprise addons and our 2026 core.
+  - It only affects reports spanning companies with different currencies. Our database has one company and doesn't reach that code.
+- NOT RUN:
+  - Odoo's full `account_reports` test suite: I stopped it because of the low disk space below.
+  - The browser check: I have no browser here.
+  - Registering the subscription: that's the employer's action. The database runs as an unregistered trial.
 
-**Needs your action**
-1. Disk: drive C: has only 2.0 GB free (7.9 GB at the start). Docker's virtual disk is 14.6 GB and only grows, and a full disk can damage the PostgreSQL cluster. Please free several GB before Stage 02. For example, the extracted archive takes 1.76 GB and is no longer used at runtime; keep it only if you have no other copy of the original archive. I deleted nothing.
-2. Browser check: `scripts/dev.sh start`, then open http://127.0.0.1:8070/web/login (admin/admin). Expect the Enterprise home menu and a registration banner (do not register). Open Accounting > Reporting > Trial Balance, change the date, toggle Draft Entries, and click PDF and Download Excel. In Apps, search `azk`. Tell me about any error dialog or blank page.
-3. Optional, for the team lead: Q-04 (is 18.0 required?) and Q-05 (Enterprise addons that match our core, for example enterprise commit `08df1575`).
+**What you need to do**
+1. **Disk space (urgent):** drive C: has only 2.0 GB free, down from 7.9 GB at the start. Docker's virtual disk is 14.6 GB and never shrinks on its own, and a full disk can damage the database server holding all our databases.
+   - Please free several GB before Stage 02.
+   - For example, the extracted archive takes 1.76 GB and the setup no longer uses it. Delete it only if you still have the original archive file.
+   - I deleted nothing.
+2. **Browser check:**
+   - Run `scripts/dev.sh start`, open http://127.0.0.1:8070/web/login and log in as admin/admin.
+   - You should see the Enterprise home menu and a registration banner; don't register.
+   - Open Accounting > Reporting > Trial Balance, change the date, toggle "Draft Entries", then click PDF and "Download Excel".
+   - In Apps, search for `azk`; both addons should show as installed.
+   - Tell me about any error dialog or blank page.
+3. **Optional, for the team lead:**
+   - Q-04: is Odoo 18.0 required?
+   - Q-05: can they provide Enterprise addons that match our core (Enterprise commit `08df1575`)?
 
-**Native Trial Balance, for Stage 02**
-- It has Initial Balance, period and End Balance columns, each with Debit and Credit only; Initial and End are net-side.
-- Income and expense opening starts at the fiscal-year start. The analytic filter takes whole journal items (no proration). "Draft Entries" means posted plus drafts, never cancelled.
-- Gaps against the assessment: the wizard, nine columns, account prefixes, Many2one filters, skip-zero, amount currency, the level-limited hierarchy, and richer demo data.
+**The built-in Trial Balance, for Stage 02**
+- It has three column groups (Initial Balance, the period, End Balance), each with Debit and Credit only. Initial and End show each account's net amount on one side.
+- Income and expense accounts open from the start of the fiscal year.
+- The analytic filter includes whole journal items, with no proportional split.
+- "Draft Entries" adds drafts to posted entries and never includes cancelled ones.
+- What the assessment needs beyond it:
+  - the wizard and the nine numeric columns;
+  - the account-prefix, journal and analytic-account filters;
+  - hiding zero balances;
+  - the amount-currency column;
+  - the hierarchy with a level limit;
+  - demo data with drafts, a second currency and account groups.
 
 **Changed files**
-- `compose.yaml` (service `odoo-ee`), `config/odoo-enterprise.conf`, `scripts/dev.sh` (edition block, `env_file_value`, `check_enterprise_addons`, `check_db_edition`), `.env.example`, `.gitignore`.
-- `AGENTS.md` (dated Enterprise clarification), `docs/enterprise_transition.md` (new), `docs/environment.md`, `docs/STATE.md`, `docs/assumptions.md` (A-08 to A-11, Q-04, Q-05), `docs/requirements_matrix.md` (C-01), `docs/handoffs/stage_01b_en.md`, `docs/ai/stage_01b.md`.
-- Outside Git: the kit `CLAUDE.md`, plus `runtime/enterprise/`, `runtime/backups/` and `runtime/logs/`.
-- Commits: `2078515` (runtime and docs), `70c0198` (AI log), then a small correction commit for a miscounted script total.
+- `compose.yaml` (new service `odoo-ee`), `config/odoo-enterprise.conf` (new), `scripts/dev.sh` (functions `env_file_value`, `check_enterprise_addons`, `check_db_edition`), `.env.example`, `.gitignore`.
+- `AGENTS.md`: a dated note that Enterprise is now required.
+- New docs: `docs/enterprise_transition.md` (the full record), `docs/handoffs/stage_01b_en.md`, and the AI log `docs/ai/stage_01b.md`.
+- Updated docs: `docs/environment.md`, `docs/STATE.md`, `docs/assumptions.md` (new assumptions A-08 to A-11, questions Q-04 and Q-05) and `docs/requirements_matrix.md` (new row C-01).
+- Outside Git: the kit's `CLAUDE.md`, plus `runtime/enterprise/`, `runtime/backups/` and `runtime/logs/`.
+- Commits: `2078515` (runtime and docs), `70c0198` (AI log) and `444474d` (fixed script count).
 
 **Comprehension questions**
 1. Why does `scripts/dev.sh` refuse an install on `azk_dev` when the edition is `enterprise`, and which manifest key creates that risk?
-2. The server reports `18.0+e-20261015`. Which part comes from the image and which from `web_enterprise`, and why does it not date the Enterprise addons?
-3. What did the control run on the archive's own core tell you that the failing vendor test alone could not?
+2. The server reports `18.0+e-20261015`. Which part comes from the image and which from `web_enterprise`, and why doesn't it tell you how old the Enterprise addons are?
+3. What did the control run on the archive's own core tell you that the failing Odoo test alone could not?
 
-Next stage: 02. Run it after the disk space and the browser check:
+Next is Stage 02. Run it after freeing disk space and doing the browser check:
 
 Read prompts/02_requirements_and_design.txt and execute Stage 02 only, following solution/AGENTS.md.
 
@@ -470,48 +506,61 @@ Follow-up assistant message 9:
 
 ### Assistant final response (verbatim)
 
+Corrected in Stage 02 (2026-11-05): this section first held the prepared draft of the response. The text below is the response as it was displayed, extracted from the session transcript. The wording and level of detail differ from the draft (for example, the displayed text names the commit ID and leaves out some details); no reported result or status differs.
+
 Everything between the two rules below is the final visible response.
 
 ---
 
-Compatibility follow-up: stopped before setup, and the Enterprise environment stays **blocked**. I identified and verified the matched source pair, but I could not validate it because drive C: is nearly full.
+I stopped before any setup or test, and the Enterprise environment stays **blocked**. I found and verified the matched source pair, but couldn't validate it because drive C: is nearly full.
 
-**Disk check (first step)**
-- C: had 2.5 GB free at the start, then 1.5 to 1.7 GB while I was only reading files. Docker's disk did not grow; the 10.9 GB page file may have grown, but that is unproven. D: has 8.5 GB free, but Docker's disk and both PostgreSQL clusters are on C:.
-- So I did not download the source, create databases or run any test. No server or database was touched; `azk_ent`, `azk_dev`, the commits and the backups are unchanged.
+**Disk check (done first)**
+- C: had 2.5 GB free at the start, then dropped to 1.5 to 1.7 GB while I was only reading files. Docker's virtual disk did not grow. The 10.9 GB Windows page file may have grown, but I can't prove it.
+- D: has 8.5 GB free, but Docker's disk and both PostgreSQL clusters (ours and the other project's) are on C:.
+- So I downloaded no source, created no database and ran no test. No server or database was touched. `azk_ent`, `azk_dev`, the commits and the backups are unchanged.
 
-**Matched pair found (verified by content, not by date)**
+**Matched pair found (verified by file content, not by date)**
 - No employer-provided matching pair exists in the workspace.
-- I compared every Community file of the archive with the official GitHub tree using git blob hashes, which depend on content only. Against commit `odoo/odoo` `4e5027c1` (18.0, 2024-12-08 01:24 UTC): 36,514 of 37,496 files are identical, including all translations; the 972 absent files are packaging exclusions; 10 differ, all explained. No commit landed between it and the 07:05 UTC checkout.
-- The archive's 30 theme modules are byte-identical to official `design-themes` `3057d466`. So the archive is Odoo's own 18.0+e.20241208 composition, plus local edits.
-- Pins: Community `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453`. Enterprise build 18.0+e.20241208, 623 modules: `runtime/enterprise/18.0-20241208/` (620, `f2c60cc6...b499`) plus `runtime/enterprise/18.0-20241208-moved-to-community/` (3 modules, `ec0225f5...82c4`, 0.72 MB, copied today).
-- Limitation: the Enterprise files cannot be checked against an official baseline, because the Enterprise repository is private.
+- I compared every Community file in the archive with the official GitHub tree using git blob hashes, which depend only on file content. Against `odoo/odoo` commit `4e5027c1` (branch 18.0, 2024-12-08 01:24 UTC):
+  - 36,514 of 37,496 files are identical, including all translations;
+  - the 972 files missing from the archive are ones Odoo leaves out of its packages (`doc/`, `debian/`, ...);
+  - 10 files differ, and each difference is explained below.
+- No commit landed on 18.0 between that one and the 07:05 UTC checkout the archive was built from.
+- The archive's 30 theme modules are byte-identical to the official `design-themes` repository at `3057d466`. So the archive is Odoo's own 18.0+e.20241208 build, plus some local edits.
+- Pins:
+  - Community: `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453`.
+  - Enterprise: build 18.0+e.20241208, 623 modules. The Stage 01B folder `runtime/enterprise/18.0-20241208/` holds 620 (checksum `f2c60cc6...b499`). The new folder `runtime/enterprise/18.0-20241208-moved-to-community/` holds the other 3 (checksum `ec0225f5...82c4`, 0.72 MB, copied today).
+- Limitation: the Enterprise files can't be checked against an official copy, because Odoo's Enterprise repository is private.
 
-**The 13 "modified" files, checked against that baseline**
+**The 13 "modified" files, checked against that commit**
 - 2 are unchanged; only their timestamps moved (`website_templates.xml`, `resume.eml`).
-- 6 differ only in formatting, with identical Python syntax trees, including core `base/models/ir_actions.py`. This corrects my Stage 01B note.
-- 2 have real local edits: debugging `print` calls in `website_sale` `shop_checkout`, and rearranged `test_website` data.
-- 3 are config files with credentials. `release.py` and `setup.cfg` show the expected packaging changes.
+- 6 differ only in formatting, and their Python code is identical, including core `base/models/ir_actions.py`. This corrects my Stage 01B note, which suspected code changes there.
+- 2 have real local edits: debugging `print` calls in `website_sale` (`shop_checkout`), and rearranged `test_website` data.
+- 3 are config files with credentials. `release.py` and `setup.cfg` have the expected packaging changes.
 - I did not adopt the archive's core.
 
 **Checks**
 - PASS: the read-only content comparisons above.
-- NOT RUN (disk): the source fetch, the new service, fresh databases, the 8 `TestTrialBalanceReport` tests, the custom tests, and the login, Trial Balance, PDF and XLSX smoke checks.
-- User-reported, not run by me: your browser check of the Stage 01B environment. Your message gave no details; tell me if you want specific observations recorded.
+- NOT RUN, because of disk space: fetching the source, the new service, fresh databases, the 8 `TestTrialBalanceReport` tests, the custom addon tests, and the login, Trial Balance, PDF and XLSX smoke checks.
+- Reported by you, not run by me: your browser check of the Stage 01B environment. Your message gave no details; tell me if you want specific observations recorded.
 
 **What you need to do**
-1. Free at least 5 GB on C:. The options are your decision; I deleted nothing:
-   - restart Windows, since a system-managed page file usually shrinks;
-   - delete the extracted archive `odoo/odoo18` (1.76 GB; no runtime needs it now, but only do this if you keep the original archive file);
-   - move Docker Desktop's disk image to D:, which affects the other project too.
-2. Then ask me to continue the follow-up. The steps are in `docs/enterprise_transition.md`: fetch `4e5027c1` without translations (0.20 GB, every file hash-checked), set up a separate service on port 8071 with its own fresh databases, then run the eight tests, the custom tests and the smoke checks. `azk_ent` stays on its own core.
+1. Free at least 5 GB on C:. These are your decisions; I deleted nothing:
+   - restart Windows, since a system-managed page file usually shrinks after a restart;
+   - delete the extracted archive `odoo/odoo18` (1.76 GB). No runtime needs it now, but only do this if you still have the original archive file;
+   - move Docker Desktop's disk image to D:, which also affects the other project.
+2. Then ask me to continue. The steps are written up in `docs/enterprise_transition.md`:
+   - fetch `4e5027c1` without translations (0.20 GB), with every file's hash checked;
+   - set up a separate service on port 8071 with its own fresh databases;
+   - run the eight tests, the custom tests and the smoke checks.
+   - `azk_ent` stays on its own core throughout.
 
 **Changed files**
 - `docs/enterprise_transition.md` (new follow-up section, corrected `ir_actions.py` note), `docs/environment.md`, `docs/STATE.md` (Stage 01B: BLOCKED), `docs/assumptions.md` (A-10 blocked, new A-12), `docs/requirements_matrix.md` (C-01: BLOCKED), `docs/handoffs/stage_01b_en.md`, `docs/ai/stage_01b.md`, `docs/ai/README.md`.
 - Outside Git: the kit `CLAUDE.md` and the new `runtime/enterprise/18.0-20241208-moved-to-community/`.
-- No code, Compose or `dev.sh` change. Commit: "Stage 01B follow-up: identify the matched Community revision; blocked by disk space".
+- No code, Compose or `dev.sh` changes. Commit: `658da7c`.
 
-Stopping here, as asked. Stage 02 does not start until the blocker is resolved.
+I'm stopping here, as you asked. Stage 02 won't start until the blocker is resolved.
 
 ---
 
@@ -672,52 +721,57 @@ Continuation assistant message 24:
 
 ### Assistant final response (verbatim)
 
+Corrected in Stage 02 (2026-11-05): this section first held the prepared draft of the response. The text below is the response as it was displayed, extracted from the session transcript. The wording and level of detail differ from the draft (for example, the displayed text names the commit ID and leaves out some details); no reported result or status differs.
+
 Everything between the two rules below is the final visible response.
 
 ---
 
-Stage 01B is complete and **Stage 02 is ready**. The matched pair passed every agreed check on fresh databases, and the compatibility blocker is resolved.
+Stage 01B is done, and **Stage 02 is ready**. The matched pair passed every agreed check on fresh databases, so the compatibility blocker is resolved.
 
 **Disk**
-- C: had 17 GB free at the start. A background monitor checked every 30 seconds; free space stayed between 16.8 and 19 GB and never came near the 8 GB warning level.
+- C: had 17 GB free at the start. A background monitor checked every 30 seconds; free space stayed between 16.8 and 19 GB, well above the 8 GB warning level.
 
 **1. Clean Community source, fetched and verified**
-- I streamed the official GitHub archive of `odoo/odoo` `4e5027c159a9d9a8dd006618486c8e54cb1eb453`, without translations, into the kit's `runtime/community/18.0-4e5027c1/`.
-- All 21,846 files are identical to the official tree by git blob hash: 0 different, 0 missing, 0 extra. Pinned with tree SHA-256 `7699e418...e0e6`.
+- I streamed the official GitHub archive of `odoo/odoo` commit `4e5027c159a9d9a8dd006618486c8e54cb1eb453` into the kit's `runtime/community/18.0-4e5027c1/`, without translation files.
+- All 21,846 files are byte-identical to GitHub's official file list for that commit: none different, missing or extra. The folder is pinned with a SHA-256 checksum (`7699e418...e0e6`).
 
 **2. Matched pair on port 8071**
 - New service `odoo-ee-20241208`:
-  - the same pinned image, which provides Python, its libraries and wkhtmltopdf;
-  - the official `odoo/` mounted read-only over the image's Odoo package;
-  - the official `addons/`, the 620 Enterprise modules (`f2c60cc6...b499`) and our addons;
-  - its own volume, serving only `azk_ee24`.
-- New `dev.sh` edition `enterprise-20241208`, now the default in `.env`. Each database belongs to one edition by prefix (`azk_ent*`, `azk_ee24*`, the rest Community). I verified 10 refusal cases, so no other core can open `azk_ent`.
-- Correction to my 2026-11-04 work: `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills` are part of the official Community source (their manifests just say OEEL-1 there); they are not Enterprise modules. The extra 3-module folder was redundant. I removed it from the configuration, deleted it, and reran both test commands on the final configuration.
+  - the same pinned Docker image, which supplies Python, its libraries and wkhtmltopdf;
+  - the official `odoo/` folder mounted read-only over the image's own Odoo package;
+  - the official Community addons, the 620 Enterprise modules (`f2c60cc6...b499`) and our addons;
+  - its own data volume, serving only `azk_ee24`.
+- New `dev.sh` edition `enterprise-20241208`, now the default in `.env`.
+  - Each database belongs to one edition by its name prefix: `azk_ent*`, `azk_ee24*`, everything else Community. All 10 cases I tested were refused, so no other core can open `azk_ent`.
+- Correction to my 2026-11-04 work: `certificate`, `l10n_it_edi_website_sale` and `project_hr_skills` are part of the official Community source; their manifests just carry an Enterprise license key. The extra 3-module folder was redundant. I removed it from the configuration, deleted it, and reran both test commands on the final setup.
 
 **3. Checks (fresh databases, final configuration)**
-- PASS: `TestTrialBalanceReport`, 8 of 8, including `test_trial_balance_comparisons`, with 0 warnings.
+- PASS: Odoo's `TestTrialBalanceReport`, 8 of 8, including the previously failing `test_trial_balance_comparisons`, with no warnings.
 - PASS: custom addon tests, 4 of 4.
-- PASS: `azk_ee24` created with web_enterprise, accountant, both addons and demo data: 92 modules, 0 warnings.
-- PASS: login over HTTP (uid 2, version `18.0+e`), the web client and its bundles, the report RPC, and refusal without a session.
-- PASS: native Trial Balance (balanced and net-side), PDF (one page with header and footer, rendered inside the server) and XLSX (a valid workbook). Server log: 0 warnings.
-- NOT RUN: a browser check of the new environment (I have no browser; it's recommended but wasn't among the agreed checks), and the full accounting suite (excluded as agreed).
+- PASS: new database `azk_ee24` with web_enterprise, accountant, both addons and demo data (92 modules, no warnings).
+- PASS: login over HTTP (version `18.0+e`), the web client and its scripts and styles, the Trial Balance's server calls, and refusal of calls without a login.
+- PASS: Trial Balance totals balance in every column group. The PDF (one page, header and footer, rendered inside the server) and the XLSX are both valid. The server log has no warnings.
+- NOT RUN: a browser check of the new environment (I have no browser; recommended, but not among the agreed checks), and the full accounting test suite (excluded as agreed).
 
 **Preserved**
-- `azk_dev`, `azk_ent`, the `odoo` and `odoo-ee` services and volumes, the backups, and the other project's containers. The Stage 01B pair stays blocked and is kept only as evidence.
+- `azk_dev`, `azk_ent`, the `odoo` and `odoo-ee` services and their volumes, the backups, and the other project's containers.
+- The old Stage 01B pair stays blocked and is kept only as evidence.
 
 **Recommended before Stage 02 (about 5 minutes)**
-- Browser check: run `scripts/dev.sh start`, open http://127.0.0.1:8071/web/login (admin/admin), open Accounting > Reporting > Trial Balance, click PDF and Download Excel, then search `azk` in Apps.
+- The new server is still running on 8071. Open http://127.0.0.1:8071/web/login (admin/admin). If it has stopped, run `scripts/dev.sh start` first.
+- Open Accounting > Reporting > Trial Balance and click PDF and Download Excel, then search `azk` in Apps.
 
 **Changed files**
-- `compose.yaml` (service `odoo-ee-20241208`), `config/odoo-enterprise-20241208.conf` (new), `scripts/dev.sh` (edition `enterprise-20241208`; `resolve_path`, `require_source`, `db_edition`, `check_db_edition`, `check_enterprise_addons`), `.env.example`, `.gitignore`.
-- `docs/enterprise_transition.md`, `docs/environment.md`, `docs/STATE.md` (Stage 01B: DONE), `docs/assumptions.md` (A-12 validated), `docs/requirements_matrix.md` (C-01: DONE), `docs/handoffs/stage_01b_en.md`, `docs/ai/stage_01b.md`, `docs/ai/README.md`.
-- Outside Git: the kit `CLAUDE.md`, the new `runtime/community/18.0-4e5027c1/`, the deleted redundant 3-module folder, and the local `.env`.
-- Commit: "Stage 01B: validate the matched Enterprise pair on port 8071".
+- `compose.yaml` (service `odoo-ee-20241208`), `config/odoo-enterprise-20241208.conf` (new), `scripts/dev.sh` (new edition and the guard functions `require_source`, `db_edition`, `check_db_edition`), `.env.example`, `.gitignore`.
+- Docs: `enterprise_transition.md`, `environment.md`, `STATE.md` (Stage 01B: DONE), `assumptions.md` (A-12 validated), `requirements_matrix.md` (C-01: DONE), the Stage 01B handoff, and the AI log and its README.
+- Outside Git: the kit `CLAUDE.md`, the new `runtime/community/18.0-4e5027c1/`, the deleted redundant folder, and the local `.env`.
+- Commit: `00fb80c`.
 
 **Comprehension questions**
 1. Why does mounting the official `odoo/` folder over the image's Odoo package not count as patching vendor code?
 2. What could go wrong if `azk_ent`, created by the 2026 core, were opened by the 2024 core?
-3. Why was a matching build date not accepted as proof that `4e5027c1` is the build's Community revision, and what was?
+3. Why wasn't a matching build date accepted as proof that `4e5027c1` is the build's Community revision, and what was?
 
 I'm stopping here, as asked. When you're ready:
 
