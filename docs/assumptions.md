@@ -34,14 +34,14 @@ These are referenced by the PDF but were **not supplied**. They have not been re
 | A-16 | Partner Monitor views (missing original specification, M-01): list, form and search views for countries, partners, status history, references and sync records; pivot and graph views for partners, status history and references; the filters and groupings listed in [architecture.md](architecture.md) 5.9 | Our proposal for the missing specification | Assumption; Stage 03 built the list, form and search views and menus (2026-11-08); Stage 06 adds the pivots, graphs and dashboard |
 | A-17 | Partner Monitor dashboard: a small OWL client action holds the shared filters and embeds four standard graph views defined in XML. One server method ranks the countries | `board` has no shared filters; 18.0 spreadsheet global filters support only date, relation and text, and spreadsheet content is JSON, not XML ([architecture.md](architecture.md) 5.8) | Decided in Stage 02; built and verified in Stage 06 |
 | A-18 | Partner Monitor sync: four crons (daily discovery, worker, country validation, reference validation). Producers only enqueue durable work items; the worker alone processes them, in bounded batches through the 18.0 cron progress API. Commits are the scheduler's, after each callback | `ir.cron._run_job` and `_notify_progress` in the pinned source ([architecture.md](architecture.md) 5.6) | Decided in Stage 02; implemented and crash-tested in Stage 05 |
-| A-19 | The live partners site behaves like the 18.0 `website_crm_partner_assign` module: country and grade URL paths, 40 partners per page, `country_id` in partner links of a country listing, the all-countries fallback with an alert, and per-card reference counts | Read in the pinned Community source; odoo.com runs its own newer deployment, and the PDF's retention rate and project-size metrics are not in the Community template | Working model; Stage 04 verifies it on a small live sample and records any difference |
+| A-19 | The live partners site behaves like the 18.0 `website_crm_partner_assign` module: country and grade URL paths, 40 partners per page, `country_id` in partner links of a country listing, the all-countries fallback with an alert, and per-card reference counts | Read in the pinned Community source; odoo.com runs its own newer deployment, and the PDF's retention rate and project-size metrics are not in the Community template | Verified on a small live sample on 2026-11-08 ([live_site_notes.md](live_site_notes.md)). Confirmed: the URL paths, `country_id` in country-scoped links, the fallback with its notice, and per-card reference counts. Different: 20 partners per page (not 40); the cards also show retention and project sizes; references link to `/customers/<slug>-<id>` |
 | A-20 | Dates recorded by the sync (`first_seen_on`, `change_date`, `added_on`, `removed_on`, `last_seen_on`) are the run's start date in the server's time zone (UTC in this Docker setup) | Simple and reproducible; the site has no observation timestamps | Assumption |
 | A-21 | Scraped partner data is public and shared across companies: the models have no `company_id` and no multi-company rules | The data describes odoo.com, not a company | Decided in Stage 02 |
 | A-22 | The failure-recipient setting lives in Settings, so only system administrators can change it. "Partner Monitor / Manager" operates the sync (Sync now, Retry), and "Partner Monitor / Reader" reads the data and the dashboard | Standard `res.config.settings` pattern with an `ir.config_parameter` | Decided in Stage 02 |
 
 ## Ambiguities and design decisions
 
-D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, and D-18 to D-22 in Stage 03.
+D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, D-18 to D-22 in Stage 03, and D-23 to D-29 in Stage 04.
 
 | ID | PDF p. | Ambiguity | Decision |
 |---|---|---|---|
@@ -67,6 +67,13 @@ D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 
 | D-20 | - | How demo data is kept apart from scraped data (Stage 03) | Demo records have `is_demo = True` and names starting with "Demo". They use reserved website ids: negative partner ids and country ids starting with "demo-". Database checks keep these namespaces apart, so a real scrape can never update or collide with a demo record. Demo partners have no `partner_url` |
 | D-21 | 4 | An observation older than the partner's last observation (Stage 03) | Ignored, so a late replay of an earlier run cannot record a false demotion or promotion. Observations of the same day are applied |
 | D-22 | 4-5 | Unknown versus zero for `total_references_count` (Stage 03) | Like the three metrics in architecture 5.2, it has a `_known` flag: reference validation needs a known expected count. A database check ensures an unknown measurement carries no number |
+| D-23 | 5 | Identity of a reference client (Stage 04) | The id in its `/customers/<slug>-<id>` link, else the same id in its avatar image URL, else (fallback) its normalized name. Two clients with the same name but different ids stay two references; the name is used only when the page shows no id |
+| D-24 | 4 | An unknown status label on a listing card (Stage 04; refines D-09) | That card is skipped and reported as invalid; the other cards are recorded. The country snapshot is then incomplete, so nothing is archived and the country is flagged. On a partner's own page, an unknown status fails the whole page and nothing is written |
+| D-25 | 3, 5 | Crawling rules of the site (Stage 04) | Follow robots.txt as read on 2026-11-08: never request URLs whose query has `country_id`, `grade_id`, `page` and similar keys, or `*/page/*/*` paths. Partner links with `country_id` are read from listing pages, never requested. The country list comes from `/partners?country_all=1` |
+| D-26 | 5 | Language of the parsed pages (Stage 04) | The parsers read English labels ("Average Project", "References", the no-partners notice), so pages must be requested in English. This is part of the deferred page-download module |
+| D-27 | 5 | When an empty country is confirmed (Stage 04) | The site's no-partners notice alone is not enough. It counts as a valid empty result only when a complete country list read in the same run does not list the country, or lists it with 0 partners. Otherwise the result is incomplete and existing records are kept |
+| D-28 | 5 | When a country snapshot is complete (Stage 04) | Every page from 1 to the last was read in order; every card was in scope and readable; nothing was listed twice; and the number of distinct partners equals the page's own "All Categories" count. Reading only the last page, or pages with a gap, is never complete |
+| D-29 | 4 | Which page decides that a metric is unknown (Stage 04) | The listing card, shown for every partner: a value it does not show is stored as unknown. A partner's own page only adds the values it shows. A value the site prints as 0 ("0 users") is a known 0 |
 
 ## Version and edition notes
 
@@ -80,11 +87,11 @@ These are recorded rather than silently changing scope. Details are in [architec
 | V-04 | 18.0 dashboards are spreadsheets (JSON content); the PDF asks for a dashboard "defined in XML" | XML-defined graph views in a small client action (A-17) |
 | V-05 | `account_reports` is an Enterprise module (OEEL-1) | Declared dependency; `azk_dynamic_trial_balance` installs only where Enterprise addons are present; license question Q-06 |
 | V-06 | In 18.0, accounts can be shared between companies and their codes are company-dependent | Prefix matching always runs in the report company's context |
-| V-07 | The live partners site is newer than, and customized from, the Community module | Stage 04 verifies selectors and URL rules on a small live sample (A-19) |
+| V-07 | The live partners site is newer than, and customized from, the Community module | Stage 04 checked selectors and URL rules on a small live sample on 2026-11-08 (A-19, [live_site_notes.md](live_site_notes.md)); the parsers follow the live markup |
 
 ## Open clarifications for the team lead
 
-We continue under the documented defaults until answered. Only unresolved points are listed; none blocks Stage 04.
+We continue under the documented defaults until answered. Only unresolved points are listed; none blocks Stage 05.
 
 | ID | Question | Status |
 |---|---|---|

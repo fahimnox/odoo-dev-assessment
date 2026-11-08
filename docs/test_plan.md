@@ -1,6 +1,6 @@
 # Test and acceptance plan (Stage 02)
 
-_Written 2026-11-05 as the plan. Stage 03 (2026-11-08) implemented TP-PM-01 to TP-PM-05 (section 3.1); the other tests do not exist yet. The design they verify is in [architecture.md](architecture.md), the requirements in [requirements_matrix.md](requirements_matrix.md)._
+_Written 2026-11-05 as the plan. Stage 03 (2026-11-08) implemented TP-PM-01 to TP-PM-05 (section 3.1), and Stage 04 (partial) the offline parser and ingestion tests (section 3.2); the other tests do not exist yet. The design they verify is in [architecture.md](architecture.md), the requirements in [requirements_matrix.md](requirements_matrix.md)._
 
 ## 1. Rules for every result
 
@@ -76,6 +76,29 @@ The checks TP-PM-01 to TP-PM-05 are automated in `addons/azk_odoo_partner_monito
 - **Reference intervals** (D-10, the model part of TP-PM-12 and TP-PM-13): `test_references.py`, `TestReferences` (7 tests).
 - **TP-PM-05** (permissions): `test_security.py`, `TestSecurity` (12 tests): reader reads and is refused writes, work items, errors and manager actions; manager actions; manager refused direct edits; no access without a group; data shared across companies; Settings for system administrators only; menus and views per role.
 - **Notification destination** (the Stage 03 part of TP-PM-16): `test_notification.py`, `TestFailureNotification` (7 tests). The worker's call at the end of a run, and its tests, come in Stage 05.
+
+### 3.2 Implemented in Stage 04 (2026-11-08, PARTIAL)
+
+38 offline tests use only the seven live-derived fixtures in `tests/fixtures/` (provenance in their README). Pages reach the parsers through `services/reader.py` with `FixtureSite`, a fixture-backed `fetch` function in `tests/common.py`. No test touches the network.
+
+- **TP-PM-06** (parsers): `test_parsers.py`, `TestParsers` (12 tests):
+  - the country list (170 countries, counts add up to 4517) and a variant with one country removed (incomplete);
+  - Andorra (complete page); Egypt page 1 (page 1 of 11, the next-page link) and page 11 (last page, missing retention, known zeros);
+  - partner pages (RoayaTec: 3 of 135 references, identified by link id; DEVONEERS: no references);
+  - wrong page types and empty input raise ParseError.
+- **TP-PM-08** (country scope):
+  - `test_urls.py`, `TestUrlRules` (8 tests): `country_id` in any position; missing, empty, repeated and wrong values rejected; the check needs the raw link; canonical URLs; reference keys; robots.txt rules;
+  - `TestParsers`: Anguilla's 3 global links rejected for "missing country_id"; the Andorra page read for Egypt is "unscoped".
+- **Ingestion** (`test_ingest.py`, `TestIngest`, 18 tests), including the cases the user named:
+  - Andorra ingested twice (and again on a later date) creates no duplicate partner or history row;
+  - RoayaTec's 3-of-135 list keeps a seeded reference active and flags the partner;
+  - Anguilla is empty only when a complete country list confirms it; without that, or with an incomplete list, or with the country listed with partners, everything is kept and the country is flagged;
+  - Egypt: the reader follows the pager and a missing page 2 fails the read; the last page alone, or pages 1 and 11 with a gap, are incomplete and archive nothing.
+  It also covers: the raw-URL-to-stored-partner walkthrough; a complete snapshot archiving an unlisted partner; a timeout failing the read with no change; an unknown status card skipped; a page of another country changing nothing; complete and incomplete country lists; a valid empty reference list; and a page of another partner refused.
+- **Partly covered:**
+  - TP-PM-07: page-type errors and source failures at the reader (a timeout, a missing page) are covered. A login page, a rate-limit page, HTTP errors and truncated markup are not: the synthetic fixtures for them and the page-download module were deferred.
+  - TP-PM-13: incomplete snapshots are covered at the ingestion level; the worker path comes in Stage 05.
+- **TP-PM-21** (live): a manual sample with curl (9 requests) and a manual parser check on the saved full pages ([live_site_notes.md](live_site_notes.md)). A live run through the module is NOT RUN: the page-download module is deferred.
 
 ## 4. Exercise 2: Dynamic Trial Balance
 

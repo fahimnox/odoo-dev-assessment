@@ -4,3 +4,6 @@ from . import test_status_history
 from . import test_references
 from . import test_security
 from . import test_notification
+from . import test_urls
+from . import test_parsers
+from . import test_ingest

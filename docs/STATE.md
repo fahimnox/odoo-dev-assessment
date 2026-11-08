@@ -1,9 +1,27 @@
 # Project state
 
-_Last updated: 2026-11-08, end of Stage 03._
+_Last updated: 2026-11-08, end of Stage 04 (PARTIAL)._
 
 ## Current position
 
+- **Stage 04: PARTIAL (2026-11-08).** `azk_odoo_partner_monitor` 18.0.1.2.0.
+  - **Implemented:**
+    - `services/urls.py`: the `country_id` check on raw links before canonicalization, canonical partner URLs, listing URLs, reference identities (D-23) and the robots.txt rules (D-25);
+    - `services/parsers.py`: BeautifulSoup parsers for the country list, listing pages and partner pages;
+    - `services/reader.py`: passes pages from any `fetch(url)` to the parsers, following the pager;
+    - `models/ingest.py`: ingestion through the Stage 03 observation methods. Removals happen only for complete snapshots (D-27, D-28); incomplete ones set the re-scrape flags and keep existing data.
+  - **Missing:**
+    - the requests-based page-download module (`services/http_client.py`) and its mocked-response tests. The response that was writing it, and a later one writing a synthetic fixture, were stopped by a safety classifier; the user deferred both files;
+    - the synthetic fixtures for login, rate-limit, truncated and duplicate pages;
+    - a live run through the module.
+    See [handoffs/stage_04_en.md](handoffs/stage_04_en.md).
+  - **Evidence:**
+    - this morning's manual live sample (curl, 9 requests) and the manual parser check on the saved full pages: [live_site_notes.md](live_site_notes.md);
+    - the automated offline tests below.
+- **Stage 04 checks** (edition `enterprise-20241208`):
+  - `scripts/dev.sh test azk_odoo_partner_monitor`: PASS. "0 failed, 0 error(s) of 91 tests" in a fresh `azk_ee24_test`: the 53 Stage 03 tests plus 38 new ones (8 URL-rule, 12 parser, 18 ingestion). 0 warnings in the log, exit code 0, 2 min 28 s. Rerun on the committed code: 91 of 91 again, 0 warnings, 1 min 56 s.
+  - `scripts/dev.sh update azk_odoo_partner_monitor` on `azk_ee24`: PASS, 0 warnings or errors, 1 min 15 s.
+  - NOT RUN: the fetcher tests and a live run through the module (no fetcher); a browser check.
 - **Stage 03: DONE (2026-11-08).** `azk_odoo_partner_monitor` 18.0.1.1.0 has its data model, access rules, basic UI and demo data; no scraping yet.
   - Models: the four PDF models with their exact fields, plus `sync.run` (with chatter), `work.item` and `sync.error`. The observation API (`country._record_observation`, `partner._record_observation`, `partner._sync_references`) enforces the Stage 03 invariants; the Stage 05 worker will call it.
   - Access: Reader and Manager groups with read-only ACLs; four manager actions with an explicit group check and a narrow `sudo()` (D-18); no record rules, because the data is shared across companies (A-21); Settings for system administrators.
@@ -34,9 +52,12 @@ _Last updated: 2026-11-08, end of Stage 03._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next stage:** 04 - Partner scraping (fetch and parse layers), on edition `enterprise-20241208`.
+- **Next step:** decide how to complete Stage 04's deferred page-download module and its live integration check (see the Stage 04 handoff). Stage 05 (resumable sync) can build its units on the reader and the ingestion, but a real sync needs the page-download module.
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. No browser check of the matched-pair environment (port 8071) has been done yet; the agent has no browser here. It is recommended (steps in [enterprise_transition.md](enterprise_transition.md)).
-- **Business features implemented:** the Partner Monitor data model, access rules, basic views and demo data (Stage 03). No scraping, sync jobs or dashboard yet. The Trial Balance addon is still an installable skeleton with smoke tests.
+- **Business features implemented:**
+  - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
+  - its parsers and ingestion, tested offline (Stage 04, partial).
+  - Not yet: the page download, sync jobs and the dashboard. The Trial Balance addon is still an installable skeleton with smoke tests.
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
   - Enterprise: `scripts/dev.sh test`, 4 tests, 0 failed, 0 errors.
@@ -61,7 +82,7 @@ _Last updated: 2026-11-08, end of Stage 03._
 | 01B | Enterprise transition | DONE (2026-11-05): matched pair validated; the Stage 01B pair stays blocked and preserved |
 | 02 | Requirements, assumptions, architecture | DONE (2026-11-05): design agreed; native Trial Balance probed on the matched pair |
 | 03 | Partner Monitor models, permissions, basic UI | DONE (2026-11-08): 53 tests pass; installs and upgrades without warnings |
-| 04 | Partner scraping | NOT STARTED |
+| 04 | Partner scraping | PARTIAL (2026-11-08): parsers, ingestion and 38 offline tests pass; the page-download module and a live run through it are missing |
 | 05 | Partner resilience | NOT STARTED |
 | 06 | Partner dashboard | NOT STARTED |
 | 07 | Trial Balance wizard and calculation contract | NOT STARTED |
@@ -107,6 +128,14 @@ _Last updated: 2026-11-08, end of Stage 03._
   - D-20: demo records are labeled and use reserved website ids;
   - D-21: an observation older than the last one is ignored;
   - D-22: `total_references_count` also has a known flag, and unknown measurements carry no number.
+- **Stage 04 decisions** ([assumptions.md](assumptions.md)):
+  - D-23: a reference is identified by its `/customers/` link id, then its avatar id, then its name;
+  - D-24: an unknown status on a listing card skips that card and makes the snapshot incomplete;
+  - D-25: robots.txt is followed; links with `country_id` are read, never requested;
+  - D-26: the parsers read English labels;
+  - D-27: the no-partners notice counts as empty only when a complete country list confirms it;
+  - D-28: a country snapshot is complete only with every page, every card in scope, and the site's count;
+  - D-29: the listing card decides when a metric is unknown.
 
 ## Corrections applied
 
@@ -129,7 +158,7 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - **Extracted archive:** no runtime needs `<kit-root>/odoo/odoo18`: the matched pair uses the official Community source and the 620-module Enterprise copy. Deleting it (1.76 GB) is the user's decision, and only sensible if the original archive file is kept elsewhere.
 - **Decision for the user:** the supplied archive contains an earlier implementation of this assessment's modules (`projects/assessment/`, not opened or used). Whether to mention it to the team lead is the user's decision.
 - **Subscription:** `azk_ee24` and `azk_ent` are unregistered trials; registering needs the employer's subscription code.
-- Clarifications Q-02 to Q-06 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked. None blocks Stage 04.
+- Clarifications Q-02 to Q-06 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked. None blocks Stage 05.
 - Ambiguities D-01 to D-07 were resolved in Stage 02, and D-08 to D-17 were added and decided ([assumptions.md](assumptions.md)).
 - **Verification still ahead:**
   - The live partners site is modeled on the 18.0 `website_crm_partner_assign` module (A-19) until Stage 04 checks a small live sample.

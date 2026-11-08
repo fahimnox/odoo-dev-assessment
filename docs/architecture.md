@@ -1,6 +1,6 @@
 # Architecture (Stage 02)
 
-_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
 
 ## 1. Target and sources used
 
@@ -287,7 +287,11 @@ The public `/partners` pages come from the `website_crm_partner_assign` module. 
 - **Empty-country fallback:** when the selected country has no partners, the controller drops the country and lists all partners, with the alert "There are no matching partners found for the selected country. Displaying results across all countries instead." This is the PDF's "No Matching Partners" case (P-22).
 - **Partner links:** `/partners/<name-id>?grade_id=<g>&country_id=<c>`. `country_id` is present only while a country is selected, and it need not be the first parameter.
 - **Ordering and cards:** partners are sorted by grade sequence, then reference count. The card shows "<N> references". The detail page lists references by avatar and name, without links.
-- **Unknown until Stage 04:** odoo.com runs its own version of this module, and the PDF's retention rate and project-size metrics are not in the Community template. Stage 04 confirms against a small live sample and records any difference (A-19).
+- **Checked live in Stage 04 (2026-11-08):** odoo.com behaves like this module, with differences recorded in [live_site_notes.md](live_site_notes.md):
+  - 20 partners per page instead of 40;
+  - the cards also show the retention rate, average and largest project size, and the reference count;
+  - references link to `/customers/<slug>-<id>`.
+  The empty-country fallback and `country_id` in country-scoped links are as described above. robots.txt disallows requesting URLs with `country_id`, `grade_id` or `page` query keys (D-25).
 
 ### 5.2 Data model
 
@@ -443,6 +447,38 @@ The original views specification was not supplied. The proposed views are an ass
 - **Access:** read-only ACLs for every group. Readers read the business data and runs. Managers also read work items and errors, and run four actions: Sync Now, Retry, and Mark for Re-scrape on countries and partners. Each action checks the manager group, then writes with a narrow `sudo()` (D-18). There are no record rules: the data is public and shared by all companies, and company rules would hide it (A-21).
 - **Notification:** `sync.run._notify_failure()` posts the internal note described in 5.7. The Stage 05 worker calls it when a run ends `partial` or `failed`.
 - **Views:** list, form and search views for every model, Settings and menus. The root menu opens Partners until Stage 06 adds the dashboard.
+
+### 5.11 As built in Stage 04 (2026-11-08, PARTIAL)
+
+```text
+  [page source]  fetch(url) -> (final URL, HTML); raises on any failure
+        |        (the requests-based module is deferred; tests use saved pages)
+        v
+  services/reader.py     refuses URLs that robots.txt disallows; follows the
+        |                site's pager; stops at the first page that is not
+        |                this country's listing
+        v
+  services/parsers.py    country list | listing page | partner page
+        |                -> typed results with counts, scope, paging,
+        |                   rejected and invalid links, problems
+        v
+  models/ingest.py       -> country._record_observation,
+                            partner._record_observation,
+                            partner._sync_references (Stage 03)
+```
+
+- **Raw link to stored partner:** the listing parser checks each card's raw link with `urls.check_country_scope` BEFORE `urls.canonical_partner_url` drops the query string. A link with a missing, empty, repeated or different `country_id` is rejected and reported, never recorded.
+- **Page scope** (`parse_listing_page`):
+  - "country": the page lists partners of this country;
+  - "empty_country": the page shows the site's no-partners notice;
+  - "unscoped": anything else, for example another country's page, or a global list without the notice.
+- **Completeness and removals:**
+  - A country snapshot is complete only under D-28. A complete snapshot archives the partners the country no longer lists. An incomplete one archives nothing and sets `to_reprocess_partners`.
+  - The no-partners notice is a valid empty snapshot only when a complete country list confirms it (D-27).
+  - A partner's reference list is complete only when its size equals the expected count: the page's "References - N", or, when the page shows no count, the listing's known count. An incomplete list adds new references, closes none, and sets `to_reprocess_references`.
+  - Only a complete country list deactivates missing countries. Demo records are never touched.
+- **Failures:** a ParseError, a refused URL or any exception from the page source propagates. Nothing is ingested for that scope. A failure is never treated as an empty result.
+- **Missing:** the requests-based page-download module and a live run through it. See the Stage 04 handoff.
 
 ## 6. Version and edition notes
 

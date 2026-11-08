@@ -6,3 +6,4 @@ from . import sync_run
 from . import work_item
 from . import sync_error
 from . import res_config_settings
+from . import ingest
