@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="partner_view_list" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.list</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="arch" type="xml">
+            <list string="Partners" create="0" edit="0" delete="0" decoration-muted="not active">
+                <field name="name"/>
+                <field name="country_id"/>
+                <field name="current_status" widget="badge"
+                       decoration-warning="current_status == 'gold'"
+                       decoration-info="current_status == 'silver'"
+                       decoration-success="current_status == 'ready'"/>
+                <field name="first_seen_on"/>
+                <field name="last_seen_on" optional="show"/>
+                <field name="total_references_count" invisible="not total_references_count_known" optional="show"/>
+                <field name="retention_rate" invisible="not retention_rate_known" optional="hide"/>
+                <field name="largest_project_size" invisible="not largest_project_size_known" optional="hide"/>
+                <field name="average_project_size" invisible="not average_project_size_known" optional="show"/>
+                <field name="to_reprocess_references" optional="show"/>
+                <field name="is_demo" optional="show"/>
+                <field name="source_id" optional="hide"/>
+                <field name="active" column_invisible="True"/>
+                <field name="total_references_count_known" column_invisible="True"/>
+                <field name="retention_rate_known" column_invisible="True"/>
+                <field name="largest_project_size_known" column_invisible="True"/>
+                <field name="average_project_size_known" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="partner_view_form" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.form</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="arch" type="xml">
+            <form string="Partner" create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_mark_for_rescrape" type="object" string="Mark for Re-scrape"
+                            groups="azk_odoo_partner_monitor.group_manager"
+                            invisible="to_reprocess_references or not active"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <widget name="web_ribbon" title="Demo" bg_color="text-bg-warning" invisible="not is_demo or not active"/>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group string="Website">
+                            <field name="current_status" widget="badge"
+                                   decoration-warning="current_status == 'gold'"
+                                   decoration-info="current_status == 'silver'"
+                                   decoration-success="current_status == 'ready'"/>
+                            <field name="country_id"/>
+                            <field name="partner_url" widget="url"/>
+                            <field name="source_id"/>
+                        </group>
+                        <group string="Observation">
+                            <field name="first_seen_on"/>
+                            <field name="last_seen_on"/>
+                            <field name="to_reprocess_references"/>
+                            <field name="is_demo"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group string="Metrics">
+                            <label for="total_references_count"/>
+                            <div>
+                                <field name="total_references_count" class="oe_inline" invisible="not total_references_count_known"/>
+                                <span class="text-muted" invisible="total_references_count_known">Unknown</span>
+                            </div>
+                            <label for="retention_rate"/>
+                            <div>
+                                <field name="retention_rate" class="oe_inline" invisible="not retention_rate_known"/>
+                                <span class="text-muted" invisible="retention_rate_known">Unknown</span>
+                            </div>
+                            <label for="largest_project_size"/>
+                            <div>
+                                <field name="largest_project_size" class="oe_inline" invisible="not largest_project_size_known"/>
+                                <span class="text-muted" invisible="largest_project_size_known">Unknown</span>
+                            </div>
+                            <label for="average_project_size"/>
+                            <div>
+                                <field name="average_project_size" class="oe_inline" invisible="not average_project_size_known"/>
+                                <span class="text-muted" invisible="average_project_size_known">Unknown</span>
+                            </div>
+                            <field name="total_references_count_known" invisible="1"/>
+                            <field name="retention_rate_known" invisible="1"/>
+                            <field name="largest_project_size_known" invisible="1"/>
+                            <field name="average_project_size_known" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Status History" name="status_history">
+                            <field name="status_history_ids">
+                                <list>
+                                    <field name="change_date"/>
+                                    <field name="change_type" widget="badge"
+                                           decoration-success="change_type == 'promoted'"
+                                           decoration-danger="change_type == 'demoted'"
+                                           decoration-info="change_type == 'initial'"/>
+                                    <field name="previous_status"/>
+                                    <field name="new_status"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="References" name="references">
+                            <field name="reference_ids">
+                                <list decoration-muted="not is_active">
+                                    <field name="name"/>
+                                    <field name="is_active"/>
+                                    <field name="added_on"/>
+                                    <field name="removed_on"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="partner_view_search" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.search</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="arch" type="xml">
+            <search string="Partners">
+                <field name="name"/>
+                <field name="country_id"/>
+                <field name="source_id"/>
+                <filter name="gold" string="Gold" domain="[('current_status', '=', 'gold')]"/>
+                <filter name="silver" string="Silver" domain="[('current_status', '=', 'silver')]"/>
+                <filter name="ready" string="Ready" domain="[('current_status', '=', 'ready')]"/>
+                <separator/>
+                <filter name="needs_rescrape" string="Needs Re-scrape" domain="[('to_reprocess_references', '=', True)]"/>
+                <separator/>
+                <filter name="website_data" string="Website Data" domain="[('is_demo', '=', False)]"/>
+                <filter name="demo_data" string="Demo Data" domain="[('is_demo', '=', True)]"/>
+                <separator/>
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_country" string="Country" context="{'group_by': 'country_id'}"/>
+                    <filter name="group_status" string="Status" context="{'group_by': 'current_status'}"/>
+                    <filter name="group_first_seen_year" string="Year First Seen" context="{'group_by': 'first_seen_on:year'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="partner_action" model="ir.actions.act_window">
+        <field name="name">Partners</field>
+        <field name="res_model">azk_odoo_partner_monitor.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="partner_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">No partners yet</p>
+            <p>Partners appear after a sync reads the Odoo Partners website.</p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,6 +1,6 @@
 # Test and acceptance plan (Stage 02)
 
-_Written 2026-11-05. It plans the tests; none of the tests below exists yet. The design they verify is in [architecture.md](architecture.md), the requirements in [requirements_matrix.md](requirements_matrix.md)._
+_Written 2026-11-05 as the plan. Stage 03 (2026-11-08) implemented TP-PM-01 to TP-PM-05 (section 3.1); the other tests do not exist yet. The design they verify is in [architecture.md](architecture.md), the requirements in [requirements_matrix.md](requirements_matrix.md)._
 
 ## 1. Rules for every result
 
@@ -53,6 +53,29 @@ _Written 2026-11-05. It plans the tests; none of the tests below exists yet. The
 | TP-PM-19 | 06 | Dashboard access (L4) | A reader gets data; a user without the reader group is refused by the server, whatever domain the client sends | P-24, K-02 |
 | TP-PM-20 | 06 | UI (L6) | Menu opens the dashboard first; four charts render; each filter changes all four; a bar opens the matching partners | P-24, P-25 |
 | TP-PM-21 | 04, 06 | Bounded live smoke | One or two country pages fetched live; evidence saved and labeled live with its date; BLOCKED if there is no connectivity | P-02 |
+
+### 3.1 Implemented in Stage 03 (2026-11-08)
+
+The checks TP-PM-01 to TP-PM-05 are automated in `addons/azk_odoo_partner_monitor/tests/` (`TransactionCase`, tagged `post_install`). Results are in [STATE.md](STATE.md) and the Stage 03 handoff.
+
+- **TP-PM-01** (models and fields): `test_models.py`, `TestDataModel.test_required_models_and_field_types_match_the_pdf`. Install and upgrade are checked with the commands in section 6.
+- **TP-PM-02** (uniqueness, identities, relations): `TestDataModel`:
+  - `test_country_identity_is_the_website_id`, `test_partner_identity_is_the_website_id`;
+  - `test_demo_and_website_ids_never_collide`, `test_relations_are_enforced`;
+  - `test_work_item_target_matches_its_kind`, `test_one_pending_work_item_per_target`;
+  - `test_partner_url_must_be_canonical`, `test_canonical_url_rule`;
+  - `test_unknown_metric_is_not_zero`, `test_observation_cannot_set_protected_fields`, `test_demo_records_are_labeled`;
+  - plus `test_references.py`, `TestReferences.test_reference_rules_in_database` and `test_status_history.py`, `TestStatusHistory.test_history_rules_in_database_and_model`.
+- **TP-PM-03 and TP-PM-04** (first observation, transitions): `test_status_history.py`, `TestStatusHistory`:
+  - `test_first_observation_creates_partner_and_initial_row`;
+  - `test_silver_gold_gold_records_initial_then_one_promotion`, the sequence Silver -> Gold -> Gold;
+  - `test_ranking_types_promotions_and_demotions`, `test_replayed_observation_adds_nothing`, `test_older_observation_is_ignored`;
+  - `test_unknown_status_writes_nothing`, `test_first_seen_on_cannot_be_rewritten`;
+  - `test_archived_partner_reappears_with_its_history`, `test_country_move_updates_the_same_partner`;
+  - `test_history_rows_cannot_be_changed`, `test_users_cannot_record_observations`, `test_demo_history_is_consistent`.
+- **Reference intervals** (D-10, the model part of TP-PM-12 and TP-PM-13): `test_references.py`, `TestReferences` (7 tests).
+- **TP-PM-05** (permissions): `test_security.py`, `TestSecurity` (12 tests): reader reads and is refused writes, work items, errors and manager actions; manager actions; manager refused direct edits; no access without a group; data shared across companies; Settings for system administrators only; menus and views per role.
+- **Notification destination** (the Stage 03 part of TP-PM-16): `test_notification.py`, `TestFailureNotification` (7 tests). The worker's call at the end of a run, and its tests, come in Stage 05.
 
 ## 4. Exercise 2: Dynamic Trial Balance
 
@@ -179,4 +202,8 @@ scripts/dev.sh test account_reports /account_reports:TestTrialBalanceReport   # 
 scripts/dev.sh clean-install                                                   # acceptance install
 ```
 
-Test class names are provisional; Stage 03 onward records the real ones.
+Test class names are provisional; Stage 03 onward records the real ones (section 3.1). One Stage 03 test can be run alone, for example:
+
+```text
+scripts/dev.sh test azk_odoo_partner_monitor /azk_odoo_partner_monitor:TestStatusHistory.test_silver_gold_gold_records_initial_then_one_promotion
+```

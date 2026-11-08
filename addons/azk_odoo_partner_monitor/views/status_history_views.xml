@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="status_history_view_list" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.status.history.list</field>
+        <field name="model">azk_odoo_partner_monitor.status.history</field>
+        <field name="arch" type="xml">
+            <list string="Status History" create="0" edit="0" delete="0">
+                <field name="change_date"/>
+                <field name="partner_id"/>
+                <field name="previous_status"/>
+                <field name="new_status"/>
+                <field name="change_type" widget="badge"
+                       decoration-success="change_type == 'promoted'"
+                       decoration-danger="change_type == 'demoted'"
+                       decoration-info="change_type == 'initial'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="status_history_view_form" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.status.history.form</field>
+        <field name="model">azk_odoo_partner_monitor.status.history</field>
+        <field name="arch" type="xml">
+            <form string="Status Change" create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="change_date"/>
+                            <field name="change_type"/>
+                        </group>
+                        <group>
+                            <field name="previous_status"/>
+                            <field name="new_status"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="status_history_view_search" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.status.history.search</field>
+        <field name="model">azk_odoo_partner_monitor.status.history</field>
+        <field name="arch" type="xml">
+            <search string="Status History">
+                <field name="partner_id"/>
+                <filter name="promoted" string="Promoted" domain="[('change_type', '=', 'promoted')]"/>
+                <filter name="demoted" string="Demoted" domain="[('change_type', '=', 'demoted')]"/>
+                <filter name="initial" string="Initial" domain="[('change_type', '=', 'initial')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_change_type" string="Change Type" context="{'group_by': 'change_type'}"/>
+                    <filter name="group_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_change_month" string="Month" context="{'group_by': 'change_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="status_history_action" model="ir.actions.act_window">
+        <field name="name">Status History</field>
+        <field name="res_model">azk_odoo_partner_monitor.status.history</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="status_history_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">No status events yet</p>
+            <p>Each partner gets an initial record when first seen, then one record per promotion or demotion.</p>
+        </field>
+    </record>
+
+</odoo>

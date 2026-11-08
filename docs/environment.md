@@ -158,6 +158,7 @@ ODOO_EDITION=community scripts/dev.sh test                                    # 
 - `scripts/dev.sh` sets `MSYS_NO_PATHCONV=1`, because Git Bash otherwise rewrites container paths such as `/var/lib/odoo` into Windows paths.
 - Interactive `shell` and `psql` need a real terminal. If docker reports "the input device is not a TTY" in mintty, use Windows Terminal or prefix the command with `winpty`.
 - Docker Desktop must be running. If port 8069 is taken, set another `ODOO_HTTP_PORT` in `.env` and restart.
+- After a Windows restart, start Docker Desktop and then run `scripts/dev.sh start`: the services use `restart: "no"` and do not come back by themselves (seen on 2026-11-08, after the restart of 2026-11-06). Right after Docker Desktop starts, the engine may not answer for a short while.
 - Shell scripts and config files must keep LF line endings; `.gitattributes` enforces this. A CRLF init script fails inside the Linux container.
 
 ## Odoo concepts in this setup

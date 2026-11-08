@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The root opens its first child, Partners. Stage 06 adds the dashboard
+         as the module's entry point. -->
+    <menuitem id="menu_root" name="Partner Monitor" sequence="60"
+              web_icon="azk_odoo_partner_monitor,static/description/icon.png"
+              groups="group_reader"/>
+
+    <menuitem id="menu_partners" name="Partners" parent="menu_root" action="partner_action" sequence="10"/>
+    <menuitem id="menu_countries" name="Countries" parent="menu_root" action="country_action" sequence="20"/>
+    <menuitem id="menu_status_history" name="Status History" parent="menu_root" action="status_history_action" sequence="30"/>
+    <menuitem id="menu_references" name="References" parent="menu_root" action="reference_action" sequence="40"/>
+
+    <menuitem id="menu_sync" name="Sync" parent="menu_root" sequence="50"/>
+    <menuitem id="menu_sync_runs" name="Runs" parent="menu_sync" action="sync_run_action" sequence="10"/>
+    <menuitem id="menu_work_items" name="Work Items" parent="menu_sync" action="work_item_action" sequence="20"
+              groups="group_manager"/>
+    <menuitem id="menu_sync_errors" name="Errors" parent="menu_sync" action="sync_error_action" sequence="30"
+              groups="group_manager"/>
+
+    <menuitem id="menu_configuration" name="Configuration" parent="menu_root" sequence="90"
+              groups="base.group_system"/>
+    <menuitem id="menu_settings" name="Settings" parent="menu_configuration" action="config_settings_action"
+              sequence="10"/>
+
+</odoo>

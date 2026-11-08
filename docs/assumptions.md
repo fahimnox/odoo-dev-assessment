@@ -31,7 +31,7 @@ These are referenced by the PDF but were **not supplied**. They have not been re
 | A-13 | Trial Balance architecture: our own calculation engine inside the native `account_reports` framework. Our `account.report` record and custom handler feed the native preview, PDF and XLSX exports. The wizard is the entry point. `azk_dynamic_trial_balance` declares `account_reports` | The native Trial Balance lacks required features (Balance columns, prefixes, Skip Zero Balance, currency rows, level limit), while its UI and exporters meet the look-and-feel and output requirements. See [architecture.md](architecture.md) 4.1 | Decided in Stage 02; the hook mechanics are verified in Stages 08-09, with a documented fallback to a custom QWeb report or xlsxwriter writer |
 | A-14 | Trial Balance opening, carry-forward and netting conventions follow the native Enterprise Trial Balance: balance-sheet accounts open with all history; income and expense accounts open from the fiscal-year start; earlier results appear on the "Current Year Earnings" account; Initial and End are netted; movement is gross | Verified on 2026-11-05 on the matched pair, same dataset and options (probe R1-R3, [architecture.md](architecture.md) 4.8) and in the pinned code by name | Decided in Stage 02; Stage 07 writes the full contract and hand-calculated fixtures |
 | A-15 | Trial Balance analytic filter: native whole-item inclusion (D-07) | Probe R4-R6 and the `analytic.mixin` domain (array overlap on distribution keys) | Decided in Stage 02; confirmation asked in Q-03 |
-| A-16 | Partner Monitor views (missing original specification, M-01): list, form and search views for countries, partners, status history, references and sync records; pivot and graph views for partners, status history and references; the filters and groupings listed in [architecture.md](architecture.md) 5.9 | Our proposal for the missing specification | Assumption; Stage 03 builds the basic views, Stage 06 the pivots, graphs and dashboard |
+| A-16 | Partner Monitor views (missing original specification, M-01): list, form and search views for countries, partners, status history, references and sync records; pivot and graph views for partners, status history and references; the filters and groupings listed in [architecture.md](architecture.md) 5.9 | Our proposal for the missing specification | Assumption; Stage 03 built the list, form and search views and menus (2026-11-08); Stage 06 adds the pivots, graphs and dashboard |
 | A-17 | Partner Monitor dashboard: a small OWL client action holds the shared filters and embeds four standard graph views defined in XML. One server method ranks the countries | `board` has no shared filters; 18.0 spreadsheet global filters support only date, relation and text, and spreadsheet content is JSON, not XML ([architecture.md](architecture.md) 5.8) | Decided in Stage 02; built and verified in Stage 06 |
 | A-18 | Partner Monitor sync: four crons (daily discovery, worker, country validation, reference validation). Producers only enqueue durable work items; the worker alone processes them, in bounded batches through the 18.0 cron progress API. Commits are the scheduler's, after each callback | `ir.cron._run_job` and `_notify_progress` in the pinned source ([architecture.md](architecture.md) 5.6) | Decided in Stage 02; implemented and crash-tested in Stage 05 |
 | A-19 | The live partners site behaves like the 18.0 `website_crm_partner_assign` module: country and grade URL paths, 40 partners per page, `country_id` in partner links of a country listing, the all-countries fallback with an alert, and per-card reference counts | Read in the pinned Community source; odoo.com runs its own newer deployment, and the PDF's retention rate and project-size metrics are not in the Community template | Working model; Stage 04 verifies it on a small live sample and records any difference |
@@ -41,7 +41,7 @@ These are referenced by the PDF but were **not supplied**. They have not been re
 
 ## Ambiguities and design decisions
 
-D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02.
+D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, and D-18 to D-22 in Stage 03.
 
 | ID | PDF p. | Ambiguity | Decision |
 |---|---|---|---|
@@ -62,6 +62,11 @@ D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 
 | D-15 | 6-7 | Account-prefix filter versus the fiscal-year carry-forward | As in the native report: the carry-forward sums all income and expense accounts within the other filters, and is shown on the "Current Year Earnings" row only if that row matches the account filter |
 | D-16 | 7 | Branches of the selected company | The report scope is exactly the selected company. A branch is reported by selecting it. The native report would include accessible branches; parity tests use companies without branches |
 | D-17 | 4-5 | A partner absent from its country's listing, or listed under another country | Absence from a validated complete snapshot of its last country archives the partner (`active = False`), unless it is seen in another country, which updates `country_id`. Identity is the site's partner id, never the name or the country |
+| D-18 | 4 | Who may change scraped data, audit events and sync checkpoints (Stage 03) | Nobody, through access rules: every Partner Monitor ACL is read-only, and only the sync engine (superuser) writes. Managers get four actions instead (Sync Now, Retry, Mark for Re-scrape on countries and partners), which check the manager group and then write with a narrow `sudo()`. Status history rows cannot be edited at all. Settings stay with system administrators (A-22) |
+| D-19 | 3 | Default failure recipient, "e.g. the administrator who installed the module" (Stage 03) | `base.user_admin`, set by a `noupdate` data record. Odoo runs install hooks as the superuser, so the user who clicked Install is not known to the module. Changing the default is one setting. Replaces the post-init-hook plan of Stage 02 (P-07.4) |
+| D-20 | - | How demo data is kept apart from scraped data (Stage 03) | Demo records have `is_demo = True` and names starting with "Demo". They use reserved website ids: negative partner ids and country ids starting with "demo-". Database checks keep these namespaces apart, so a real scrape can never update or collide with a demo record. Demo partners have no `partner_url` |
+| D-21 | 4 | An observation older than the partner's last observation (Stage 03) | Ignored, so a late replay of an earlier run cannot record a false demotion or promotion. Observations of the same day are applied |
+| D-22 | 4-5 | Unknown versus zero for `total_references_count` (Stage 03) | Like the three metrics in architecture 5.2, it has a `_known` flag: reference validation needs a known expected count. A database check ensures an unknown measurement carries no number |
 
 ## Version and edition notes
 
@@ -79,7 +84,7 @@ These are recorded rather than silently changing scope. Details are in [architec
 
 ## Open clarifications for the team lead
 
-We continue under the documented defaults until answered. Only unresolved points are listed; none blocks Stage 03.
+We continue under the documented defaults until answered. Only unresolved points are listed; none blocks Stage 04.
 
 | ID | Question | Status |
 |---|---|---|

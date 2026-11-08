@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_country_reader,country reader,model_azk_odoo_partner_monitor_country,group_reader,1,0,0,0
+access_partner_reader,partner reader,model_azk_odoo_partner_monitor_partner,group_reader,1,0,0,0
+access_status_history_reader,status history reader,model_azk_odoo_partner_monitor_status_history,group_reader,1,0,0,0
+access_reference_reader,reference reader,model_azk_odoo_partner_monitor_reference,group_reader,1,0,0,0
+access_sync_run_reader,sync run reader,model_azk_odoo_partner_monitor_sync_run,group_reader,1,0,0,0
+access_work_item_manager,work item manager,model_azk_odoo_partner_monitor_work_item,group_manager,1,0,0,0
+access_sync_error_manager,sync error manager,model_azk_odoo_partner_monitor_sync_error,group_manager,1,0,0,0

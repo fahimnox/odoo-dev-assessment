@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Default failure recipient: the administrator. The install hook cannot
+         know which user clicked Install (Odoo runs hooks as the superuser), so
+         the default is base.user_admin; system administrators change it in
+         Settings > Partner Monitor. noupdate keeps their choice on upgrades. -->
+    <record id="config_notify_user" model="ir.config_parameter">
+        <field name="key">azk_odoo_partner_monitor.notify_user_id</field>
+        <field name="value" eval="str(ref('base.user_admin'))"/>
+    </record>
+
+</odoo>

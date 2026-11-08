@@ -1,6 +1,6 @@
 # Requirements matrix
 
-Source: the assessment PDF (14 pages, kept outside this repository). Page numbers refer to that PDF. Stage 00 listed the requirements; Stage 02 (2026-11-05) split them into individual requirements and added each one's interpretation, planned implementation location and planned test.
+Source: the assessment PDF (14 pages, kept outside this repository). Page numbers refer to that PDF. Stage 00 listed the requirements; Stage 02 (2026-11-05) split them into individual requirements and added each one's interpretation, planned implementation location and planned test. Stage 03 (2026-11-08) implemented the Partner Monitor data model, access rules and basic views, and recorded its test evidence in the rows it touched (and in K-08 to K-10).
 
 **Status values:**
 
@@ -41,7 +41,7 @@ Stage 00 IDs that Stage 02 split keep their number as a prefix: for example, T-0
 | G-06 | 1-2 | README.md: Partner Monitor resilience design (interruptions, recovery without repeating work, pulling only changes) | Summarizes the design in architecture 5.6 and Stage 05's `docs/resilience.md` | `README.md` | TP-PM-15 | NOT STARTED |
 | G-07 | 1 | Document reasonable assumptions | [assumptions.md](assumptions.md), linked from the README | `docs/assumptions.md` | Stage 02 | IN PROGRESS |
 | G-08 | 1 | If parts are not done, state what is done and what is pending | A "Status and limitations" README section generated from this matrix | `README.md` | Stage 12 | NOT STARTED |
-| G-09 | 1 | GenAI use: a `docs` folder logging the prompts used and the resulting outputs | Logs under `docs/ai/`, one per stage, with redactions noted | `docs/ai/` | Stages 00-01B logged | IN PROGRESS |
+| G-09 | 1 | GenAI use: a `docs` folder logging the prompts used and the resulting outputs | Logs under `docs/ai/`, one per stage, with redactions noted | `docs/ai/` | Stages 00-03 logged | IN PROGRESS |
 | G-10 | 1-2 | Clean, readable code following Odoo and Python best practices; efficient data model, queries and report generation | Grouped ORM queries (no query per account or partner), stored keys and indexes, layers kept separate | Both addons | Review in Stage 10; TP-G-02 | DESIGNED |
 | G-11 | 2 | Well-packaged, easy to install and test; clear functional-testing instructions | Pinned Docker Compose setup with one helper script and an edition switch; README in Stage 12 | `compose.yaml`, `scripts/dev.sh`, [environment.md](environment.md) | Stage 01 and 01B setup and tests PASS; matched pair 2026-11-05 PASS ([environment.md](environment.md)) | IN PROGRESS |
 | G-12 | 2 | (Recommendation) Jupyter Notebook connected to the Odoo shell | Optional; `scripts/dev.sh shell` is used instead | - | - | OUT OF SCOPE |
@@ -53,12 +53,15 @@ Stage 00 IDs that Stage 02 split keep their number as a prefix: for example, T-0
 | ID | Source | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
 | K-01 | Kit, Stage 02 prompt | One normalized calculation result feeds Preview, PDF and XLSX | Engine result, then our handler, then the native `_get_lines`, then the native UI and exporters (A-13) | `models/trial_balance_engine.py`, `models/trial_balance_report_handler.py` | TP-TB-16 | DESIGNED |
-| K-02 | Kit, AGENTS.md | Access enforced server-side on every path; no blanket `sudo()` | Architecture section 3: options re-validated in the engine; wizard owner rule; dashboard method as the calling user; a narrow `sudo()` only for `_trigger()` | Both addons | TP-PM-05, TP-PM-19, TP-TB-01, TP-TB-11 | DESIGNED |
-| K-03 | Kit | Stable source identities, database uniqueness, idempotent writes | `source_key` and `source_id` with `_sql_constraints`; partial unique indexes | Partner Monitor models | TP-PM-02, TP-PM-09 | DESIGNED |
+| K-02 | Kit, AGENTS.md | Access enforced server-side on every path; no blanket `sudo()` | Architecture section 3: options re-validated in the engine; wizard owner rule; dashboard method as the calling user; a narrow `sudo()` only for `_trigger()` and for manager actions after an explicit group check (D-18) | Both addons | Partner Monitor models and actions: Stage 03, 2026-11-08: TP-PM-05 PASS (`test_security.py`, 12 tests). TP-PM-19, TP-TB-01 and TP-TB-11 NOT RUN (later stages) | IN PROGRESS |
+| K-03 | Kit | Stable source identities, database uniqueness, idempotent writes | `source_key` and `source_id` with `_sql_constraints`; partial unique indexes created in `init()`; the observation API matches on these ids, so replays create nothing | Partner Monitor models | Stage 03, 2026-11-08: TP-PM-02 PASS; replayed observations PASS (`test_status_history.py`). Replays through the worker (TP-PM-09) NOT RUN until Stage 05 | IN PROGRESS |
 | K-04 | Kit | Removals and deactivations only after a complete, validated snapshot; a failure is never an empty result | Architecture 5.5 | `models/work_item.py` | TP-PM-07, TP-PM-13 | DESIGNED |
 | K-05 | Kit, AGENTS.md rule 1 | Version-sensitive APIs verified in the pinned core and Enterprise sources | Stage 02 read the cron, ORM, account, analytic, mail and web sources and the `account_reports` hooks by name, and ran the native probe | Architecture sections 1, 4, 5 | Stage 02 source reads and probe (`stage02_native_tb_probe.log`, private) | IN PROGRESS |
 | K-06 | Kit, AGENTS.md | Never copy Enterprise source into the repository or patch vendor code | Names only; our own report record and handler | - | Review in Stage 10 | IN PROGRESS |
 | K-07 | Kit | Trial Balance expectations are hand-calculated; native parity is additional evidence | [test_plan.md](test_plan.md) 4.1 | `tests/` | TP-TB-02 to TP-TB-04, TP-TB-12 | DESIGNED |
+| K-08 | Kit, Stage 03 prompt | Normal users cannot manufacture audit events or edit sync checkpoints; manual scrape and retry actions are for managers | D-18: read-only ACLs; four manager actions with an explicit group check and a narrow `sudo()`; history rows refuse edits | `security/ir.model.access.csv`, `models/common.py` (`ensure_manager`), `models/*.py` | Stage 03, 2026-11-08: `test_reader_cannot_write_create_or_delete`, `test_reader_cannot_run_manager_actions`, `test_manager_cannot_edit_data_events_or_checkpoints`, `test_users_cannot_record_observations` PASS | DONE |
+| K-09 | Kit, Stage 03 prompt | Deterministic synthetic demo records, clearly labeled as demo | D-20: `is_demo`, "Demo" names, reserved website ids enforced by the database | `demo/partner_monitor_demo.xml` | Stage 03, 2026-11-08: `test_demo_records_are_labeled`, `test_demo_history_is_consistent`, `test_demo_and_website_ids_never_collide` PASS; no duplicates after two upgrades of `azk_ee24` | DONE |
+| K-10 | Kit, Stage 03 prompt | Unknown or missing measurements are distinct from genuine zeros | `_known` flags; an unknown measurement carries no number (D-22) | `models/partner.py` | Stage 03, 2026-11-08: `test_unknown_metric_is_not_zero` PASS | DONE |
 
 ## Exercise 1: Odoo Partner Monitor (`azk_odoo_partner_monitor`)
 
@@ -66,7 +69,7 @@ Stage 00 IDs that Stage 02 split keep their number as a prefix: for example, T-0
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| P-01 | 3 | Module named `azk_odoo_partner_monitor` | As written | `addons/azk_odoo_partner_monitor/` | Stage 01: installs in `azk_dev` and alone in a fresh `azk_clean`; Stage 01B: installs and updates in `azk_ent`; 2026-11-05: smoke tests PASS on the matched pair | DONE |
+| P-01 | 3 | Module named `azk_odoo_partner_monitor` | As written | `addons/azk_odoo_partner_monitor/` | Stage 01: installs in `azk_dev` and alone in a fresh `azk_clean`; Stage 01B: installs and updates in `azk_ent`; 2026-11-05: smoke tests PASS on the matched pair; Stage 03, 2026-11-08: installs alone with demo data into a fresh `azk_ee24_test` (0 warnings) and upgrades `azk_ee24` twice (0 warnings) | DONE |
 | P-02 | 3 | Scrape partner data from the official Odoo Partners page, store it, track historical changes, provide analytical views and dashboards | Separate fetch, parse and ingest layers; source model A-19 | `services/`, `models/` | TP-PM-06, TP-PM-21 | DESIGNED |
 | P-03.1 | 3 | Scraping logic generated with a GenAI tool | Generated with Claude Code in Stage 04; prompts and outputs logged | `services/parsers.py`, `services/http_client.py` | Stage 04 AI log | DESIGNED |
 | P-03.2 | 3 | Uses standard libraries such as `requests` and `BeautifulSoup` | requests 2.31.0 and beautifulsoup4 4.12.3 come with the pinned image; no browser dependency | Manifest `external_dependencies` | Stage 01: `test_beautifulsoup_parses_html` PASS | IN PROGRESS |
@@ -74,10 +77,10 @@ Stage 00 IDs that Stage 02 split keep their number as a prefix: for example, T-0
 | P-05.1 | 3 | A failure while processing one partner does not halt the job | One savepoint per unit; other units continue in the same batch | `models/work_item.py` | TP-PM-10 | DESIGNED |
 | P-05.2 | 3 | A failure while processing one country page does not halt the job | A country unit fails alone and is retried with backoff | `models/work_item.py` | TP-PM-07, TP-PM-10 | DESIGNED |
 | P-06 | 3 | Log all errors encountered during the scrape | Python logger plus one `sync.error` row per failure with run, unit and URL context, written outside the failed savepoint | `models/sync_error.py` | TP-PM-07, TP-PM-10 | DESIGNED |
-| P-07.1 | 3 | On a partial job failure, post a message in the internal chatter of a designated user | D-08: one internal note on the run's chatter, addressed to the user | `models/sync_run.py` | TP-PM-16 | DESIGNED |
-| P-07.2 | 3 | On a full job failure, the same | A run whose discovery fails ends `failed` and notifies the same way | `models/sync_run.py` | TP-PM-16 | DESIGNED |
-| P-07.3 | 3 | The designated user is configurable | Settings field stored as `ir.config_parameter` (A-22) | `models/res_config_settings.py`, `views/res_config_settings_views.xml` | TP-PM-16 | DESIGNED |
-| P-07.4 | 3 | Example default: the administrator who installed the module | Post-init hook: the installing internal user, else `base.user_admin` | `hooks.py` | TP-PM-16 | DESIGNED |
+| P-07.1 | 3 | On a partial job failure, post a message in the internal chatter of a designated user | D-08: one internal note on the run's chatter, addressed to the user | `models/sync_run.py` (`_notify_failure`) | Stage 03, 2026-11-08: destination PASS (`test_notification.py`, 7 tests): a note on the run's chatter, a `mail.notification` for the configured user (Inbox or email, as the user prefers), posted once, website text escaped. Calling it when a run ends: Stage 05 (TP-PM-16) | IN PROGRESS |
+| P-07.2 | 3 | On a full job failure, the same | A run whose discovery fails ends `failed` and notifies the same way | `models/sync_run.py` (`_notify_failure`) | Stage 03, 2026-11-08: a `failed` run notifies the same way PASS (`test_notification.py`). Calling it when a run ends: Stage 05 | IN PROGRESS |
+| P-07.3 | 3 | The designated user is configurable | Settings field stored as `ir.config_parameter` (A-22); an invalid setting falls back to the administrator | `models/res_config_settings.py`, `views/res_config_settings_views.xml`, `models/sync_run.py` (`_get_failure_recipient`) | Stage 03, 2026-11-08: `test_settings_are_for_system_administrators` and `test_invalid_recipient_falls_back_to_the_administrator` PASS | DONE |
+| P-07.4 | 3 | Example default: the administrator who installed the module | D-19: `base.user_admin`, set by a `noupdate` data record. Odoo runs install hooks as the superuser, so the user who clicked Install is not known | `data/partner_monitor_config.xml` | Stage 03, 2026-11-08: `test_default_recipient_is_the_administrator` PASS; `azk_ee24` holds the admin's id after upgrade | DONE |
 | P-08.1 | 2 | Resilient to interruptions (long-running server actions are often terminated) | Bounded cron callbacks; the scheduler commits after each; claims are row locks that die with a crashed transaction | `models/work_item.py`, `data/ir_cron.xml` | TP-PM-14, TP-PM-15 | DESIGNED |
 | P-08.2 | 2 | Recover from a failure without repeating completed work | Durable work items: done units never re-run; only the interrupted batch is replayed | `models/work_item.py` | TP-PM-09, TP-PM-15 | DESIGNED |
 | P-08.3 | 2 | Pull only what changed, where possible | Details fetched only for new, changed, flagged or stale partners; conditional HTTP if the site supports it; content fingerprints | `models/work_item.py`, `services/http_client.py` | TP-PM-17 | DESIGNED |
@@ -86,50 +89,50 @@ Stage 00 IDs that Stage 02 split keep their number as a prefix: for example, T-0
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| P-09.1 | 3 | Model `azk_odoo_partner_monitor.country`: standalone, stores the countries found on the partner page | Standalone, not `res.country`; identity `source_key` (unique) | `models/country.py` | TP-PM-01, TP-PM-02 | DESIGNED |
-| P-09.2 | 3 | `name`: Char | As written | `models/country.py` | TP-PM-01 | DESIGNED |
-| P-09.3 | 3 | `active`: Boolean, default True | Cleared only from a complete, validated country list (P-23) | `models/country.py` | TP-PM-01, TP-PM-13 | DESIGNED |
-| P-09.4 | 3 | `total_partner_count`: Integer, the number of partners listed for the country in the last scrape, used for validation | The expected count shown by the site; the actual snapshot count is stored separately | `models/country.py` | TP-PM-11 | DESIGNED |
-| P-09.5 | 3 | `to_reprocess_partners`: Boolean flag for re-scraping | Set on a mismatch; cleared by a complete, matching snapshot | `models/country.py` | TP-PM-11 | DESIGNED |
-| P-10.01 | 3 | Model `azk_odoo_partner_monitor.partner`; `name`: Char | Identity is `source_id` (unique), never the name | `models/partner.py` | TP-PM-01, TP-PM-02 | DESIGNED |
-| P-10.02 | 4 | `partner_url`: Char, the link to the partner's page | Canonical URL, stored after the country-scope check (P-22.2) | `models/partner.py` | TP-PM-08 | DESIGNED |
-| P-10.03 | 4 | `current_status`: Selection (e.g. gold, silver, ready) | Selection `ready`/`silver`/`gold`, ordered ready < silver < gold; unknown labels per D-09 | `models/partner.py` | TP-PM-04 | DESIGNED |
-| P-10.04 | 4 | `country_id`: Many2one to `azk_odoo_partner_monitor.country` | Updated if the partner is listed under another country (D-17) | `models/partner.py` | TP-PM-01 | DESIGNED |
-| P-10.05 | 4 | `first_seen_on`: Date | Set once (P-13) | `models/partner.py` | TP-PM-03 | DESIGNED |
-| P-10.06 | 4 | `retention_rate`: Float | With a known flag, because Odoo reads NULL as 0 | `models/partner.py` | TP-PM-06 | DESIGNED |
-| P-10.07 | 4 | `total_references_count`: Integer | The expected reference count shown by the site (P-20.1) | `models/partner.py` | TP-PM-12 | DESIGNED |
-| P-10.08 | 4 | `largest_project_size`: Integer | With a known flag | `models/partner.py` | TP-PM-06 | DESIGNED |
-| P-10.09 | 4 | `average_project_size`: Float | With a known flag; drives the stored project-size bucket (D-05) | `models/partner.py` | TP-PM-06, TP-PM-18 | DESIGNED |
-| P-10.10 | 4 | `to_reprocess_references`: Boolean flag to re-scrape the partner's details | P-20 | `models/partner.py` | TP-PM-12 | DESIGNED |
-| P-10.11 | 4 | `status_history_ids`: One2many to `status.history` | As written | `models/partner.py` | TP-PM-01 | DESIGNED |
-| P-10.12 | 4 | `reference_ids`: One2many to `reference` | As written | `models/partner.py` | TP-PM-01 | DESIGNED |
-| P-11.1 | 4 | Model `azk_odoo_partner_monitor.status.history` (tracks every status change); `partner_id`: Many2one to partner | Required; deleted with the partner | `models/status_history.py` | TP-PM-01 | DESIGNED |
-| P-11.2 | 4 | `previous_status`: Selection | Same values as `current_status`; empty for `initial` | `models/status_history.py` | TP-PM-03 | DESIGNED |
-| P-11.3 | 4 | `new_status`: Selection | Same values as `current_status` | `models/status_history.py` | TP-PM-04 | DESIGNED |
-| P-11.4 | 4 | `change_date`: Date | Run date (A-20) | `models/status_history.py` | TP-PM-03 | DESIGNED |
-| P-11.5 | 4 | `change_type`: Selection (promoted, demoted, initial) | Exactly these three values | `models/status_history.py` | TP-PM-04 | DESIGNED |
-| P-12.1 | 4 | Model `azk_odoo_partner_monitor.reference` (client references per partner); `partner_id`: Many2one to partner | Identity (partner, `source_key`), D-10 | `models/reference.py` | TP-PM-02 | DESIGNED |
-| P-12.2 | 4 | `name`: Char, the name of the reference client | As written | `models/reference.py` | TP-PM-06 | DESIGNED |
-| P-12.3 | 4 | `is_active`: Boolean | At most one active record per (partner, key) | `models/reference.py` | TP-PM-02 | DESIGNED |
-| P-12.4 | 4 | `added_on`: Date | Run date when first listed in this interval | `models/reference.py` | TP-PM-12 | DESIGNED |
-| P-12.5 | 4 | `removed_on`: Date | Run date of the complete snapshot that no longer lists it | `models/reference.py` | TP-PM-13 | DESIGNED |
+| P-09.1 | 3 | Model `azk_odoo_partner_monitor.country`: standalone, stores the countries found on the partner page | Standalone, not `res.country`; identity `source_key` (unique, never rewritten) | `models/country.py` | Stage 03, 2026-11-08: `test_required_models_and_field_types_match_the_pdf`, `test_country_identity_is_the_website_id` PASS | DONE |
+| P-09.2 | 3 | `name`: Char | As written | `models/country.py` | Stage 03, 2026-11-08: TP-PM-01 PASS | DONE |
+| P-09.3 | 3 | `active`: Boolean, default True | Cleared only from a complete, validated country list (P-23, Stage 05); a country seen again is reactivated | `models/country.py` | Stage 03, 2026-11-08: TP-PM-01 PASS (type and default); reactivation PASS | DONE |
+| P-09.4 | 3 | `total_partner_count`: Integer, the number of partners listed for the country in the last scrape, used for validation | The expected count shown by the site; the actual snapshot count is stored separately (Stage 05) | `models/country.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; its use in validation is P-18 | DONE |
+| P-09.5 | 3 | `to_reprocess_partners`: Boolean flag for re-scraping | Set on a mismatch (P-18, Stage 05) or by a manager (Mark for Re-scrape); cleared by a complete, matching snapshot | `models/country.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; manager action PASS (`test_security.py`) | DONE |
+| P-10.01 | 3 | Model `azk_odoo_partner_monitor.partner`; `name`: Char | Identity is `source_id` (unique, never rewritten), never the name | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; `test_partner_identity_is_the_website_id` PASS | DONE |
+| P-10.02 | 4 | `partner_url`: Char, the link to the partner's page | Canonical URL `https://www.odoo.com/partners/<slug>-<source_id>` without query string, checked by a model constraint; the country-scope check before canonicalization is P-22.2 (Stage 04) | `models/partner.py`, `services/urls.py` | Stage 03, 2026-11-08: `test_partner_url_must_be_canonical`, `test_canonical_url_rule` PASS | DONE |
+| P-10.03 | 4 | `current_status`: Selection (e.g. gold, silver, ready) | Selection `ready`/`silver`/`gold`, ordered ready < silver < gold; unknown labels are refused without writes (D-09) | `models/partner.py`, `models/common.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; `test_unknown_status_writes_nothing` PASS | DONE |
+| P-10.04 | 4 | `country_id`: Many2one to `azk_odoo_partner_monitor.country` | Required, `ondelete='restrict'`; updated if the partner is listed under another country (D-17) | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; `test_country_move_updates_the_same_partner`, `test_relations_are_enforced` PASS | DONE |
+| P-10.05 | 4 | `first_seen_on`: Date | Set once at creation (P-13); the model refuses a different value afterwards | `models/partner.py` | Stage 03, 2026-11-08: `test_first_seen_on_cannot_be_rewritten` PASS | DONE |
+| P-10.06 | 4 | `retention_rate`: Float | With a known flag, because Odoo reads NULL as 0; an unknown value carries no number (D-22) | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; `test_unknown_metric_is_not_zero` PASS | DONE |
+| P-10.07 | 4 | `total_references_count`: Integer | The expected reference count shown by the site (P-20.1), with a known flag (D-22) | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; `test_unknown_metric_is_not_zero` PASS | DONE |
+| P-10.08 | 4 | `largest_project_size`: Integer | With a known flag | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; `test_unknown_metric_is_not_zero` PASS | DONE |
+| P-10.09 | 4 | `average_project_size`: Float | With a known flag; drives the stored project-size bucket (D-05, added in Stage 06) | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; `test_unknown_metric_is_not_zero` PASS | DONE |
+| P-10.10 | 4 | `to_reprocess_references`: Boolean flag to re-scrape the partner's details | P-20 (Stage 05) or a manager (Mark for Re-scrape) | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; manager action PASS (`test_security.py`) | DONE |
+| P-10.11 | 4 | `status_history_ids`: One2many to `status.history` | As written | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS | DONE |
+| P-10.12 | 4 | `reference_ids`: One2many to `reference` | As written | `models/partner.py` | Stage 03, 2026-11-08: TP-PM-01 PASS | DONE |
+| P-11.1 | 4 | Model `azk_odoo_partner_monitor.status.history` (tracks every status change); `partner_id`: Many2one to partner | Required; deleted with the partner; rows are append-only (D-18) | `models/status_history.py` | Stage 03, 2026-11-08: TP-PM-01 PASS; `test_history_rows_cannot_be_changed` PASS | DONE |
+| P-11.2 | 4 | `previous_status`: Selection | Same values as `current_status`; empty exactly for `initial` (database check) | `models/status_history.py` | Stage 03, 2026-11-08: TP-PM-01, `test_history_rules_in_database_and_model` PASS | DONE |
+| P-11.3 | 4 | `new_status`: Selection | Same values as `current_status`; differs from the previous status | `models/status_history.py` | Stage 03, 2026-11-08: TP-PM-01 PASS | DONE |
+| P-11.4 | 4 | `change_date`: Date | Run date (A-20); the initial row is dated on `first_seen_on`, no row before it | `models/status_history.py` | Stage 03, 2026-11-08: `test_history_rules_in_database_and_model` PASS | DONE |
+| P-11.5 | 4 | `change_type`: Selection (promoted, demoted, initial) | Exactly these three values; must follow the ranking | `models/status_history.py` | Stage 03, 2026-11-08: TP-PM-01, `test_ranking_types_promotions_and_demotions` PASS | DONE |
+| P-12.1 | 4 | Model `azk_odoo_partner_monitor.reference` (client references per partner); `partner_id`: Many2one to partner | Identity (partner, `source_key`), D-10 | `models/reference.py` | Stage 03, 2026-11-08: TP-PM-01, `test_reference_rules_in_database` PASS | DONE |
+| P-12.2 | 4 | `name`: Char, the name of the reference client | As written; a renamed reference keeps its record | `models/reference.py` | Stage 03, 2026-11-08: `test_snapshot_duplicates_and_renames` PASS | DONE |
+| P-12.3 | 4 | `is_active`: Boolean | At most one active record per (partner, key) (partial unique index); active exactly when there is no removal date | `models/reference.py` | Stage 03, 2026-11-08: `test_reference_rules_in_database` PASS | DONE |
+| P-12.4 | 4 | `added_on`: Date | Run date when first listed in this interval | `models/reference.py` | Stage 03, 2026-11-08: `test_new_references_are_active` PASS | DONE |
+| P-12.5 | 4 | `removed_on`: Date | Run date of the complete snapshot that no longer lists it; never before `added_on` | `models/reference.py` | Stage 03, 2026-11-08: `test_complete_snapshot_closes_missing_reference` PASS | DONE |
 
 ### Historical data logic (p. 4)
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| P-13 | 4 | New partner: record `first_seen_on` when first seen | Set at creation; never rewritten | `models/work_item.py` (ingestion) | TP-PM-03 | DESIGNED |
-| P-14 | 4 | Status change: create a `status.history` record | `promoted` or `demoted` by rank; an `initial` row on first observation; nothing for an unchanged status; checked under a row lock | `models/work_item.py` | TP-PM-03, TP-PM-04 | DESIGNED |
-| P-15 | 4 | New reference: create a reference record with `is_active=True` | `added_on` = run date | `models/work_item.py` | TP-PM-12 | DESIGNED |
-| P-16 | 4 | Removed reference: set `is_active=False` and record `removed_on` | Only after a complete, validated reference snapshot; reactivation per D-10 | `models/work_item.py` | TP-PM-13 | DESIGNED |
+| P-13 | 4 | New partner: record `first_seen_on` when first seen | Set at creation by the observation API; never rewritten | `models/partner.py` (`_record_observation`) | Stage 03, 2026-11-08: model logic PASS (`test_status_history.py`, 13 tests). The sync calls it from Stage 05 | IN PROGRESS |
+| P-14 | 4 | Status change: create a `status.history` record | `promoted` or `demoted` by rank; an `initial` row on first observation; nothing for an unchanged status, a replay or an older observation (D-21); concurrency checked in Stage 05 | `models/partner.py` (`_record_observation`) | Stage 03, 2026-11-08: model logic PASS, including `test_silver_gold_gold_records_initial_then_one_promotion`. The sync calls it from Stage 05 | IN PROGRESS |
+| P-15 | 4 | New reference: create a reference record with `is_active=True` | `added_on` = run date | `models/partner.py` (`_sync_references`) | Stage 03, 2026-11-08: model logic PASS (`test_references.py`, 7 tests). The sync calls it from Stage 05 | IN PROGRESS |
+| P-16 | 4 | Removed reference: set `is_active=False` and record `removed_on` | Only from a complete snapshot; a partial snapshot removes nothing; reactivation opens a new record (D-10). Completeness validation: Stage 05 | `models/partner.py` (`_sync_references`) | Stage 03, 2026-11-08: model logic PASS (`test_references.py`). The sync calls it from Stage 05 | IN PROGRESS |
 
 ### User interface (p. 4)
 
 | ID | PDF p. | Requirement | Interpretation | Implementation | Test / evidence | Status |
 |---|---|---|---|---|---|---|
-| P-17.1 | 4 | Menu items and actions for the views of the original specification | The specification was not supplied (M-01); our proposal is A-16 | `views/menus.xml`, `views/*_views.xml` | TP-PM-20 | DESIGNED |
-| P-17.2 | 4 | Update all model and field references to the new data model | Every view uses the PDF's model and field names | `views/*_views.xml` | TP-PM-01 | DESIGNED |
-| P-17.3 | 4 | The required filters, groupings and pivot configurations remain the same | Unknown without the specification; our filters, groupings and pivots are A-16; question Q-02 | `views/*_views.xml` | TP-PM-20 | DESIGNED |
+| P-17.1 | 4 | Menu items and actions for the views of the original specification | The specification was not supplied (M-01); our proposal is A-16 | `views/menus.xml`, `views/*_views.xml` | Stage 03, 2026-11-08: menus and actions for countries, partners, status history, references, runs, work items, errors and Settings; `test_menus_follow_the_groups` and `test_views_load_for_each_role` PASS; menus and views over HTTP as admin on 8071 PASS. Dashboard: Stage 06. Browser check NOT RUN | IN PROGRESS |
+| P-17.2 | 4 | Update all model and field references to the new data model | Every view uses the PDF's model and field names | `views/*_views.xml` | Stage 03, 2026-11-08: views validated at install and both upgrades (0 warnings); TP-PM-01 PASS | DONE |
+| P-17.3 | 4 | The required filters, groupings and pivot configurations remain the same | Unknown without the specification; our filters, groupings and pivots are A-16; question Q-02 | `views/*_views.xml` | Stage 03, 2026-11-08: search filters and groupings for every model (A-16). Pivots and graphs: Stage 06 | IN PROGRESS |
 
 ### Two-level validation and the empty-country edge case (p. 5)
 

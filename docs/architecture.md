@@ -1,6 +1,6 @@
 # Architecture (Stage 02)
 
-_Written 2026-11-05 in Stage 02. This is the agreed design; nothing in it is implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
 
 ## 1. Target and sources used
 
@@ -312,7 +312,7 @@ Supporting fields and models (each justified by a requirement):
   - on countries: the expected count (`total_partner_count`, PDF), `snapshot_partner_count` (actual, from the last complete snapshot), `validation_state`, `reprocess_attempts`, `next_reprocess_at`;
   - on partners: `active_reference_count`, plus the same retry fields.
 - **`azk_odoo_partner_monitor.sync.run`** (inherits `mail.thread`): one record per discovery or manual run, with trigger, state (`running`/`done`/`partial`/`failed`), times, unit counters and `notified_at`. Its chatter carries the failure note (P-07).
-- **`azk_odoo_partner_monitor.work.item`:** the durable unit of work. Kind is `country_list`, `country_partners` or `partner_details`, with a target country or partner, state (`pending`/`done`/`failed`/`cancelled`), `attempt_count`, `next_attempt_at`, `last_error` and `run_id`. A partial unique index on (kind, target) WHERE state = 'pending' de-duplicates enqueueing. It is created in `init()` through `odoo.tools.sql.create_index(..., where=...)`, because `_sql_constraints` cannot express a partial index.
+- **`azk_odoo_partner_monitor.work.item`:** the durable unit of work. Kind is `country_list`, `country_partners` or `partner_details`, with a target country or partner, state (`pending`/`done`/`failed`/`cancelled`), `attempt_count`, `next_attempt_at`, `last_error` and `run_id`. A partial unique index on (kind, target) WHERE state = 'pending' de-duplicates enqueueing. It is created in `init()` with parameterized SQL, because `_sql_constraints` cannot express a partial index. (Corrected in Stage 03: `odoo.tools.sql.create_index` builds a non-unique index, and `create_unique_index` takes no WHERE clause, so neither helper can build it. The index is also listed in `_sql_constraints` with an empty definition, so a violation shows its message, the pattern `account_edi_proxy_client` uses in this release.)
 - **`azk_odoo_partner_monitor.sync.error`:** one row per failed unit (run, work item, URL, error class, message, short trace) for P-06. The Python logger records the same errors.
 - **Uniqueness:**
   - `_sql_constraints` (the 18.0 mechanism, verified in `odoo/models.py`) on `country.source_key` and `partner.source_id`;
@@ -384,7 +384,7 @@ Design:
 ### 5.7 Failure notification (P-07)
 
 - **Recipient:** the configured user is stored as `ir.config_parameter` `azk_odoo_partner_monitor.notify_user_id` and set in Settings, which is restricted to system administrators.
-- **Default:** a post-init hook sets it to the installing user when that is a real internal user. Otherwise it uses `base.user_admin`: a command-line install runs as the superuser.
+- **Default (changed in Stage 03, D-19):** the administrator, `base.user_admin`, set by the `noupdate` data record `config_notify_user`. The planned post-init hook cannot know who installed the module: in this release, `load_modules` builds its environment with `SUPERUSER_ID` and passes it to every hook (`odoo/modules/loading.py`), whether the install starts from the Apps screen or the command line. If the setting points to a missing, archived or non-internal user, the run falls back to the administrator and logs a warning.
 - **When a run ends `partial` or `failed`**, the worker posts one internal note on the run's chatter (`message_post` with `partner_ids` = the recipient's partner). It lists the counts, the failed scopes and the scheduled recovery.
 - **Delivery:** Odoo delivers the note according to the recipient's own `notification_type` (`res.users`, mail module): Inbox for "Handle in Odoo", an email for "Handle by Emails". In a fresh database of this build, `admin` has `email`; only `__system__` has `inbox` (checked in `azk_ee24_clean`). So the note is always visible in the run's chatter. The demo instructions tell the reviewer to switch the recipient to "Handle in Odoo" to see it in the Discuss Inbox. We do not override user preferences (D-08).
 - **Once per run:** `notified_at` prevents a second note. Tests use Odoo's mail mocks and assert the `mail.notification` rows, so no real email is sent.
@@ -430,6 +430,19 @@ The original views specification was not supplied. The proposed views are an ass
 - **Sync (managers):** runs with chatter, work items with Retry, and errors.
 - **Menus:** Partner Monitor > Dashboard (the root action) / Partners / Countries / Status History / References / Sync / Configuration.
 - **Groups:** "Partner Monitor / Reader" (read business data, dashboard and runs) and "Partner Monitor / Manager" (implies Reader; work items, errors, Sync now, Retry). `base.user_admin` is a manager by default.
+
+### 5.10 As built in Stage 03 (2026-11-08)
+
+- **Models:** the four PDF models with their exact field names and types, plus `sync.run`, `work.item` and `sync.error`. The project-size bucket, the year field and the validation bookkeeping fields are added with the features that use them (Stages 05 and 06).
+- **Ingestion API in the models**, so the invariants live next to the data. The Stage 05 worker calls:
+  - `country._record_observation(values)`: upsert by `source_key`; seeing a country again reactivates it.
+  - `partner._record_observation(values, observed_on)`: upsert by `source_id`; sets `first_seen_on` once; records one `initial` row, then one row per real transition; ignores an observation older than `last_seen_on` (D-21); refuses unknown status labels and any field outside the observed set.
+  - `partner._sync_references(items, observed_on, complete)`: the D-10 interval policy; only a complete snapshot closes references.
+- **Database rules:** unique website ids; a demo namespace (D-20); ordered seen dates; non-negative metrics; an unknown metric carries no value (D-22); history rows consistent with their type; one `initial` row per partner, one active reference per key and one pending work item per target (partial unique indexes); work-item targets that match their kind.
+- **Model rules:** canonical `partner_url` (`services/urls.py`); `source_id`, `source_key` and `first_seen_on` cannot be rewritten; history rows cannot be edited; the change type must follow the ranking.
+- **Access:** read-only ACLs for every group. Readers read the business data and runs. Managers also read work items and errors, and run four actions: Sync Now, Retry, and Mark for Re-scrape on countries and partners. Each action checks the manager group, then writes with a narrow `sudo()` (D-18). There are no record rules: the data is public and shared by all companies, and company rules would hide it (A-21).
+- **Notification:** `sync.run._notify_failure()` posts the internal note described in 5.7. The Stage 05 worker calls it when a run ends `partial` or `failed`.
+- **Views:** list, form and search views for every model, Settings and menus. The root menu opens Partners until Stage 06 adds the dashboard.
 
 ## 6. Version and edition notes
 

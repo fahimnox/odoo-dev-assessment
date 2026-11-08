@@ -1,9 +1,21 @@
 # Project state
 
-_Last updated: 2026-11-05, end of Stage 02._
+_Last updated: 2026-11-08, end of Stage 03._
 
 ## Current position
 
+- **Stage 03: DONE (2026-11-08).** `azk_odoo_partner_monitor` 18.0.1.1.0 has its data model, access rules, basic UI and demo data; no scraping yet.
+  - Models: the four PDF models with their exact fields, plus `sync.run` (with chatter), `work.item` and `sync.error`. The observation API (`country._record_observation`, `partner._record_observation`, `partner._sync_references`) enforces the Stage 03 invariants; the Stage 05 worker will call it.
+  - Access: Reader and Manager groups with read-only ACLs; four manager actions with an explicit group check and a narrow `sudo()` (D-18); no record rules, because the data is shared across companies (A-21); Settings for system administrators.
+  - UI: list, form and search views for every model, Settings (failure recipient) and menus. Menu path to a partner: Partner Monitor > Partners, then click the partner.
+  - Demo: 4 countries, 6 partners, 10 status events and 6 references, all labeled demo (D-20).
+  - Design changes are in [architecture.md](architecture.md) 5.10 and decisions D-18 to D-22 in [assumptions.md](assumptions.md).
+- **Stage 03 checks** (edition `enterprise-20241208`, port 8071):
+  - `scripts/dev.sh test azk_odoo_partner_monitor`: PASS, 0 failed, 0 errors of 53 tests, in a fresh `azk_ee24_test` with demo data; the whole log had 0 warnings (6 min 26 s). The first run found two bugs, fixed before this result (see [ai/README.md](ai/README.md)).
+  - `scripts/dev.sh update azk_odoo_partner_monitor` on `azk_ee24`, twice: PASS, 0 warnings or errors each time (3 min 16 s, then 2 min 45 s); no duplicated demo records.
+  - Read-only shell check of `azk_ee24`: version 18.0.1.1.0, the demo counts above, the 3 partial unique indexes and 14 check and unique constraints present, the failure recipient set to the admin (whose notification preference is email).
+  - HTTP check on 8071 as admin: login, partner search, list/form/search views and the 11 Partner Monitor menus: PASS.
+  - NOT RUN: browser check (no browser available to the agent).
 - **Stage 02: DONE (2026-11-05).** Requirements, assumptions, architecture and the test plan are agreed on paper; no feature code was written.
   - [requirements_matrix.md](requirements_matrix.md): every selected requirement (fields, options, help texts and charts) with its interpretation, planned location, planned test and status (mostly DESIGNED).
   - [architecture.md](architecture.md): components, security boundary, the Partner Monitor sync design, the Trial Balance calculation contract, and the native Trial Balance probe.
@@ -22,9 +34,9 @@ _Last updated: 2026-11-05, end of Stage 02._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next stage:** 03 - Partner Monitor models, permissions and basic UI, on edition `enterprise-20241208`.
+- **Next stage:** 04 - Partner scraping (fetch and parse layers), on edition `enterprise-20241208`.
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. No browser check of the matched-pair environment (port 8071) has been done yet; the agent has no browser here. It is recommended (steps in [enterprise_transition.md](enterprise_transition.md)).
-- **Business features implemented:** none. Both addons are installable skeletons with smoke tests.
+- **Business features implemented:** the Partner Monitor data model, access rules, basic views and demo data (Stage 03). No scraping, sync jobs or dashboard yet. The Trial Balance addon is still an installable skeleton with smoke tests.
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
   - Enterprise: `scripts/dev.sh test`, 4 tests, 0 failed, 0 errors.
@@ -48,7 +60,7 @@ _Last updated: 2026-11-05, end of Stage 02._
 | 01 | Environment (Community baseline) | DONE |
 | 01B | Enterprise transition | DONE (2026-11-05): matched pair validated; the Stage 01B pair stays blocked and preserved |
 | 02 | Requirements, assumptions, architecture | DONE (2026-11-05): design agreed; native Trial Balance probed on the matched pair |
-| 03 | Partner Monitor models, permissions, basic UI | NOT STARTED |
+| 03 | Partner Monitor models, permissions, basic UI | DONE (2026-11-08): 53 tests pass; installs and upgrades without warnings |
 | 04 | Partner scraping | NOT STARTED |
 | 05 | Partner resilience | NOT STARTED |
 | 06 | Partner dashboard | NOT STARTED |
@@ -89,6 +101,12 @@ _Last updated: 2026-11-05, end of Stage 02._
     - a failure note on the run's chatter to the configured user (D-08);
     - the dashboard as a small OWL client action embedding four XML graph views with shared filters (A-17).
   - The manifest dependency change to `account_reports` happens in Stage 07, not in Stage 02.
+- **Stage 03 decisions** ([assumptions.md](assumptions.md)):
+  - D-18: nobody edits scraped data, history or checkpoints through access rules; managers use four checked actions;
+  - D-19: the default failure recipient is the administrator, because install hooks run as the superuser;
+  - D-20: demo records are labeled and use reserved website ids;
+  - D-21: an observation older than the last one is ignored;
+  - D-22: `total_references_count` also has a known flag, and unknown measurements carry no number.
 
 ## Corrections applied
 
@@ -101,7 +119,9 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 
 ## Open items
 
-- **Disk space:** resolved by the user before the 2026-11-05 continuation. C: had 17 to 19 GB free during that work, and 13 GB during Stage 02. The drop happened between the two sessions and was not investigated. Keep several GB free before long test runs (see [environment.md](environment.md)).
+- **Disk space:** resolved by the user before the 2026-11-05 continuation. C: had 17 to 19 GB free during that work, and 13 GB during Stage 02. The drop happened between the two sessions and was not investigated. On 2026-11-08, C: had 14 GB free before Stage 03's two test runs and 9.7 GB after them. Docker's virtual disk (`docker_data.vhdx`, shared with another project) was 14.6 GB on 2026-11-03 and 15.4 GB after the runs, so it explains at most 0.8 GB of the drop; the rest is not attributed. Keep several GB free before long test runs (see [environment.md](environment.md)).
+- **After a machine restart:** the Compose services use `restart: "no"`, so `scripts/dev.sh start` is needed once Docker Desktop is up (found on 2026-11-08, after the restart of 2026-11-06).
+- **Browser check of the Partner Monitor UI (user, recommended):** log in at http://127.0.0.1:8071 (admin), open Partner Monitor > Partners and a demo partner, and Settings > Partner Monitor. Not run by the agent (no browser).
 - **Compatibility blocker:** resolved on 2026-11-05 for the matched pair (all eight `TestTrialBalanceReport` tests pass). The Stage 01B pair still fails `test_trial_balance_comparisons` and stays blocked; it is kept only for `azk_ent`.
 - **Browser check (user, recommended):** the user reported a browser check of the Stage 01B environment (no detailed results given). The matched-pair environment on port 8071 has not been checked in a browser yet; steps are in [enterprise_transition.md](enterprise_transition.md).
 - **Enterprise source verification:** the Enterprise files cannot be checked against an official baseline without access to the private repository. Only the tarball's file list and timestamps support them.
@@ -109,7 +129,7 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - **Extracted archive:** no runtime needs `<kit-root>/odoo/odoo18`: the matched pair uses the official Community source and the 620-module Enterprise copy. Deleting it (1.76 GB) is the user's decision, and only sensible if the original archive file is kept elsewhere.
 - **Decision for the user:** the supplied archive contains an earlier implementation of this assessment's modules (`projects/assessment/`, not opened or used). Whether to mention it to the team lead is the user's decision.
 - **Subscription:** `azk_ee24` and `azk_ent` are unregistered trials; registering needs the employer's subscription code.
-- Clarifications Q-02 to Q-06 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked. None blocks Stage 03.
+- Clarifications Q-02 to Q-06 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked. None blocks Stage 04.
 - Ambiguities D-01 to D-07 were resolved in Stage 02, and D-08 to D-17 were added and decided ([assumptions.md](assumptions.md)).
 - **Verification still ahead:**
   - The live partners site is modeled on the 18.0 `website_crm_partner_assign` module (A-19) until Stage 04 checks a small live sample.

@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SYNTHETIC DEMO DATA. Nothing here was scraped from the Odoo website.
+
+    Every record is labeled: countries and partners have is_demo = True and
+    names starting with "Demo"; demo countries use "demo-..." website IDs and
+    demo partners use negative website IDs, which the database reserves for
+    demo records, so a real scrape can never update or collide with them.
+    Demo partners have no partner_url because they have no real page.
+
+    The data is deterministic (fixed dates and values) and follows the same
+    rules as scraped data; the model constraints check it at install time:
+    one initial history row per partner, dated on first_seen_on, then one row
+    per promotion or demotion; one active reference per key; removed
+    references keep their dates, and a returning reference opens a new record.
+-->
+<odoo>
+
+    <!-- Countries -->
+    <record id="demo_country_alpha" model="azk_odoo_partner_monitor.country">
+        <field name="name">Demo Country Alpha</field>
+        <field name="source_key">demo-01</field>
+        <field name="is_demo" eval="True"/>
+        <field name="total_partner_count">3</field>
+    </record>
+    <record id="demo_country_beta" model="azk_odoo_partner_monitor.country">
+        <field name="name">Demo Country Beta</field>
+        <field name="source_key">demo-02</field>
+        <field name="is_demo" eval="True"/>
+        <field name="total_partner_count">1</field>
+    </record>
+    <!-- Lists 2 partners on the website, but only 1 was stored: flagged for re-scraping. -->
+    <record id="demo_country_gamma" model="azk_odoo_partner_monitor.country">
+        <field name="name">Demo Country Gamma</field>
+        <field name="source_key">demo-03</field>
+        <field name="is_demo" eval="True"/>
+        <field name="total_partner_count">2</field>
+        <field name="to_reprocess_partners" eval="True"/>
+    </record>
+    <!-- No longer in the website's country list: archived. -->
+    <record id="demo_country_delta" model="azk_odoo_partner_monitor.country">
+        <field name="name">Demo Country Delta</field>
+        <field name="source_key">demo-04</field>
+        <field name="is_demo" eval="True"/>
+        <field name="total_partner_count">0</field>
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- Aurora: Silver, then promoted to Gold. A reference was removed and came back. -->
+    <record id="demo_partner_aurora" model="azk_odoo_partner_monitor.partner">
+        <field name="name">Demo Partner Aurora</field>
+        <field name="source_id">-1001</field>
+        <field name="is_demo" eval="True"/>
+        <field name="country_id" ref="demo_country_alpha"/>
+        <field name="current_status">gold</field>
+        <field name="first_seen_on">2024-03-04</field>
+        <field name="last_seen_on">2026-11-02</field>
+        <field name="retention_rate">92.5</field>
+        <field name="retention_rate_known" eval="True"/>
+        <field name="total_references_count">2</field>
+        <field name="total_references_count_known" eval="True"/>
+        <field name="largest_project_size">120</field>
+        <field name="largest_project_size_known" eval="True"/>
+        <field name="average_project_size">18.4</field>
+        <field name="average_project_size_known" eval="True"/>
+    </record>
+    <record id="demo_history_aurora_1" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_aurora"/>
+        <field name="new_status">silver</field>
+        <field name="change_type">initial</field>
+        <field name="change_date">2024-03-04</field>
+    </record>
+    <record id="demo_history_aurora_2" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_aurora"/>
+        <field name="previous_status">silver</field>
+        <field name="new_status">gold</field>
+        <field name="change_type">promoted</field>
+        <field name="change_date">2025-06-02</field>
+    </record>
+    <record id="demo_reference_aurora_north" model="azk_odoo_partner_monitor.reference">
+        <field name="partner_id" ref="demo_partner_aurora"/>
+        <field name="name">Demo Client North</field>
+        <field name="source_key">demo-ref-north</field>
+        <field name="added_on">2024-03-04</field>
+    </record>
+    <record id="demo_reference_aurora_south_1" model="azk_odoo_partner_monitor.reference">
+        <field name="partner_id" ref="demo_partner_aurora"/>
+        <field name="name">Demo Client South</field>
+        <field name="source_key">demo-ref-south</field>
+        <field name="added_on">2024-03-04</field>
+        <field name="is_active" eval="False"/>
+        <field name="removed_on">2025-02-03</field>
+    </record>
+    <record id="demo_reference_aurora_south_2" model="azk_odoo_partner_monitor.reference">
+        <field name="partner_id" ref="demo_partner_aurora"/>
+        <field name="name">Demo Client South</field>
+        <field name="source_key">demo-ref-south</field>
+        <field name="added_on">2025-06-02</field>
+    </record>
+
+    <!-- Boreal: Gold, then demoted to Silver. Lists 2 references, 1 stored: flagged. -->
+    <record id="demo_partner_boreal" model="azk_odoo_partner_monitor.partner">
+        <field name="name">Demo Partner Boreal</field>
+        <field name="source_id">-1002</field>
+        <field name="is_demo" eval="True"/>
+        <field name="country_id" ref="demo_country_alpha"/>
+        <field name="current_status">silver</field>
+        <field name="first_seen_on">2024-03-04</field>
+        <field name="last_seen_on">2026-11-02</field>
+        <field name="retention_rate">75.0</field>
+        <field name="retention_rate_known" eval="True"/>
+        <field name="total_references_count">2</field>
+        <field name="total_references_count_known" eval="True"/>
+        <field name="largest_project_size">40</field>
+        <field name="largest_project_size_known" eval="True"/>
+        <field name="average_project_size">5.0</field>
+        <field name="average_project_size_known" eval="True"/>
+        <field name="to_reprocess_references" eval="True"/>
+    </record>
+    <record id="demo_history_boreal_1" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_boreal"/>
+        <field name="new_status">gold</field>
+        <field name="change_type">initial</field>
+        <field name="change_date">2024-03-04</field>
+    </record>
+    <record id="demo_history_boreal_2" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_boreal"/>
+        <field name="previous_status">gold</field>
+        <field name="new_status">silver</field>
+        <field name="change_type">demoted</field>
+        <field name="change_date">2025-01-06</field>
+    </record>
+    <record id="demo_reference_boreal_west" model="azk_odoo_partner_monitor.reference">
+        <field name="partner_id" ref="demo_partner_boreal"/>
+        <field name="name">Demo Client West</field>
+        <field name="source_key">demo-ref-west</field>
+        <field name="added_on">2024-03-04</field>
+    </record>
+
+    <!-- Cobalt: Ready, Silver, then Gold. Genuinely has no references (a known zero). -->
+    <record id="demo_partner_cobalt" model="azk_odoo_partner_monitor.partner">
+        <field name="name">Demo Partner Cobalt</field>
+        <field name="source_id">-1003</field>
+        <field name="is_demo" eval="True"/>
+        <field name="country_id" ref="demo_country_alpha"/>
+        <field name="current_status">gold</field>
+        <field name="first_seen_on">2025-02-03</field>
+        <field name="last_seen_on">2026-11-02</field>
+        <field name="retention_rate">88.0</field>
+        <field name="retention_rate_known" eval="True"/>
+        <field name="total_references_count">0</field>
+        <field name="total_references_count_known" eval="True"/>
+        <field name="largest_project_size">300</field>
+        <field name="largest_project_size_known" eval="True"/>
+        <field name="average_project_size">25.0</field>
+        <field name="average_project_size_known" eval="True"/>
+    </record>
+    <record id="demo_history_cobalt_1" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_cobalt"/>
+        <field name="new_status">ready</field>
+        <field name="change_type">initial</field>
+        <field name="change_date">2025-02-03</field>
+    </record>
+    <record id="demo_history_cobalt_2" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_cobalt"/>
+        <field name="previous_status">ready</field>
+        <field name="new_status">silver</field>
+        <field name="change_type">promoted</field>
+        <field name="change_date">2025-09-01</field>
+    </record>
+    <record id="demo_history_cobalt_3" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_cobalt"/>
+        <field name="previous_status">silver</field>
+        <field name="new_status">gold</field>
+        <field name="change_type">promoted</field>
+        <field name="change_date">2026-02-02</field>
+    </record>
+
+    <!-- Dune: new in 2026, Ready; the website showed no metrics (all unknown). -->
+    <record id="demo_partner_dune" model="azk_odoo_partner_monitor.partner">
+        <field name="name">Demo Partner Dune</field>
+        <field name="source_id">-1004</field>
+        <field name="is_demo" eval="True"/>
+        <field name="country_id" ref="demo_country_beta"/>
+        <field name="current_status">ready</field>
+        <field name="first_seen_on">2026-01-05</field>
+        <field name="last_seen_on">2026-11-02</field>
+    </record>
+    <record id="demo_history_dune_1" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_dune"/>
+        <field name="new_status">ready</field>
+        <field name="change_type">initial</field>
+        <field name="change_date">2026-01-05</field>
+    </record>
+
+    <!-- Ember: no longer listed by a complete scrape of its country: archived. -->
+    <record id="demo_partner_ember" model="azk_odoo_partner_monitor.partner">
+        <field name="name">Demo Partner Ember</field>
+        <field name="source_id">-1005</field>
+        <field name="is_demo" eval="True"/>
+        <field name="country_id" ref="demo_country_beta"/>
+        <field name="current_status">silver</field>
+        <field name="first_seen_on">2024-03-04</field>
+        <field name="last_seen_on">2025-10-06</field>
+        <field name="active" eval="False"/>
+        <field name="retention_rate">60.0</field>
+        <field name="retention_rate_known" eval="True"/>
+        <field name="total_references_count">1</field>
+        <field name="total_references_count_known" eval="True"/>
+        <field name="largest_project_size">12</field>
+        <field name="largest_project_size_known" eval="True"/>
+        <field name="average_project_size">4.99</field>
+        <field name="average_project_size_known" eval="True"/>
+    </record>
+    <record id="demo_history_ember_1" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_ember"/>
+        <field name="new_status">silver</field>
+        <field name="change_type">initial</field>
+        <field name="change_date">2024-03-04</field>
+    </record>
+    <record id="demo_reference_ember_east" model="azk_odoo_partner_monitor.reference">
+        <field name="partner_id" ref="demo_partner_ember"/>
+        <field name="name">Demo Client East</field>
+        <field name="source_key">demo-ref-east</field>
+        <field name="added_on">2024-03-04</field>
+    </record>
+
+    <!-- Fjord: Gold; a retention rate of exactly 0 is a real, known value. -->
+    <record id="demo_partner_fjord" model="azk_odoo_partner_monitor.partner">
+        <field name="name">Demo Partner Fjord</field>
+        <field name="source_id">-1006</field>
+        <field name="is_demo" eval="True"/>
+        <field name="country_id" ref="demo_country_gamma"/>
+        <field name="current_status">gold</field>
+        <field name="first_seen_on">2025-05-05</field>
+        <field name="last_seen_on">2026-11-02</field>
+        <field name="retention_rate">0.0</field>
+        <field name="retention_rate_known" eval="True"/>
+        <field name="total_references_count">1</field>
+        <field name="total_references_count_known" eval="True"/>
+        <field name="largest_project_size">8</field>
+        <field name="largest_project_size_known" eval="True"/>
+        <field name="average_project_size">8.0</field>
+        <field name="average_project_size_known" eval="True"/>
+    </record>
+    <record id="demo_history_fjord_1" model="azk_odoo_partner_monitor.status.history">
+        <field name="partner_id" ref="demo_partner_fjord"/>
+        <field name="new_status">gold</field>
+        <field name="change_type">initial</field>
+        <field name="change_date">2025-05-05</field>
+    </record>
+    <record id="demo_reference_fjord_harbor" model="azk_odoo_partner_monitor.reference">
+        <field name="partner_id" ref="demo_partner_fjord"/>
+        <field name="name">Demo Client Harbor</field>
+        <field name="source_key">demo-ref-harbor</field>
+        <field name="added_on">2025-05-05</field>
+    </record>
+
+</odoo>
