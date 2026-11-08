@@ -37,7 +37,7 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | [correction_r0.md](correction_r0.md) | After 00 | Language correction R0: English-only output, guidance updates, Stage 00 English handoff |
 | [stage_01.md](stage_01.md) | 01 | Docker Compose environment with pinned images, addon skeletons, verification runs |
 | [stage_01b.md](stage_01b.md) | 01B | Inspection of the company-supplied Enterprise archive, Enterprise service and database next to the Community baseline, native Trial Balance findings; follow-up of 2026-11-04: official Community revision of the archive's build identified by content, validation blocked by disk space; continuation of 2026-11-05: matched pair fetched, verified and validated on port 8071 |
-| [stage_02.md](stage_02.md) | 02 | Requirements matrix, assumptions, architecture and test plan; source checks in the pinned 18.0 core and Enterprise addons; native Trial Balance probe on the matched pair |
+| [stage_02.md](stage_02.md) | 02 | Requirements matrix, assumptions, architecture and test plan; source checks in the pinned 18.0 core and Enterprise addons; native Trial Balance probe on the matched pair; the same prompt re-sent on 2026-11-08, answered with a status check and no rework |
 
 ## Mistakes found and corrected
 

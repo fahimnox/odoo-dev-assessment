@@ -336,3 +336,105 @@ Read prompts/03_partner_models.txt and execute Stage 03 only, following solution
   - checks of the real PDF text and XLSX cells.
 
 ---
+
+## Re-sent prompt (2026-11-08)
+
+This section was added on 2026-11-08, in a separate commit. The user resumed this CLI session and sent the Stage 02 prompt again, three days after Stage 02 had been completed and committed (`67e390d`). The agent checked the repository, the stage's inputs and the runtime, did not redo the stage, and logged the exchange here.
+
+### User prompt (verbatim)
+
+The whole message was pasted text, identical to the prompt at the top of this log. The referenced instruction file had not changed since 2026-11-02, so the copy above still applies.
+
+```text
+Read prompts/02_requirements_and_design.txt and execute Stage 02 only,
+following solution/AGENTS.md. Use the validated Enterprise setup on port 8071.
+End with a short plain-English summary of how each module will work
+and how we will test it. Stop after Stage 02.
+```
+
+### Conversation (recorded text, verbatim, in order)
+
+Assistant message 1:
+
+> Stage 02 is already done and committed (`67e390d`), and nothing has changed since. I'm confirming the setup on port 8071 is still healthy before I report back. I won't redo the stage.
+
+Assistant message 2:
+
+> All checks passed: the 8071 setup is running again and the Stage 02 work is untouched. Next I'm adding this exchange to the AI log, then I'll commit it and post the report.
+
+### Summary of tool activity (summary, not verbatim)
+
+1. Read `AGENTS.md`. Checked Git (clean at `67e390d`) and searched the kit and `solution/` for files changed after the Stage 02 commit: none. The private `runtime/` folder and the supplied archive were not scanned. Checked the dates of the instruction file, the PDF and `AGENTS.md`, and the contents of `reference/`.
+2. Checked the disk (14 GB free on C:) and the last boot time (2026-11-06).
+3. Docker: the first status call could not reach the engine; a later `docker version` call reached it. `scripts/dev.sh status` showed the database and the 8071 server stopped. `scripts/dev.sh start` started them, the login page returned 200, the server log since the start had no warnings or errors, and the database list was read with `psql`.
+4. Extracted this section's assistant messages from the session transcript with a script and appended the prepared final response.
+5. No code, design document or database content was changed.
+
+### Notes on accuracy
+
+- The final response below is included as prepared, and it was displayed unchanged. Progress messages written after this section was assembled, while committing, are not included.
+
+### Assistant final response (verbatim)
+
+Everything between the two rules below is the final visible response.
+
+---
+
+Stage 02 was already finished on 2026-11-05, and nothing it depends on has changed since, so I didn't redo it. Below are the checks I ran today and the summary you asked for. If you wanted a full rerun, or a change to part of the design, tell me which part and I'll do that instead.
+
+**Checks run today (2026-11-08)**
+- `git status` in `solution/`: clean. The last commit is `67e390d`, "Stage 02: requirements, assumptions, architecture and test plan".
+- No file in the kit or in `solution/` had changed since that commit. I didn't scan the private `runtime/` folder or the supplied archive.
+- Stage 02's inputs are unchanged: its instruction file (last changed 2026-11-02), the PDF and `solution/AGENTS.md`. `reference/` still holds only the PDF, so the views specification and the mockup are still missing.
+- `df -h /c`: 14 GB free.
+- The machine restarted on 2026-11-06. At first the Docker engine didn't answer; shortly after, it did. The database and the 8071 server were stopped: the Compose services are set to `restart: "no"`, so they don't come back on their own.
+- `scripts/dev.sh start`: PASS. The 8071 login page answered 200 once `azk_ee24` had loaded (59 s), and the server log had no warnings or errors.
+- The eight `azk_*` databases are present, including `azk_dev`, `azk_ent`, `azk_ee24`, `azk_ee24_test` and `azk_ee24_clean`. I left the 8069 and 8070 services stopped, as they were before the restart.
+- NOT RUN: tests, because no code changed.
+
+**Changed files**
+- `docs/ai/stage_02.md`: this exchange, appended verbatim.
+- `docs/ai/README.md`: the index row.
+- Commit: "Stage 02: log the re-sent prompt of 2026-11-08".
+
+**Open issues** (unchanged)
+- Q-02 to Q-06 are still with the team lead. None of them blocks Stage 03.
+
+**Comprehension questions** (from Stage 02, still open)
+1. Why can a crash in the middle of a worker batch never leave a work item permanently claimed?
+2. Why must the Trial Balance engine re-check the company, journal and analytic ids even though the wizard already checked them?
+3. In the probe, why did the prior-year revenue appear on account 999999 instead of the revenue account?
+
+**Next stage:** 03, Partner Monitor models, permissions and basic UI. The 8071 setup is running again. I'm stopping here. When you're ready:
+
+Read prompts/03_partner_models.txt and execute Stage 03 only, following solution/AGENTS.md.
+
+**In plain English: how each module will work**
+- **Partner Monitor:**
+  - Every day, a scheduled job writes a to-do list: read the country list, then each country's pages, then the details of partners that are new or changed.
+  - A separate worker job does a few items at a time and saves after each small batch. If Odoo stops halfway, finished items stay finished and only the last batch is redone.
+  - Partners are tracked by the number in their odoo.com link, so reading a page twice never creates duplicates. Status changes become history rows marked promoted or demoted.
+  - Nothing is marked removed unless all the pages for that country or partner were read and checked. Two more jobs retry countries and partners whose counts didn't match.
+  - If a run has failures, the chosen user gets one note.
+  - The dashboard is the module's home page: one filter bar (status, country, year first seen) drives all four charts.
+- **Dynamic Trial Balance:**
+  - The user fills in a wizard: dates, company and options.
+  - Our engine calculates every number in one place, following the rules of Odoo's own Trial Balance, which we checked on real data: balance-sheet accounts carry their whole history, income and expense restart each fiscal year, drafts count only when asked, and cancelled entries never count.
+  - Odoo's own report screen shows the result, and Odoo's own exporters turn the same result into the PDF and XLSX, so the three always agree.
+  - What we add: Balance columns, account-prefix filters, hiding empty accounts, one line per currency, and a hierarchy limited to a chosen level.
+
+**How we will test them**
+- **Partner Monitor:**
+  - the parsers run on saved web pages, never the live site;
+  - database tests cover duplicates, history and permissions;
+  - failure tests: one partner failing, mismatched counts, partial pages, and two workers at once;
+  - one real stop and restart of the worker in a throwaway database;
+  - dashboard tests check that the chart totals match the filtered partners.
+- **Trial Balance:**
+  - small datasets whose expected numbers are worked out by hand, for example Bank ending at 1,200 with posted entries only and 1,000 with drafts;
+  - separate datasets for cross-year, currency, analytic and hierarchy cases;
+  - access tests with two users and two companies;
+  - a comparison with Odoo's native Trial Balance on the same data;
+  - checks of the real PDF text and XLSX cells.
+
+---
