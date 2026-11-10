@@ -5,11 +5,19 @@
         <field name="name">azk_odoo_partner_monitor.country.list</field>
         <field name="model">azk_odoo_partner_monitor.country</field>
         <field name="arch" type="xml">
-            <list string="Countries" create="0" edit="0" delete="0" decoration-muted="not active">
+            <list string="Countries" create="0" edit="0" delete="0" decoration-muted="not active"
+                  decoration-danger="reprocess_exhausted">
                 <field name="name"/>
                 <field name="total_partner_count"/>
+                <field name="snapshot_partner_count" optional="show"/>
                 <field name="partner_count"/>
+                <field name="validation_state" widget="badge" optional="show"
+                       decoration-success="validation_state == 'matched'"
+                       decoration-danger="validation_state == 'mismatch'"/>
                 <field name="to_reprocess_partners" optional="show"/>
+                <field name="reprocess_attempts" optional="hide"/>
+                <field name="validated_at" optional="hide"/>
+                <field name="reprocess_exhausted" column_invisible="True"/>
                 <field name="is_demo" optional="show"/>
                 <field name="source_key" optional="hide"/>
                 <field name="active" column_invisible="True"/>
@@ -44,6 +52,17 @@
                             <field name="is_demo"/>
                             <field name="active" invisible="1"/>
                         </group>
+                        <group string="Validation" name="validation">
+                            <field name="validation_state"/>
+                            <field name="validated_at"/>
+                            <field name="snapshot_partner_count"/>
+                            <field name="previous_partner_count"/>
+                        </group>
+                        <group string="Re-scrape" name="rescrape">
+                            <field name="reprocess_attempts"/>
+                            <field name="next_reprocess_at"/>
+                            <field name="reprocess_exhausted"/>
+                        </group>
                     </group>
                     <notebook>
                         <page string="Partners" name="partners">
@@ -73,6 +92,8 @@
                 <field name="name"/>
                 <field name="source_key"/>
                 <filter name="needs_rescrape" string="Needs Re-scrape" domain="[('to_reprocess_partners', '=', True)]"/>
+                <filter name="mismatch" string="Validation Mismatch" domain="[('validation_state', '=', 'mismatch')]"/>
+                <filter name="exhausted" string="Retries Exhausted" domain="[('reprocess_exhausted', '=', True)]"/>
                 <separator/>
                 <filter name="website_data" string="Website Data" domain="[('is_demo', '=', False)]"/>
                 <filter name="demo_data" string="Demo Data" domain="[('is_demo', '=', True)]"/>
@@ -80,6 +101,7 @@
                 <filter name="archived" string="Archived" domain="[('active', '=', False)]"/>
                 <group expand="0" string="Group By">
                     <filter name="group_needs_rescrape" string="Needs Re-scrape" context="{'group_by': 'to_reprocess_partners'}"/>
+                    <filter name="group_validation" string="Validation" context="{'group_by': 'validation_state'}"/>
                 </group>
             </search>
         </field>

@@ -1,6 +1,6 @@
 # Architecture (Stage 02)
 
-_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. Stage 05 (2026-11-10) built the scheduled jobs and the worker; see section 5.12 and [resilience.md](resilience.md). The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
 
 ## 1. Target and sources used
 
@@ -479,6 +479,38 @@ The original views specification was not supplied. The proposed views are an ass
   - Only a complete country list deactivates missing countries. Demo records are never touched.
 - **Failures:** a ParseError, a refused URL or any exception from the page source propagates. Nothing is ingested for that scope. A failure is never treated as an empty result.
 - **Missing:** the requests-based page-download module and a live run through it. See the Stage 04 handoff.
+
+### 5.12 As built in Stage 05 (2026-11-10)
+
+The sync engine follows section 5.6. Details, commit story and evidence are in [resilience.md](resilience.md).
+
+```text
+  ir.cron (data/ir_cron.xml), all calling azk_odoo_partner_monitor.worker
+    Daily Discovery (1 day)   --> sync.run + country_list unit ----+
+    Country Validation (6 h)  --> country_partners units (flagged) -+--> work.item queue
+    Reference Validation (6 h)--> partner_details units (flagged,  -+    (one pending unit
+                                  stale)                                 per kind and target)
+    Sync Worker (10 min, or woken by _trigger)                           |
+      _cron_process_queue: one bounded batch per scheduler call <--------+
+        _claim_next   FOR NO KEY UPDATE SKIP LOCKED, one unit at a time
+        _run_unit     savepoint -> services/reader.py (fetch from
+                      _get_page_source) -> models/ingest.py
+        failures      sync.error row + try count + log line, after the rollback
+        _finalize     done / partial / failed, one note per run
+      the scheduler commits after each call: the durability point
+```
+
+- **Engine:** `models/worker.py` (AbstractModel `azk_odoo_partner_monitor.worker`). The units are the three work-item kinds of section 5.2. The country unit queues the pages of partners never read; the validation jobs queue flagged and stale targets.
+- **Page source:** `worker._get_page_source()` is the integration point of the deferred page-download module. It returns None today, so the worker attempts nothing and marks the runs as waiting (D-33).
+- **Changes from section 5.6:**
+  - claims are taken one at a time, so units queued earlier in the same batch can run in it;
+  - a REPEATABLE READ serialization failure on a claim ends the batch (D-35);
+  - recorded dates are the date the page is read (D-30);
+  - details are refreshed by the policy of D-31; a changed card sets the flag and the reference-validation job reads the page;
+  - validation re-scrapes have their own bounded budget (D-32);
+  - an empty-country notice is confirmed by reading the country list in the same unit (D-36);
+  - there is no `details_fingerprint`: writes are already idempotent and the site offers no conditional requests, so the listing card hash (`listing_fingerprint`) is the change detector.
+- **New fields:** validation bookkeeping on countries and partners (expected, found, previous, outcome, retry count and time, "Retries Exhausted"), `active_reference_count`, `details_synced_at`, `listing_fingerprint`; `finished_at` and `result_summary` on work items; `waiting_reason` on runs.
 
 ## 6. Version and edition notes
 

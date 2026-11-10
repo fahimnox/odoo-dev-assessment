@@ -12,6 +12,7 @@ The selectors were chosen from the live pages read on 2026-11-08
 the empty-country notice) are the English ones.
 """
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 
@@ -76,6 +77,18 @@ class PartnerCard:
             "largest_project_size": self.largest_project_size,
             "total_references_count": self.total_references_count,
         }
+
+    def metrics_fingerprint(self):
+        """Hash of the card's metrics, the change-detection key for details refreshes.
+
+        It covers the four values that can make the partner page worth reading
+        again: retention rate, average and largest project size, and the
+        reference count. None (not shown) is part of the value.
+        """
+        text = "|".join(repr(value) for value in (
+            self.retention_rate, self.average_project_size,
+            self.largest_project_size, self.total_references_count))
+        return hashlib.sha256(text.encode()).hexdigest()[:32]
 
 
 @dataclass(frozen=True)

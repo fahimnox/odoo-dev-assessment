@@ -100,6 +100,24 @@ The checks TP-PM-01 to TP-PM-05 are automated in `addons/azk_odoo_partner_monito
   - TP-PM-13: incomplete snapshots are covered at the ingestion level; the worker path comes in Stage 05.
 - **TP-PM-21** (live): a manual sample with curl (9 requests) and a manual parser check on the saved full pages ([live_site_notes.md](live_site_notes.md)). A live run through the module is NOT RUN: the page-download module is deferred.
 
+### 3.3 Implemented in Stage 05 (2026-11-10)
+
+21 tests drive the worker with `FixtureSite` (the seven live-derived fixtures, plus variants made in code from them). Design and results: [resilience.md](resilience.md).
+
+- `test_worker.py`, `TestWorker` (19 tests, time frozen at 2026-11-10 08:00 UTC):
+  - **TP-PM-09** (idempotency): `test_repeated_identical_ingestion_creates_nothing_new`.
+  - **TP-PM-10** (failure isolation): `test_one_failed_partner_does_not_stop_the_others` (a missing partner page fails one unit with its error row and context; two other partners are stored in the same batch), `test_database_error_in_one_unit_leaves_the_cursor_usable` (a real SQL error after the unit's writes: they are rolled back, the next unit is stored, the cursor works).
+  - **TP-PM-11** (country validation): `test_country_mismatch_then_recovery`, `test_genuine_change_in_partner_count_is_no_false_mismatch`, `test_permanent_mismatch_stops_after_the_retry_limit`.
+  - **TP-PM-12** (reference validation): `test_reference_mismatch_then_recovery`, and the refresh policy in `test_details_refresh_policy`.
+  - **TP-PM-13** (partial snapshots, valid empty scope): `test_failed_or_partial_reads_delete_nothing`, `test_valid_empty_country_is_confirmed_by_the_country_list`, `test_unconfirmed_empty_notice_keeps_the_data`, `test_same_count_with_changed_identities_and_status`.
+  - **TP-PM-14** (scheduling): `test_duplicate_scheduling_adds_no_work`; the bounded unit retries `test_unit_retries_are_bounded_with_growing_delays`.
+  - **TP-PM-16** (notification): `test_daily_run_retries_failed_units_then_notifies_once`, `test_missing_page_source_keeps_the_queue_and_says_so`, `test_manager_retry_reopens_the_run_and_wakes_the_worker`.
+  - **TP-PM-17** (change-aware pulling): `test_details_refresh_policy` (new partner, unchanged card, changed card, no refresh loop, stale details).
+  - **The scheduler path:** `test_worker_job_runs_bounded_batches_through_the_scheduler` runs the real `ir.cron._process_job` in test mode (each scheduler commit becomes a savepoint), with a batch size of 1; `test_sync_jobs_are_scheduled` checks the four jobs.
+- `test_worker_concurrency.py`, `TestWorkerConcurrency` (2 tests, **TP-PM-14** with real concurrency): two separate database connections claim units at the same time and never get the same one, including after one of them commits; a worker whose transaction ends without a commit releases its unit at once. These tests commit their own small dataset through a separate cursor and delete it afterwards.
+- **TP-PM-15** (crash and restart, L3): `scripts/restart_check.sh`, outside the test suite, on the disposable `azk_ee24_test` after the suite ran. It kills the worker's container (SIGKILL) during its second batch and restarts it. Steps and observed SQL state: [resilience.md](resilience.md) section 12.
+- **Still not covered:** TP-PM-07's login, rate-limit, HTTP-error and truncated pages (synthetic fixtures and the page-download module deferred), and TP-PM-21's live run through the module.
+
 ## 4. Exercise 2: Dynamic Trial Balance
 
 ### 4.1 Fixtures and hand-calculated expectations

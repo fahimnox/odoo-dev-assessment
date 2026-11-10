@@ -5,7 +5,8 @@
         <field name="name">azk_odoo_partner_monitor.partner.list</field>
         <field name="model">azk_odoo_partner_monitor.partner</field>
         <field name="arch" type="xml">
-            <list string="Partners" create="0" edit="0" delete="0" decoration-muted="not active">
+            <list string="Partners" create="0" edit="0" delete="0" decoration-muted="not active"
+                  decoration-danger="reprocess_exhausted">
                 <field name="name"/>
                 <field name="country_id"/>
                 <field name="current_status" widget="badge"
@@ -18,10 +19,16 @@
                 <field name="retention_rate" invisible="not retention_rate_known" optional="hide"/>
                 <field name="largest_project_size" invisible="not largest_project_size_known" optional="hide"/>
                 <field name="average_project_size" invisible="not average_project_size_known" optional="show"/>
+                <field name="active_reference_count" optional="hide"/>
+                <field name="reference_validation_state" widget="badge" optional="hide"
+                       decoration-success="reference_validation_state == 'matched'"
+                       decoration-danger="reference_validation_state == 'mismatch'"/>
                 <field name="to_reprocess_references" optional="show"/>
+                <field name="details_synced_at" optional="hide"/>
                 <field name="is_demo" optional="show"/>
                 <field name="source_id" optional="hide"/>
                 <field name="active" column_invisible="True"/>
+                <field name="reprocess_exhausted" column_invisible="True"/>
                 <field name="total_references_count_known" column_invisible="True"/>
                 <field name="retention_rate_known" column_invisible="True"/>
                 <field name="largest_project_size_known" column_invisible="True"/>
@@ -89,6 +96,16 @@
                             <field name="largest_project_size_known" invisible="1"/>
                             <field name="average_project_size_known" invisible="1"/>
                         </group>
+                        <group string="Reference Validation" name="reference_validation">
+                            <field name="reference_validation_state"/>
+                            <field name="details_synced_at"/>
+                            <field name="snapshot_reference_count"/>
+                            <field name="active_reference_count"/>
+                            <field name="previous_references_count"/>
+                            <field name="reprocess_attempts"/>
+                            <field name="next_reprocess_at"/>
+                            <field name="reprocess_exhausted"/>
+                        </group>
                     </group>
                     <notebook>
                         <page string="Status History" name="status_history">
@@ -133,6 +150,8 @@
                 <filter name="ready" string="Ready" domain="[('current_status', '=', 'ready')]"/>
                 <separator/>
                 <filter name="needs_rescrape" string="Needs Re-scrape" domain="[('to_reprocess_references', '=', True)]"/>
+                <filter name="mismatch" string="Reference Mismatch" domain="[('reference_validation_state', '=', 'mismatch')]"/>
+                <filter name="exhausted" string="Retries Exhausted" domain="[('reprocess_exhausted', '=', True)]"/>
                 <separator/>
                 <filter name="website_data" string="Website Data" domain="[('is_demo', '=', False)]"/>
                 <filter name="demo_data" string="Demo Data" domain="[('is_demo', '=', True)]"/>

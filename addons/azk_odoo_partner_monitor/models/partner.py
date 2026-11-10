@@ -4,7 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 from ..services.urls import is_canonical_partner_url
-from .common import STATUS_RANK, STATUS_SELECTION, ensure_manager
+from .common import MAX_ATTEMPTS, STATUS_RANK, STATUS_SELECTION, VALIDATION_STATES, ensure_manager
 
 _logger = logging.getLogger(__name__)
 
@@ -82,6 +82,52 @@ class PartnerMonitorPartner(models.Model):
     largest_project_size_known = fields.Boolean(readonly=True)
     average_project_size_known = fields.Boolean(readonly=True)
 
+    # --- Validation and change detection (Stage 05, docs/resilience.md) ---
+    # Expected (total_references_count), found, stored, prior and outcome are
+    # kept apart.
+    # The numbers default to 0, so the column is filled when it is added to an
+    # existing database: SQL never matches "NULL < 5".
+    previous_references_count = fields.Integer(
+        string="Previously Listed References", readonly=True, default=0,
+        help="The listed reference count before it last changed on the website.",
+    )
+    snapshot_reference_count = fields.Integer(
+        string="References Found", readonly=True, default=0,
+        help="References found on the partner's page at the last details read.",
+    )
+    active_reference_count = fields.Integer(
+        string="Active References", compute="_compute_active_reference_count", store=True,
+        help="Active references stored in the database.",
+    )
+    reference_validation_state = fields.Selection(
+        VALIDATION_STATES, string="Reference Validation", required=True, readonly=True,
+        default="unchecked",
+        help="Matched: the last details read was a complete reference list whose size, and the "
+             "active references stored, equal the listed count. Mismatch: otherwise; no "
+             "reference was removed.",
+    )
+    details_synced_at = fields.Datetime(
+        string="Details Read At", readonly=True,
+        help="When the partner's own page was last read and stored.",
+    )
+    listing_fingerprint = fields.Char(
+        readonly=True,
+        help="Hash of the metrics on the partner's listing card at the last listing read. "
+             "A different hash schedules a details refresh.",
+    )
+    reprocess_attempts = fields.Integer(
+        string="Re-scrape Attempts", readonly=True, default=0,
+        help="Details re-reads the reference-validation job has queued for the current "
+             "mismatch. It stops after the limit; a matching read or a manager resets it.",
+    )
+    next_reprocess_at = fields.Datetime(string="Next Re-scrape", readonly=True)
+    reprocess_exhausted = fields.Boolean(
+        string="Retries Exhausted", compute="_compute_reprocess_exhausted", store=True,
+        help="Every re-read allowed for the current mismatch has been queued. Unless the last "
+             "one matches, the mismatch stays visible; a manager can mark the partner for "
+             "re-scrape again.",
+    )
+
     _sql_constraints = [
         ("source_id_unique", "UNIQUE(source_id)",
          "Another partner already has this website ID."),
@@ -103,7 +149,22 @@ class PartnerMonitorPartner(models.Model):
          " AND (largest_project_size_known IS TRUE OR COALESCE(largest_project_size, 0) = 0)"
          " AND (average_project_size_known IS TRUE OR COALESCE(average_project_size, 0) = 0))",
          "An unknown metric must not carry a value."),
+        ("reprocess_attempts_not_negative", "CHECK(reprocess_attempts >= 0)",
+         "The re-scrape attempt count cannot be negative."),
     ]
+
+    @api.depends("reference_ids.is_active")
+    def _compute_active_reference_count(self):
+        counts = dict(self.env["azk_odoo_partner_monitor.reference"]._read_group(
+            [("partner_id", "in", self.ids), ("is_active", "=", True)], ["partner_id"], ["__count"]))
+        for partner in self:
+            partner.active_reference_count = counts.get(partner, 0)
+
+    @api.depends("to_reprocess_references", "reprocess_attempts")
+    def _compute_reprocess_exhausted(self):
+        for partner in self:
+            partner.reprocess_exhausted = (partner.to_reprocess_references
+                                           and partner.reprocess_attempts >= MAX_ATTEMPTS)
 
     @api.constrains("partner_url", "source_id")
     def _check_partner_url(self):
@@ -187,6 +248,10 @@ class PartnerMonitorPartner(models.Model):
         previous_status = partner.current_status
         vals.update(last_seen_on=observed_on, active=True)
         changed = {name: value for name, value in vals.items() if partner._differs(name, value)}
+        if ("total_references_count" in changed and partner.total_references_count_known
+                and vals.get("total_references_count_known")):
+            # A known listed count changed to another known one: keep the prior count.
+            changed["previous_references_count"] = partner.total_references_count
         if changed:
             partner.write(changed)
         if status and status != previous_status:
@@ -270,9 +335,42 @@ class PartnerMonitorPartner(models.Model):
             removed.flush_recordset(["is_active", "removed_on"])
         return added, removed
 
+    def _request_details_refresh(self, now):
+        """Flag these partners for a details re-read, with a fresh retry budget.
+
+        Partners already flagged keep their budget, so repeated requests can
+        never reset a mismatch's bounded retries.
+        """
+        self.filtered(lambda partner: not partner.to_reprocess_references).write({
+            "to_reprocess_references": True, "reprocess_attempts": 0, "next_reprocess_at": now})
+
+    def _record_reference_validation(self, matched, found, now):
+        """Store the outcome of one details read of this partner (P-20).
+
+        A match clears the flag and the retry budget. A new mismatch sets the
+        flag with a fresh budget, due at once. A mismatch that persists keeps
+        the attempts already used, so re-reads stay bounded (P-21).
+        """
+        for partner in self:
+            vals = {
+                "snapshot_reference_count": found,
+                "details_synced_at": now,
+                "reference_validation_state": "matched" if matched else "mismatch",
+            }
+            if matched:
+                vals.update(to_reprocess_references=False, reprocess_attempts=0, next_reprocess_at=False)
+            elif not partner.to_reprocess_references:
+                vals.update(to_reprocess_references=True, reprocess_attempts=0, next_reprocess_at=now)
+            partner.write(vals)
+
     def action_mark_for_rescrape(self):
-        """Manager action: flag these partners for the reference-validation job."""
+        """Manager action: flag these partners for the reference-validation job.
+
+        It also gives them a fresh retry budget, so a partner whose retries
+        were exhausted is tried again.
+        """
         ensure_manager(self.env)
         self.check_access("read")
-        self.sudo().write({"to_reprocess_references": True})
+        self.sudo().write({"to_reprocess_references": True, "reprocess_attempts": 0,
+                           "next_reprocess_at": fields.Datetime.now()})
         return True

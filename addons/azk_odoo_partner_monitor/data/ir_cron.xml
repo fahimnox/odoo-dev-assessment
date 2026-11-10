@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- The sync jobs (docs/resilience.md). They run as the superuser, like
+         every scheduled action. Only the worker reads pages; the three
+         others only queue de-duplicated work items and wake the worker.
+         noupdate: administrators may change intervals; upgrades keep them. -->
+
+    <record id="ir_cron_daily_discovery" model="ir.cron">
+        <field name="name">Partner Monitor: Daily Discovery</field>
+        <field name="model_id" ref="model_azk_odoo_partner_monitor_worker"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_daily_discovery()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 02:00:00')"/>
+        <field name="priority">10</field>
+    </record>
+
+    <record id="ir_cron_worker" model="ir.cron">
+        <field name="name">Partner Monitor: Sync Worker</field>
+        <field name="model_id" ref="model_azk_odoo_partner_monitor_worker"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_process_queue()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">10</field>
+        <field name="interval_type">minutes</field>
+        <field name="priority">10</field>
+    </record>
+
+    <record id="ir_cron_validate_countries" model="ir.cron">
+        <field name="name">Partner Monitor: Country Validation</field>
+        <field name="model_id" ref="model_azk_odoo_partner_monitor_worker"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_validate_countries()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">6</field>
+        <field name="interval_type">hours</field>
+        <field name="priority">10</field>
+    </record>
+
+    <record id="ir_cron_validate_references" model="ir.cron">
+        <field name="name">Partner Monitor: Reference Validation</field>
+        <field name="model_id" ref="model_azk_odoo_partner_monitor_worker"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_validate_references()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">6</field>
+        <field name="interval_type">hours</field>
+        <field name="priority">10</field>
+    </record>
+
+</odoo>

@@ -1,10 +1,12 @@
 import logging
 
+import psycopg2
 from markupsafe import Markup
 
 from odoo import api, fields, models
+from odoo.tools import mute_logger
 
-from .common import MANAGER_GROUP, ensure_manager
+from .common import MANAGER_GROUP, MAX_ATTEMPTS, ensure_manager
 
 _logger = logging.getLogger(__name__)
 
@@ -43,6 +45,11 @@ class PartnerMonitorSyncRun(models.Model):
         string="Failure Note Posted", readonly=True,
         help="When the failure note was posted. A run is never notified twice.",
     )
+    waiting_reason = fields.Char(
+        string="Waiting For", readonly=True,
+        help="Why the queued units of this run are not being processed, for example because "
+             "no page source is available. The units stay queued; nothing is marked failed.",
+    )
     work_item_ids = fields.One2many(
         "azk_odoo_partner_monitor.work.item", "run_id", string="Work Items", groups=MANAGER_GROUP)
     error_ids = fields.One2many(
@@ -76,22 +83,43 @@ class PartnerMonitorSyncRun(models.Model):
             run.failed_count = counts.get("failed", 0)
             run.error_count = errors.get(run, 0)
 
+    @api.model
+    def _queue_full_sync(self, trigger):
+        """Create a run with its first unit, the country list. Returns the run or nothing.
+
+        Nothing is created while a country list is already queued, so the
+        daily job, a second click and a click during the daily job cannot
+        start two full syncs (duplicate scheduling). The one-pending-unit
+        index settles a race between two transactions: the loser's run and
+        unit are rolled back together in their savepoint.
+        """
+        WorkItem = self.env["azk_odoo_partner_monitor.work.item"]
+        if WorkItem.search_count([("kind", "=", "country_list"), ("state", "=", "pending")], limit=1):
+            return self.browse()
+        try:
+            with mute_logger("odoo.sql_db"), self.env.cr.savepoint():
+                run = self.with_context(mail_create_nolog=True, mail_create_nosubscribe=True).create(
+                    {"trigger": trigger})
+                WorkItem.create({"kind": "country_list", "run_id": run.id})
+        except psycopg2.errors.UniqueViolation:
+            _logger.info("Partner Monitor: another job queued a full sync at the same moment.")
+            return self.browse()
+        return run
+
     def action_sync_now(self):
-        """Manager action: queue a full sync.
+        """Manager action: queue a full sync and wake the worker.
 
         It only creates a run and queues its first unit (the country list).
-        The worker job processes the queue in bounded batches (Stage 05); this
-        button never scrapes inside the user's request.
+        The worker job processes the queue in bounded batches; this button
+        never scrapes inside the user's request.
         """
         ensure_manager(self.env)
-        WorkItem = self.env["azk_odoo_partner_monitor.work.item"].sudo()
-        if WorkItem.search_count([("kind", "=", "country_list"), ("state", "=", "pending")], limit=1):
-            message, kind = self.env._("A sync is already queued."), "warning"
-        else:
-            run = self.sudo().with_context(mail_create_nolog=True, mail_create_nosubscribe=True).create(
-                {"trigger": "manual"})
-            WorkItem._enqueue("country_list", run)
+        run = self.sudo()._queue_full_sync("manual")
+        if run:
             message, kind = self.env._("%(run)s is queued.", run=run.display_name), "info"
+            self.env["azk_odoo_partner_monitor.work.item"]._trigger_worker()
+        else:
+            message, kind = self.env._("A sync is already queued."), "warning"
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -101,6 +129,52 @@ class PartnerMonitorSyncRun(models.Model):
                 "next": {"type": "ir.actions.client", "tag": "soft_reload"},
             },
         }
+
+    # ------------------------------------------------------------------
+    # End of a run (called by the worker after each batch)
+    # ------------------------------------------------------------------
+
+    @api.model
+    def _finalize_finished(self, now):
+        """Finalize every running run that has no pending unit left. Returns them."""
+        running = self.search([("state", "=", "running")])
+        busy = self.env["azk_odoo_partner_monitor.work.item"].search(
+            [("state", "=", "pending"), ("run_id", "in", running.ids)]).run_id
+        finished = running - busy
+        for run in finished:
+            run._finalize(now)
+        return finished
+
+    def _finalize(self, now):
+        """Set the final state from the units, then notify a failed or partial run once.
+
+        done: no unit failed; failed: no unit succeeded; partial: both.
+        Cancelled units are ignored.
+        """
+        self.ensure_one()
+        states = self.work_item_ids.mapped("state")
+        if "failed" not in states:
+            state = "done"
+        elif "done" not in states:
+            state = "failed"
+        else:
+            state = "partial"
+        self.write({"state": state, "finished_at": now, "waiting_reason": False})
+        _logger.info("Partner Monitor: %s finished as %s.", self.display_name, state)
+        self._notify_failure()
+
+    def _set_waiting(self, reason):
+        """Mark these runs as waiting (their units stay queued) and tell the recipient once."""
+        for run in self.filtered(lambda r: r.state == "running" and r.waiting_reason != reason):
+            first = not run.waiting_reason
+            run.waiting_reason = reason
+            if first:
+                run._post_note(Markup("<p>%s</p><p>%s</p>") % (
+                    self.env._("Partner Monitor %(run)s is waiting: %(reason)s",
+                               run=run.display_name, reason=reason),
+                    self.env._("%(pending)s units are queued and kept; none was attempted or marked "
+                               "failed. The run continues when the condition is resolved.",
+                               pending=run.pending_count)))
 
     # ------------------------------------------------------------------
     # Failure notification (P-07, decision D-08)
@@ -140,15 +214,20 @@ class PartnerMonitorSyncRun(models.Model):
         for run in self:
             if run.state not in ("partial", "failed") or run.notified_at:
                 continue
-            recipient = run._get_failure_recipient()
-            messages |= run.message_post(
-                body=run._failure_note_body(),
-                message_type="comment",
-                subtype_xmlid="mail.mt_note",
-                partner_ids=recipient.partner_id.ids,
-            )
+            messages |= run._post_note(run._failure_note_body())
             run.notified_at = fields.Datetime.now()
         return messages
+
+    def _post_note(self, body):
+        """Post an internal note on this run for the configured user (D-08)."""
+        self.ensure_one()
+        recipient = self._get_failure_recipient()
+        return self.message_post(
+            body=body,
+            message_type="comment",
+            subtype_xmlid="mail.mt_note",
+            partner_ids=recipient.partner_id.ids,
+        )
 
     def _failure_note_body(self):
         self.ensure_one()
@@ -164,7 +243,10 @@ class PartnerMonitorSyncRun(models.Model):
                                           if item.last_error else "-")
             for item in failed_units[:MAX_FAILED_UNITS_LISTED])
         recovery = self.env._(
-            "Managers can retry failed work under Partner Monitor > Sync > Work Items.")
+            "Each failed unit was tried %(attempts)s times, with growing delays between tries. "
+            "Existing data of the failed scopes was kept. Managers can retry failed work under "
+            "Partner Monitor > Sync > Work Items; flagged countries and partners are re-scraped "
+            "by the validation jobs.", attempts=MAX_ATTEMPTS)
         body = Markup("<p>%s</p>") % summary
         if lines:
             body += Markup("<p>%s</p><ul>%s</ul>") % (self.env._("Failed scopes:"), lines)

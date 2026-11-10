@@ -1,6 +1,6 @@
 {
     "name": "Odoo Partner Monitor",
-    "version": "18.0.1.2.0",
+    "version": "18.0.1.3.0",
     "summary": "Track partners listed on the official Odoo Partners pages: "
                "status history, client references and dashboards.",
     "category": "Tools",
@@ -15,6 +15,7 @@
         "security/partner_monitor_security.xml",
         "security/ir.model.access.csv",
         "data/partner_monitor_config.xml",
+        "data/ir_cron.xml",
         "views/country_views.xml",
         "views/partner_views.xml",
         "views/status_history_views.xml",

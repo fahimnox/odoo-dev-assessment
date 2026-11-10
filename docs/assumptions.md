@@ -35,13 +35,13 @@ These are referenced by the PDF but were **not supplied**. They have not been re
 | A-17 | Partner Monitor dashboard: a small OWL client action holds the shared filters and embeds four standard graph views defined in XML. One server method ranks the countries | `board` has no shared filters; 18.0 spreadsheet global filters support only date, relation and text, and spreadsheet content is JSON, not XML ([architecture.md](architecture.md) 5.8) | Decided in Stage 02; built and verified in Stage 06 |
 | A-18 | Partner Monitor sync: four crons (daily discovery, worker, country validation, reference validation). Producers only enqueue durable work items; the worker alone processes them, in bounded batches through the 18.0 cron progress API. Commits are the scheduler's, after each callback | `ir.cron._run_job` and `_notify_progress` in the pinned source ([architecture.md](architecture.md) 5.6) | Decided in Stage 02; implemented and crash-tested in Stage 05 |
 | A-19 | The live partners site behaves like the 18.0 `website_crm_partner_assign` module: country and grade URL paths, 40 partners per page, `country_id` in partner links of a country listing, the all-countries fallback with an alert, and per-card reference counts | Read in the pinned Community source; odoo.com runs its own newer deployment, and the PDF's retention rate and project-size metrics are not in the Community template | Verified on a small live sample on 2026-11-08 ([live_site_notes.md](live_site_notes.md)). Confirmed: the URL paths, `country_id` in country-scoped links, the fallback with its notice, and per-card reference counts. Different: 20 partners per page (not 40); the cards also show retention and project sizes; references link to `/customers/<slug>-<id>` |
-| A-20 | Dates recorded by the sync (`first_seen_on`, `change_date`, `added_on`, `removed_on`, `last_seen_on`) are the run's start date in the server's time zone (UTC in this Docker setup) | Simple and reproducible; the site has no observation timestamps | Assumption |
+| A-20 | Dates recorded by the sync (`first_seen_on`, `change_date`, `added_on`, `removed_on`, `last_seen_on`) are the run's start date in the server's time zone (UTC in this Docker setup) | Simple and reproducible; the site has no observation timestamps | Superseded in Stage 05 by D-30 (the UTC date on which the unit reads the page) |
 | A-21 | Scraped partner data is public and shared across companies: the models have no `company_id` and no multi-company rules | The data describes odoo.com, not a company | Decided in Stage 02 |
 | A-22 | The failure-recipient setting lives in Settings, so only system administrators can change it. "Partner Monitor / Manager" operates the sync (Sync now, Retry), and "Partner Monitor / Reader" reads the data and the dashboard | Standard `res.config.settings` pattern with an `ir.config_parameter` | Decided in Stage 02 |
 
 ## Ambiguities and design decisions
 
-D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, D-18 to D-22 in Stage 03, and D-23 to D-29 in Stage 04.
+D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, D-18 to D-22 in Stage 03, D-23 to D-29 in Stage 04, and D-30 to D-36 in Stage 05.
 
 | ID | PDF p. | Ambiguity | Decision |
 |---|---|---|---|
@@ -74,6 +74,13 @@ D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 
 | D-27 | 5 | When an empty country is confirmed (Stage 04) | The site's no-partners notice alone is not enough. It counts as a valid empty result only when a complete country list read in the same run does not list the country, or lists it with 0 partners. Otherwise the result is incomplete and existing records are kept |
 | D-28 | 5 | When a country snapshot is complete (Stage 04) | Every page from 1 to the last was read in order; every card was in scope and readable; nothing was listed twice; and the number of distinct partners equals the page's own "All Categories" count. Reading only the last page, or pages with a gap, is never complete |
 | D-29 | 4 | Which page decides that a metric is unknown (Stage 04) | The listing card, shown for every partner: a value it does not show is stored as unknown. A partner's own page only adds the values it shows. A value the site prints as 0 ("0 users") is a known 0 |
+| D-30 | 4 | Which date the sync records (Stage 05; replaces A-20) | The UTC date on which the unit reads the page. Units of one run can run on later days (retries with backoff, a run waiting for its page source), and a page is observed when it is read. D-21 still ignores an older observation |
+| D-31 | 4-5 | When a partner's own page is read, and what "changes in retention rate or project size can trigger the flag" means (Stage 05) | Read in the same run for a new partner (first contact, not a mismatch). For a partner read before, a listing card whose hash of retention rate, average and largest project size and reference count differs from the previous card sets `to_reprocess_references`, and the reference-validation job reads the page. Flagged mismatches and pages read more than 7 days ago (at most 200 per call) are read too. The hash compares cards with cards, so reading the page cannot trigger another read ([resilience.md](resilience.md) 9) |
+| D-32 | 3, 5 | Retry limits (Stage 05) | A failed unit gets at most 5 tries, 15, 30, 60 and 120 minutes apart (doubling, capped at 24 hours), then stays `failed` and visible. A mismatch gets at most 5 validation re-scrapes with the same delays, then stays flagged and is shown as "Retries Exhausted". A match, a manager's Retry or "Mark for Re-scrape" gives a fresh budget |
+| D-33 | 3 | What the worker does without a page source (Stage 05; the page-download module is deferred) | Nothing is attempted: units stay pending with no try counted. The open runs show a waiting reason, the configured user gets one note per run, and each worker call logs a warning and reports no progress |
+| D-34 | 3 | When a run is done, partial or failed, and how often it notifies (Stage 05) | Done: no unit failed. Failed: no unit succeeded. Partial: both. Cancelled units are ignored. One note per run (`notified_at`), also when a manager's retry ends it again |
+| D-35 | 3 | How a worker claims a unit (Stage 05; detail of A-18) | A row lock (`FOR NO KEY UPDATE SKIP LOCKED`) held until the batch's transaction ends, so no lease is needed: a crash releases it. If another worker committed the next unit after this transaction began, the batch ends (REPEATABLE READ serialization failure) |
+| D-36 | 5 | Confirming an empty country, and a country missing from the list (Stage 05; refines D-27 and P-23) | The unit that sees the no-partners notice reads the country list itself, so the confirmation comes from the same moment. A country missing from a complete country list is deactivated, and its partners are archived (architecture 5.5); a partner that moved is reactivated by its new country's listing |
 
 ## Version and edition notes
 
@@ -91,7 +98,7 @@ These are recorded rather than silently changing scope. Details are in [architec
 
 ## Open clarifications for the team lead
 
-We continue under the documented defaults until answered. Only unresolved points are listed; none blocks Stage 05.
+We continue under the documented defaults until answered. Only unresolved points are listed; none blocks Stage 06.
 
 | ID | Question | Status |
 |---|---|---|

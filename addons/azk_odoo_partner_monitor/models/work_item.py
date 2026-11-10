@@ -4,7 +4,9 @@ from odoo import api, fields, models
 from odoo.tools import SQL, mute_logger
 from odoo.tools.sql import index_exists
 
-from .common import ensure_manager
+from .common import MAX_ATTEMPTS, ensure_manager, retry_delay
+
+WORKER_CRON = "azk_odoo_partner_monitor.ir_cron_worker"
 
 WORK_KINDS = [
     ("country_list", "Country list"),
@@ -22,9 +24,10 @@ WORK_STATES = [
 class PartnerMonitorWorkItem(models.Model):
     """One durable unit of sync work: the checkpoint of the sync engine.
 
-    The worker cron (Stage 05) claims pending items in small batches; the
-    scheduler's commit after each batch makes the finished items durable.
-    Stage 03 defines the record, its integrity rules and the manager actions.
+    The worker (models/worker.py) claims pending items one at a time with a
+    row lock and processes each in its own savepoint. The scheduler's commit
+    after each batch makes the finished items durable; a crashed batch is
+    rolled back, so its items are simply pending again (docs/resilience.md).
     No access rule lets a user write it.
     """
 
@@ -46,10 +49,15 @@ class PartnerMonitorWorkItem(models.Model):
         readonly=True, ondelete="cascade", index=True,
     )
     state = fields.Selection(WORK_STATES, required=True, readonly=True, default="pending", index=True)
-    attempt_count = fields.Integer(string="Attempts", readonly=True)
+    attempt_count = fields.Integer(string="Attempts", readonly=True, default=0)
     next_attempt_at = fields.Datetime(
         string="Next Attempt", required=True, readonly=True, default=fields.Datetime.now)
     last_error = fields.Text(readonly=True)
+    finished_at = fields.Datetime(
+        string="Finished", readonly=True,
+        help="When the unit was done, or failed for the last time.")
+    result_summary = fields.Char(
+        string="Result", readonly=True, help="What the unit read and stored.")
     error_ids = fields.One2many("azk_odoo_partner_monitor.sync.error", "work_item_id", string="Errors")
 
     _sql_constraints = [
@@ -113,13 +121,51 @@ class PartnerMonitorWorkItem(models.Model):
         except psycopg2.errors.UniqueViolation:
             return self.browse()
 
+    @api.model
+    def _trigger_worker(self):
+        """Ask the scheduler to run the worker job soon (instead of at its next interval).
+
+        ir.cron._trigger() creates an ir.cron.trigger record with sudo() itself;
+        the cron record is read with a narrow sudo() because managers may not
+        read scheduled actions.
+        """
+        cron = self.env.ref(WORKER_CRON, raise_if_not_found=False)
+        if cron:
+            cron.sudo()._trigger()
+
+    def _mark_done(self, summary, now):
+        self.ensure_one()
+        self.write({"state": "done", "finished_at": now, "result_summary": (summary or "")[:250]})
+
+    def _mark_failed_attempt(self, error_text, now):
+        """Count one failed try. Returns True when the retry budget is used up.
+
+        Until then the item stays pending, due again after the backoff delay
+        (common.retry_delay). After the last try it is failed and stays
+        visible; a manager can retry it.
+        """
+        self.ensure_one()
+        attempts = self.attempt_count + 1
+        final = attempts >= MAX_ATTEMPTS
+        self.write({
+            "attempt_count": attempts,
+            "state": "failed" if final else "pending",
+            "next_attempt_at": now if final else now + retry_delay(attempts),
+            "finished_at": now if final else False,
+            "last_error": error_text,
+        })
+        return final
+
     def action_retry(self):
         """Manager action: put failed items back in the queue with a fresh retry budget.
 
-        An item whose work is already queued again is left as it is.
+        An item whose work is already queued again is left as it is. The
+        item's run is reopened, so it is finalized again when the item ends;
+        it is not notified a second time (notified_at). The worker is woken.
         """
         ensure_manager(self.env)
         self.check_access("read")
+        retried = self.browse()
         for item in self.filtered(lambda i: i.state == "failed"):
             if item.sudo().search_count(
                     self._pending_domain(item.kind, item.country_id, item.partner_id), limit=1):
@@ -128,8 +174,14 @@ class PartnerMonitorWorkItem(models.Model):
                 "state": "pending",
                 "attempt_count": 0,
                 "next_attempt_at": fields.Datetime.now(),
+                "finished_at": False,
             })
             # Write now, not at the next flush: the one-pending-per-target
             # index must see this item before anything else is queued.
             item.sudo().flush_recordset(["state"])
+            retried |= item
+        if retried:
+            retried.sudo().run_id.filtered(lambda run: run.state != "running").write(
+                {"state": "running", "finished_at": False})
+            self._trigger_worker()
         return True

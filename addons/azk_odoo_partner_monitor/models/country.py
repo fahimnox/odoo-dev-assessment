@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from .common import ensure_manager
+from .common import MAX_ATTEMPTS, VALIDATION_STATES, ensure_manager
 
 # Fields a country-list observation may set. The identity (source_key) is
 # matched, never written, and the demo label never comes from the website.
@@ -52,6 +52,38 @@ class PartnerMonitorCountry(models.Model):
         help="Active partners of this country stored in the database.",
     )
 
+    # --- Validation bookkeeping (Stage 05, docs/resilience.md) ---
+    # Expected (total_partner_count), found, prior and outcome are kept apart,
+    # so a genuine change of the listed count is visible as such.
+    # The numbers default to 0, so the column is filled when it is added to an
+    # existing database: SQL never matches "NULL < 5".
+    previous_partner_count = fields.Integer(
+        string="Previously Listed", readonly=True, default=0,
+        help="The listed partner count before it last changed on the website.",
+    )
+    snapshot_partner_count = fields.Integer(
+        string="Partners Found", readonly=True, default=0,
+        help="Distinct partners of this country found by the last listing read.",
+    )
+    validation_state = fields.Selection(
+        VALIDATION_STATES, string="Validation", required=True, readonly=True, default="unchecked",
+        help="Matched: the last listing read was a complete snapshot whose partners match the "
+             "listed count. Mismatch: it was incomplete or did not match, so nothing was archived.",
+    )
+    validated_at = fields.Datetime(string="Last Validated", readonly=True)
+    reprocess_attempts = fields.Integer(
+        string="Re-scrape Attempts", readonly=True, default=0,
+        help="Re-scrapes the country-validation job has queued for the current mismatch. "
+             "It stops after the limit; a matching snapshot or a manager resets it.",
+    )
+    next_reprocess_at = fields.Datetime(string="Next Re-scrape", readonly=True)
+    reprocess_exhausted = fields.Boolean(
+        string="Retries Exhausted", compute="_compute_reprocess_exhausted", store=True,
+        help="Every re-scrape allowed for the current mismatch has been queued. Unless the last "
+             "one matches, the mismatch stays visible; a manager can mark the country for "
+             "re-scrape again.",
+    )
+
     _sql_constraints = [
         ("source_key_unique", "UNIQUE(source_key)",
          "Another country already has this website ID."),
@@ -61,6 +93,8 @@ class PartnerMonitorCountry(models.Model):
          "Only demo countries may use, and must use, website IDs starting with 'demo-'."),
         ("listed_count_not_negative", "CHECK(total_partner_count >= 0)",
          "The listed partner count cannot be negative."),
+        ("reprocess_attempts_not_negative", "CHECK(reprocess_attempts >= 0)",
+         "The re-scrape attempt count cannot be negative."),
     ]
 
     def _compute_partner_count(self):
@@ -68,6 +102,12 @@ class PartnerMonitorCountry(models.Model):
             [("country_id", "in", self.ids)], ["country_id"], ["__count"]))
         for country in self:
             country.partner_count = counts.get(country, 0)
+
+    @api.depends("to_reprocess_partners", "reprocess_attempts")
+    def _compute_reprocess_exhausted(self):
+        for country in self:
+            country.reprocess_exhausted = (country.to_reprocess_partners
+                                           and country.reprocess_attempts >= MAX_ATTEMPTS)
 
     def write(self, vals):
         if "source_key" in vals and any(c.source_key != vals["source_key"] for c in self):
@@ -96,13 +136,45 @@ class PartnerMonitorCountry(models.Model):
             return self.create({**values, "source_key": source_key})
         changed = {name: value for name, value in {**values, "active": True}.items()
                    if country[name] != value}
+        if "total_partner_count" in changed:
+            changed["previous_partner_count"] = country.total_partner_count
         if changed:
             country.write(changed)
         return country
 
+    def _set_listed_count(self, count):
+        """Store a new listed (expected) count, keeping the previous one."""
+        self.ensure_one()
+        if count is not None and count != self.total_partner_count:
+            self.write({"previous_partner_count": self.total_partner_count, "total_partner_count": count})
+
+    def _record_validation(self, matched, found, now):
+        """Store the outcome of one listing read of this country (P-18).
+
+        A match clears the flag and the retry budget. A new mismatch sets the
+        flag with a fresh budget, due at once. A mismatch that persists keeps
+        the attempts already used, so re-scrapes stay bounded (P-19).
+        """
+        for country in self:
+            vals = {
+                "snapshot_partner_count": found,
+                "validated_at": now,
+                "validation_state": "matched" if matched else "mismatch",
+            }
+            if matched:
+                vals.update(to_reprocess_partners=False, reprocess_attempts=0, next_reprocess_at=False)
+            elif not country.to_reprocess_partners:
+                vals.update(to_reprocess_partners=True, reprocess_attempts=0, next_reprocess_at=now)
+            country.write(vals)
+
     def action_mark_for_rescrape(self):
-        """Manager action: flag these countries for the country-validation job."""
+        """Manager action: flag these countries for the country-validation job.
+
+        It also gives them a fresh retry budget, so a country whose retries
+        were exhausted is tried again.
+        """
         ensure_manager(self.env)
         self.check_access("read")
-        self.sudo().write({"to_reprocess_partners": True})
+        self.sudo().write({"to_reprocess_partners": True, "reprocess_attempts": 0,
+                           "next_reprocess_at": fields.Datetime.now()})
         return True

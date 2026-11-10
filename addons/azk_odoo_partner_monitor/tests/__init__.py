@@ -7,3 +7,5 @@ from . import test_notification
 from . import test_urls
 from . import test_parsers
 from . import test_ingest
+from . import test_worker
+from . import test_worker_concurrency

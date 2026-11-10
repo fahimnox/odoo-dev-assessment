@@ -1,9 +1,24 @@
 # Project state
 
-_Last updated: 2026-11-08, end of Stage 04 (PARTIAL)._
+_Last updated: 2026-11-10, end of Stage 05. Stage 04 is still PARTIAL._
 
 ## Current position
 
+- **Stage 05: DONE for the worker, tested offline (2026-11-10).** `azk_odoo_partner_monitor` 18.0.1.3.0.
+  - **Implemented:** the sync engine `models/worker.py` and four scheduled jobs (`data/ir_cron.xml`): daily discovery, a worker processing bounded batches, country validation and reference validation.
+    - Claims are row locks (`FOR NO KEY UPDATE SKIP LOCKED`). Each unit runs in its own savepoint, and failures are recorded after the rollback.
+    - The scheduler's commit after each batch is the only durability point.
+    - Retries are bounded (5 tries, backoff from 15 minutes).
+    - Expected, found, previous and stored counts are kept apart, with the validation outcome.
+    - Details are refreshed when the card's metrics hash changes (no self-triggering loop).
+    - One failure note per run.
+    - Without a page source, the worker keeps the queue and marks the runs as waiting.
+    Design, commit story and limits: [resilience.md](resilience.md). Handoff: [handoffs/stage_05_en.md](handoffs/stage_05_en.md).
+  - **Evidence (automated, 2026-11-10):**
+    - `scripts/dev.sh test azk_odoo_partner_monitor` on the final code: PASS. "0 failed, 0 error(s) of 113 tests" in a fresh `azk_ee24_test`: the 91 earlier tests plus 22 new ones (20 worker tests and 2 concurrency tests on real, separate connections). 0 warning lines, exit code 0, 1 min 58 s. Earlier runs: 112 of 112 on the first code, 113 of 113 after two fixes.
+    - Restart check `scripts/restart_check.sh` (TP-PM-15) on the same database: PASS, 12 of 12 checks. The worker's container was killed with SIGKILL during its second batch, after the first batch committed. After the restart, only the interrupted batch's two units ran again, then the last unit. No duplicated work, history row, reference or note. Details: [resilience.md](resilience.md) section 12.
+    - `scripts/dev.sh update azk_odoo_partner_monitor` on `azk_ee24`: PASS, 0 warnings. The four jobs are active; the first daily discovery is due 2026-11-11 02:00 UTC. 0 runs; login page HTTP 200.
+  - **NOT RUN:** a live sync. The page-download module is still deferred (Stage 04 PARTIAL), so `worker._get_page_source()` returns None. A browser check was not run either.
 - **Stage 04: PARTIAL (2026-11-08).** `azk_odoo_partner_monitor` 18.0.1.2.0.
   - **Implemented:**
     - `services/urls.py`: the `country_id` check on raw links before canonicalization, canonical partner URLs, listing URLs, reference identities (D-23) and the robots.txt rules (D-25);
@@ -52,12 +67,13 @@ _Last updated: 2026-11-08, end of Stage 04 (PARTIAL)._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** decide how to complete Stage 04's deferred page-download module and its live integration check (see the Stage 04 handoff). Stage 05 (resumable sync) can build its units on the reader and the ingestion, but a real sync needs the page-download module.
+- **Next step:** Stage 06 (Partner dashboard), when the user requests it. A real sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. No browser check of the matched-pair environment (port 8071) has been done yet; the agent has no browser here. It is recommended (steps in [enterprise_transition.md](enterprise_transition.md)).
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
-  - its parsers and ingestion, tested offline (Stage 04, partial).
-  - Not yet: the page download, sync jobs and the dashboard. The Trial Balance addon is still an installable skeleton with smoke tests.
+  - its parsers and ingestion, tested offline (Stage 04, partial);
+  - its scheduled jobs and worker, tested offline (Stage 05).
+  - Not yet: the page download (deferred) and the dashboard. The Trial Balance addon is still an installable skeleton with smoke tests.
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
   - Enterprise: `scripts/dev.sh test`, 4 tests, 0 failed, 0 errors.
@@ -83,7 +99,7 @@ _Last updated: 2026-11-08, end of Stage 04 (PARTIAL)._
 | 02 | Requirements, assumptions, architecture | DONE (2026-11-05): design agreed; native Trial Balance probed on the matched pair |
 | 03 | Partner Monitor models, permissions, basic UI | DONE (2026-11-08): 53 tests pass; installs and upgrades without warnings |
 | 04 | Partner scraping | PARTIAL (2026-11-08): parsers, ingestion and 38 offline tests pass; the page-download module and a live run through it are missing |
-| 05 | Partner resilience | NOT STARTED |
+| 05 | Partner resilience | DONE for the worker (2026-11-10): jobs, worker, retries, validation and notes; tests and the restart check pass offline; live sync NOT RUN (needs Stage 04's page-download module) |
 | 06 | Partner dashboard | NOT STARTED |
 | 07 | Trial Balance wizard and calculation contract | NOT STARTED |
 | 08 | Trial Balance calculation engine | NOT STARTED |
@@ -136,6 +152,14 @@ _Last updated: 2026-11-08, end of Stage 04 (PARTIAL)._
   - D-27: the no-partners notice counts as empty only when a complete country list confirms it;
   - D-28: a country snapshot is complete only with every page, every card in scope, and the site's count;
   - D-29: the listing card decides when a metric is unknown.
+- **Stage 05 decisions** ([assumptions.md](assumptions.md)):
+  - D-30: recorded dates are the UTC date on which the page is read (replaces A-20);
+  - D-31: when a partner's own page is read: new partners in the same run; a changed card hash sets the flag; flagged and 7-day-old pages;
+  - D-32: retry limits for units and for validation re-scrapes;
+  - D-33: without a page source the worker attempts nothing and marks runs as waiting;
+  - D-34: run end states and one note per run;
+  - D-35: claims are row locks, no lease;
+  - D-36: an empty-country notice is confirmed by the country list read in the same unit; a country missing from a complete list has its partners archived.
 
 ## Corrections applied
 
@@ -158,10 +182,10 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - **Extracted archive:** no runtime needs `<kit-root>/odoo/odoo18`: the matched pair uses the official Community source and the 620-module Enterprise copy. Deleting it (1.76 GB) is the user's decision, and only sensible if the original archive file is kept elsewhere.
 - **Decision for the user:** the supplied archive contains an earlier implementation of this assessment's modules (`projects/assessment/`, not opened or used). Whether to mention it to the team lead is the user's decision.
 - **Subscription:** `azk_ee24` and `azk_ent` are unregistered trials; registering needs the employer's subscription code.
-- Clarifications Q-02 to Q-06 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked. None blocks Stage 05.
+- Clarifications Q-02 to Q-06 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked. None blocks Stage 06.
 - Ambiguities D-01 to D-07 were resolved in Stage 02, and D-08 to D-17 were added and decided ([assumptions.md](assumptions.md)).
 - **Verification still ahead:**
-  - The live partners site is modeled on the 18.0 `website_crm_partner_assign` module (A-19) until Stage 04 checks a small live sample.
+  - The live partners site was checked on a small manual sample in Stage 04 (A-19, [live_site_notes.md](live_site_notes.md)); a live run through the module and the worker is still ahead (needs the page-download module).
   - The `account_reports` display and export hooks are known by name; their exact mechanics (column groups, the PDF header template, the preview filter component) are verified in Stages 08-09, with the fallback documented in [architecture.md](architecture.md) 4.7.
 - Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06). The license of `azk_dynamic_trial_balance`, which will depend on the OEEL-1 module `account_reports`, is question Q-06.
 - Commits use the global Git identity `fahimnox <mohamed.fahim@noxholding.com>`, which becomes public in Stage 15 unless the user decides otherwise.
