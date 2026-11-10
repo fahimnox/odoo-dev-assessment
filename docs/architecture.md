@@ -1,6 +1,6 @@
 # Architecture (Stage 02)
 
-_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. Stage 05 (2026-11-10) built the scheduled jobs and the worker; see section 5.12 and [resilience.md](resilience.md). The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. Stage 05 (2026-11-10) built the scheduled jobs and the worker; see section 5.12 and [resilience.md](resilience.md). Stage 06 (2026-11-10) built the dashboard and the remaining views; see section 5.13. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
 
 ## 1. Target and sources used
 
@@ -511,6 +511,46 @@ The sync engine follows section 5.6. Details, commit story and evidence are in [
   - an empty-country notice is confirmed by reading the country list in the same unit (D-36);
   - there is no `details_fingerprint`: writes are already idempotent and the site offers no conditional requests, so the listing card hash (`listing_fingerprint`) is the change detector.
 - **New fields:** validation bookkeeping on countries and partners (expected, found, previous, outcome, retry count and time, "Retries Exhausted"), `active_reference_count`, `details_synced_at`, `listing_fingerprint`; `finished_at` and `result_summary` on work items; `waiting_reason` on runs.
+
+### 5.13 As built in Stage 06 (2026-11-10): the dashboard
+
+From the menu to the numbers:
+
+```text
+  Menu "Partner Monitor" (menu_root, group Reader)
+    -> first child "Dashboard" (menu_dashboard, group Reader, D-39)
+    -> ir.actions.client dashboard_action, tag "azk_odoo_partner_monitor.dashboard"
+    -> OWL component PartnerMonitorDashboard (static/src/dashboard/dashboard.js),
+       registered under that tag in the "actions" registry
+         keeps only the filter VALUES: statuses, country ids, years, data source
+         |  orm.call("azk_odoo_partner_monitor.dashboard", "get_dashboard_data", [filters])
+         v
+       models/dashboard.py, get_dashboard_data (runs as the calling user)
+         1. ensure_reader: AccessError for anyone without the Reader group
+         2. drop unknown or invalid filter values; never accept a domain
+         3. build ONE domain: active partners, active countries, one data source,
+            then status, country and year
+         4. _read_group(domain, [country], [count], order="__count desc, country_id")
+            -> Top 5; the same with "asc" -> Bottom 5 (D-06, D-42)
+         5. per cohort: rows by status, the five bucket counts, and the chart
+            domain = the shared domain + [("country_id", "in", cohort)]
+         6. the real sync state (last run, last success, waiting; the queue for managers)
+         |  JSON: rankings, domains, counts, graph view ids, sync state
+         v
+       four embedded <View type="graph"> components (@web/views/view), one per
+       chart, each with its server-built domain and its XML view:
+         partner_view_graph_dashboard_top / _bottom (country x status, sorted)
+         partner_view_graph_dashboard_top_size / _bottom_size (bucket x country)
+         -> the graph view itself calls web_read_group on the same domain as the user
+```
+
+- **Why a client action** (A-17): a window action shows one view with its own search. Here four views must share one set of filters, and two of them must be limited to countries ranked after those filters. So the shared state and the ranking need a small component and one server method.
+- **Why the totals cannot drift:** the summaries and the charts read the same records through the same domain, with grouped ORM queries. A test calls `web_read_group` exactly as the graph view does and compares it with a plain search (`test_chart_totals_equal_the_filtered_records`).
+- **Access:** the menu and the server method check the Reader group. The graph views read partners through the ORM as the user. The client sends filter values only. A tampered domain sent straight to `web_read_group` is still limited by the access rules, and those let a reader read exactly what the dashboard shows.
+- **Escaping:** the template prints every value with `t-esc`; the chart labels are drawn on a canvas.
+- **Charts:** a graph view `js_class` in Odoo's lazy view bundle (`static/src/dashboard_graph/`) hides the toolbar and gives Gold, Silver and Ready fixed colors (D-42). A bar click opens the matching partners. The tables link each country to its partners with the same filters, and "Show them" opens all matching partners.
+- **Data sources:** website data or demo data, one at a time, with a banner for demo data (D-37). The demo data has 13 countries (12 active), 50 partners and 57 history rows (`demo/partner_monitor_demo.xml`).
+- **Other views:** pivots for partners, status history and references; graphs for partners and status history; groupings by project size and year. Partner metrics are not offered as sums or averages (D-40).
 
 ## 6. Version and edition notes
 

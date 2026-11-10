@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The four charts of the dashboard (docs/architecture.md 5.8). They are
+         standard graph views on partners. The dashboard embeds them with a
+         domain computed on the server: the shared filters plus one cohort of
+         countries. A high priority number keeps them out of the Partners
+         menu, which uses partner_view_graph. Clicking a bar opens the
+         matching partners. -->
+    <record id="partner_view_graph_dashboard_top" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.graph.dashboard.top</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <graph string="Top 5 countries: active partners by status" js_class="azk_pm_dashboard_graph" type="bar" stacked="1" order="desc">
+                <field name="country_id"/>
+                <field name="current_status"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="partner_view_graph_dashboard_bottom" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.graph.dashboard.bottom</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <graph string="Bottom 5 countries: active partners by status" js_class="azk_pm_dashboard_graph" type="bar" stacked="1" order="asc">
+                <field name="country_id"/>
+                <field name="current_status"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="partner_view_graph_dashboard_top_size" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.graph.dashboard.top.size</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <graph string="Top 5 countries: partners by average project size" js_class="azk_pm_dashboard_graph" type="bar" stacked="1">
+                <field name="project_size_bucket"/>
+                <field name="country_id"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="partner_view_graph_dashboard_bottom_size" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.graph.dashboard.bottom.size</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <graph string="Bottom 5 countries: partners by average project size" js_class="azk_pm_dashboard_graph" type="bar" stacked="1">
+                <field name="project_size_bucket"/>
+                <field name="country_id"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- The dashboard: a small OWL client action (static/src/dashboard/).
+         A plain window action cannot share one set of filters between four
+         views, or select each chart's countries by a ranking computed after
+         those filters; see docs/architecture.md 5.8 and 5.13. -->
+    <record id="dashboard_action" model="ir.actions.client">
+        <field name="name">Dashboard</field>
+        <field name="tag">azk_odoo_partner_monitor.dashboard</field>
+    </record>
+
+</odoo>

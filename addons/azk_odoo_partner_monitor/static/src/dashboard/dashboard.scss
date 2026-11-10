@@ -1,0 +1,19 @@
+// Partner Monitor dashboard (static/src/dashboard/dashboard.xml).
+.o_pm_dashboard {
+    .o_pm_filter_label {
+        min-width: 8.5rem;
+    }
+
+    .o_pm_country_filter {
+        min-width: 18rem;
+    }
+
+    // Embedded graph views: a fixed chart height, instead of the 50vh a
+    // full-page graph view takes (graph_view.scss) or a collapsed canvas.
+    .o_pm_chart {
+        .o_graph_view .o_graph_canvas_container {
+            min-height: 0;
+            height: 280px;
+        }
+    }
+}

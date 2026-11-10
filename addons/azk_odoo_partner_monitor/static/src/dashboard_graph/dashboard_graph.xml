@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- The dashboard charts have no toolbar (dashboard_graph.js). -->
+    <t t-name="azk_odoo_partner_monitor.DashboardGraphButtons"/>
+
+</templates>

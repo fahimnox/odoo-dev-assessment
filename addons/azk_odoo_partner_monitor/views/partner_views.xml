@@ -19,6 +19,8 @@
                 <field name="retention_rate" invisible="not retention_rate_known" optional="hide"/>
                 <field name="largest_project_size" invisible="not largest_project_size_known" optional="hide"/>
                 <field name="average_project_size" invisible="not average_project_size_known" optional="show"/>
+                <field name="project_size_bucket" optional="hide"/>
+                <field name="first_seen_year" optional="hide"/>
                 <field name="active_reference_count" optional="hide"/>
                 <field name="reference_validation_state" widget="badge" optional="hide"
                        decoration-success="reference_validation_state == 'matched'"
@@ -91,6 +93,7 @@
                                 <field name="average_project_size" class="oe_inline" invisible="not average_project_size_known"/>
                                 <span class="text-muted" invisible="average_project_size_known">Unknown</span>
                             </div>
+                            <field name="project_size_bucket"/>
                             <field name="total_references_count_known" invisible="1"/>
                             <field name="retention_rate_known" invisible="1"/>
                             <field name="largest_project_size_known" invisible="1"/>
@@ -145,6 +148,8 @@
                 <field name="name"/>
                 <field name="country_id"/>
                 <field name="source_id"/>
+                <field name="first_seen_year"/>
+                <field name="project_size_bucket"/>
                 <filter name="gold" string="Gold" domain="[('current_status', '=', 'gold')]"/>
                 <filter name="silver" string="Silver" domain="[('current_status', '=', 'silver')]"/>
                 <filter name="ready" string="Ready" domain="[('current_status', '=', 'ready')]"/>
@@ -160,16 +165,41 @@
                 <group expand="0" string="Group By">
                     <filter name="group_country" string="Country" context="{'group_by': 'country_id'}"/>
                     <filter name="group_status" string="Status" context="{'group_by': 'current_status'}"/>
-                    <filter name="group_first_seen_year" string="Year First Seen" context="{'group_by': 'first_seen_on:year'}"/>
+                    <filter name="group_first_seen_year" string="Year First Seen" context="{'group_by': 'first_seen_year'}"/>
+                    <filter name="group_project_size" string="Project Size" context="{'group_by': 'project_size_bucket'}"/>
                 </group>
             </search>
+        </field>
+    </record>
+
+    <!-- Countries by status, as counts. The metrics are not offered as
+         measures: an unknown value is stored as 0 (see the model). -->
+    <record id="partner_view_pivot" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.pivot</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="arch" type="xml">
+            <pivot string="Partners" display_quantity="1">
+                <field name="country_id" type="row"/>
+                <field name="current_status" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="partner_view_graph" model="ir.ui.view">
+        <field name="name">azk_odoo_partner_monitor.partner.graph</field>
+        <field name="model">azk_odoo_partner_monitor.partner</field>
+        <field name="arch" type="xml">
+            <graph string="Partners" type="bar" stacked="1">
+                <field name="country_id"/>
+                <field name="current_status"/>
+            </graph>
         </field>
     </record>
 
     <record id="partner_action" model="ir.actions.act_window">
         <field name="name">Partners</field>
         <field name="res_model">azk_odoo_partner_monitor.partner</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list,form,pivot,graph</field>
         <field name="search_view_id" ref="partner_view_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_empty_folder">No partners yet</p>

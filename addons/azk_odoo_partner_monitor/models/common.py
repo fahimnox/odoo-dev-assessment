@@ -32,6 +32,43 @@ def retry_delay(attempt):
     return min(RETRY_BASE * 2 ** max(attempt - 1, 0), RETRY_CAP)
 
 
+def ensure_reader(env):
+    """Raise AccessError unless the current user may read Partner Monitor data.
+
+    Used by RPC entry points that aggregate data themselves (the dashboard),
+    on top of the read access rules the ORM applies.
+    """
+    if not env.su and not env.user.has_group(READER_GROUP):
+        raise AccessError(env._("Only Partner Monitor readers can see this dashboard."))
+
+
+# Project-size buckets of the average project size (decision D-05): half-open
+# intervals, so 4.99 is below 5, 5 starts the second bucket, and 25 belongs to
+# the last bucket only. An unknown average has its own bucket. The keys start
+# with their position: grouped queries (and so the graph views) order a
+# selection by its stored key, and this keeps the intervals in order.
+PROJECT_SIZE_BUCKETS = [
+    ("1_below_5", "Below 5"),
+    ("2_5_to_11", "5 to below 11"),
+    ("3_11_to_25", "11 to below 25"),
+    ("4_25_plus", "25 and above"),
+    ("5_unknown", "Unknown"),
+]
+
+
+def project_size_bucket(average, known):
+    """The bucket key of an average project size (None or not known: "5_unknown")."""
+    if not known or average is None:
+        return "5_unknown"
+    if average < 5:
+        return "1_below_5"
+    if average < 11:
+        return "2_5_to_11"
+    if average < 25:
+        return "3_11_to_25"
+    return "4_25_plus"
+
+
 def ensure_manager(env):
     """Raise AccessError unless the current user is a Partner Monitor manager.
 

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Partner Monitor dashboard. Every value comes from get_dashboard_data;
+         website text is printed with t-esc (escaped). data-pm attributes
+         are hooks for the browser smoke test. -->
+    <t t-name="azk_odoo_partner_monitor.Dashboard">
+        <Layout display="{ controlPanel: {} }">
+            <t t-set-slot="control-panel-always-buttons">
+                <button t-if="state.data and state.data.is_manager" type="button" class="btn btn-primary"
+                        data-pm="sync-now" t-on-click="syncNow">Sync Now</button>
+            </t>
+            <div t-if="state.data" class="o_pm_dashboard container-fluid py-3">
+                <t t-set="data" t-value="state.data"/>
+                <t t-call="azk_odoo_partner_monitor.Dashboard.Source"/>
+                <t t-call="azk_odoo_partner_monitor.Dashboard.Sync"/>
+                <t t-call="azk_odoo_partner_monitor.Dashboard.Filters"/>
+                <t t-call="azk_odoo_partner_monitor.Dashboard.Results"/>
+            </div>
+        </Layout>
+    </t>
+
+    <t t-name="azk_odoo_partner_monitor.Dashboard.Source">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="o_pm_filter_label fw-bold">Data</span>
+            <div class="btn-group" role="group" aria-label="Data source">
+                <button type="button" data-pm="source-website"
+                        t-attf-class="btn btn-sm {{ data.source === 'website' ? 'btn-primary' : 'btn-outline-primary' }}"
+                        t-on-click="() => this.setSource('website')">
+                    Website data (<t t-esc="data.sources.website"/>)
+                </button>
+                <button type="button" data-pm="source-demo"
+                        t-attf-class="btn btn-sm {{ data.source === 'demo' ? 'btn-primary' : 'btn-outline-primary' }}"
+                        t-on-click="() => this.setSource('demo')">
+                    Demo data (<t t-esc="data.sources.demo"/>)
+                </button>
+            </div>
+        </div>
+        <div t-if="data.source === 'demo'" class="alert alert-info py-2" role="status" data-pm="demo-banner">
+            <strong>Demo data.</strong>
+            These records are synthetic: they are labeled "Demo", were installed with the module's demo
+            data, and were not read from the Odoo website. Website data is never mixed with them.
+        </div>
+    </t>
+
+    <t t-name="azk_odoo_partner_monitor.Dashboard.Sync">
+        <t t-set="sync" t-value="data.sync"/>
+        <div t-if="sync.waiting_reason" class="alert alert-warning py-2" role="alert" data-pm="waiting">
+            <strong>Sync waiting:</strong>&#160;<t t-esc="sync.waiting_reason"/>.
+            Queued work is kept and runs when a page source is available.
+            <a href="#" class="alert-link ms-1" t-on-click.prevent="() => this.openRun(sync.waiting_run_id)">Open the run</a>
+        </div>
+        <div class="card mb-3" data-pm="sync">
+            <div class="card-body py-2 d-flex flex-wrap align-items-start gap-4">
+                <div>
+                    <div class="text-muted small">Last run</div>
+                    <t t-if="sync.last_run">
+                        <a href="#" data-pm="last-run" t-on-click.prevent="() => this.openRun(sync.last_run.id)"
+                           t-esc="sync.last_run.name"/>
+                        <span t-attf-class="badge ms-1 {{ stateBadge(sync.last_run.state) }}"
+                              t-esc="sync.last_run.state_label"/>
+                        <div class="small text-muted">Started <t t-esc="formatDate(sync.last_run.started_at)"/></div>
+                    </t>
+                    <span t-else="" class="text-muted">No sync has run yet</span>
+                </div>
+                <div>
+                    <div class="text-muted small">Last successful sync</div>
+                    <span t-if="sync.last_success_at" t-esc="formatDate(sync.last_success_at)"/>
+                    <span t-else="" class="text-muted">Never</span>
+                </div>
+                <t t-if="sync.queue">
+                    <div>
+                        <div class="text-muted small">Queued units</div>
+                        <a href="#" t-on-click.prevent="() => this.openWorkItems('pending')">
+                            <t t-esc="sync.queue.pending"/> pending</a>,
+                        <t t-esc="sync.queue.retrying"/> waiting for a retry
+                    </div>
+                    <div>
+                        <div class="text-muted small">Failed units</div>
+                        <a href="#" t-on-click.prevent="() => this.openWorkItems('failed')" t-esc="sync.queue.failed"/>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Flagged for re-scrape</div>
+                        <t t-esc="sync.queue.flagged_countries"/> countries,
+                        <t t-esc="sync.queue.flagged_partners"/> partners
+                    </div>
+                </t>
+                <a href="#" class="ms-auto small" t-on-click.prevent="openRuns">All runs</a>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="azk_odoo_partner_monitor.Dashboard.Filters">
+        <div class="card mb-3" data-pm="filters">
+            <div class="card-body py-2">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <span class="o_pm_filter_label fw-bold">Status</span>
+                    <t t-foreach="data.statuses" t-as="status" t-key="status.key">
+                        <button type="button" t-att-data-pm="'status-' + status.key"
+                                t-attf-class="btn btn-sm {{ isSelected('statuses', status.key) ? 'btn-primary' : 'btn-outline-secondary' }}"
+                                t-on-click="() => this.toggle('statuses', status.key)" t-esc="status.label"/>
+                    </t>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <span class="o_pm_filter_label fw-bold">Year First Seen</span>
+                    <t t-foreach="data.options.years" t-as="year" t-key="year">
+                        <button type="button" t-att-data-pm="'year-' + year"
+                                t-attf-class="btn btn-sm {{ isSelected('years', year) ? 'btn-primary' : 'btn-outline-secondary' }}"
+                                t-on-click="() => this.toggle('years', year)" t-esc="year"/>
+                    </t>
+                    <span t-if="!data.options.years.length" class="text-muted">No partner yet</span>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="o_pm_filter_label fw-bold">Country</span>
+                    <div class="o_pm_country_filter" data-pm="country-filter">
+                        <SelectMenu choices="countryChoices" value="state.filters.country_ids" multiSelect="true"
+                                    placeholder.translate="All countries" onSelect.bind="onCountriesSelected"/>
+                    </div>
+                    <button t-if="hasFilters" type="button" class="btn btn-link btn-sm" data-pm="clear"
+                            t-on-click="clearFilters">Clear filters</button>
+                </div>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="azk_odoo_partner_monitor.Dashboard.Results">
+        <div t-if="data.empty" class="alert alert-secondary text-center py-4" role="status" data-pm="empty">
+            <div class="fs-5">No active partner matches these filters.</div>
+            <div class="text-muted">Change or clear the filters, or choose the other data source.</div>
+        </div>
+        <t t-else="">
+            <div class="d-flex flex-wrap align-items-center gap-3 mb-2" data-pm="summary">
+                <span>
+                    <strong t-esc="data.total"/> active partners in
+                    <strong t-esc="data.ranked_countries"/> countries match the filters.
+                </span>
+                <a href="#" data-pm="open-all" t-on-click.prevent="openAllMatching">Show them</a>
+            </div>
+            <div t-if="data.few" class="alert alert-info py-2" role="status" data-pm="few">
+                Fewer than 5 countries match: both groups list all of them.
+            </div>
+            <div t-elif="data.overlap" class="alert alert-info py-2" role="status" data-pm="overlap">
+                Only <t t-esc="data.ranked_countries"/> countries match: the Top 5 and Bottom 5 groups share countries.
+            </div>
+            <div class="row g-3">
+                <div class="col-12 col-xxl-6">
+                    <t t-call="azk_odoo_partner_monitor.Dashboard.Cohort">
+                        <t t-set="cohort" t-value="data.top"/>
+                        <t t-set="cohortKey" t-value="'top'"/>
+                        <t t-set="title">Top 5 countries by active partners</t>
+                    </t>
+                </div>
+                <div class="col-12 col-xxl-6">
+                    <t t-call="azk_odoo_partner_monitor.Dashboard.Cohort">
+                        <t t-set="cohort" t-value="data.bottom"/>
+                        <t t-set="cohortKey" t-value="'bottom'"/>
+                        <t t-set="title">Bottom 5 countries by active partners</t>
+                    </t>
+                </div>
+            </div>
+        </t>
+    </t>
+
+    <t t-name="azk_odoo_partner_monitor.Dashboard.Cohort">
+        <div class="card h-100" t-att-data-pm="'cohort-' + cohortKey">
+            <div class="card-header fw-bold" t-esc="title"/>
+            <div class="card-body">
+                <table class="table table-sm align-middle mb-3">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Country</th>
+                            <th class="text-end">Partners</th>
+                            <th class="text-end">Gold</th>
+                            <th class="text-end">Silver</th>
+                            <th class="text-end">Ready</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="cohort.rows" t-as="row" t-key="row.country_id">
+                            <td t-esc="row.rank"/>
+                            <td>
+                                <a href="#" t-att-data-pm="'country-' + row.country_id"
+                                   t-on-click.prevent="() => this.openCountry(row)" t-esc="row.country"/>
+                            </td>
+                            <td class="text-end fw-bold" t-esc="row.total"/>
+                            <td class="text-end" t-esc="row.gold"/>
+                            <td class="text-end" t-esc="row.silver"/>
+                            <td class="text-end" t-esc="row.ready"/>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="o_pm_chart mb-3" t-att-data-pm="'chart-' + cohortKey + '-status'">
+                    <View t-props="chartProps(cohortKey, cohortKey + '_status')"
+                          t-key="state.version + '-' + cohortKey + '-status'"/>
+                </div>
+                <div class="fw-bold mb-1">Average project size of the same partners</div>
+                <div class="d-flex flex-wrap gap-2 mb-2 small" t-att-data-pm="'buckets-' + cohortKey">
+                    <span t-foreach="cohort.buckets" t-as="bucket" t-key="bucket.key" class="badge text-bg-light border">
+                        <t t-esc="bucket.label"/>: <t t-esc="bucket.count"/>
+                    </span>
+                </div>
+                <div class="o_pm_chart" t-att-data-pm="'chart-' + cohortKey + '-size'">
+                    <View t-props="chartProps(cohortKey, cohortKey + '_size')"
+                          t-key="state.version + '-' + cohortKey + '-size'"/>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

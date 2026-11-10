@@ -346,7 +346,7 @@ class PartnerMonitorWorker(models.AbstractModel):
             WorkItem._enqueue("partner_details", item.run_id, partner=partner)
         return (f"{summary['scope']}: {summary['found']} of {summary['expected']} partners, "
                 f"{'complete' if summary['complete'] else 'incomplete'}, "
-                f"{len(summary['archived'])} archived, {len(summary['unread'])} pages to read, "
+                f"{len(summary['archived'])} archived, {len(summary['unread'])} partner pages queued, "
                 f"{len(summary['changed'])} changed cards")
 
     def _unit_partner_details(self, item, fetch, now):

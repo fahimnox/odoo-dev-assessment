@@ -4,7 +4,8 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 from ..services.urls import is_canonical_partner_url
-from .common import MAX_ATTEMPTS, STATUS_RANK, STATUS_SELECTION, VALIDATION_STATES, ensure_manager
+from .common import (MAX_ATTEMPTS, PROJECT_SIZE_BUCKETS, STATUS_RANK, STATUS_SELECTION,
+                     VALIDATION_STATES, ensure_manager, project_size_bucket)
 
 _logger = logging.getLogger(__name__)
 
@@ -44,14 +45,17 @@ class PartnerMonitorPartner(models.Model):
         string="First Seen On", required=True, readonly=True,
         help="Date of the first scrape that listed this partner. It never changes afterwards.",
     )
-    retention_rate = fields.Float()
+    # No aggregator on the metrics: an unknown value is stored as 0 (with a
+    # False *_known flag), so a sum or an average in pivots and graphs would
+    # be wrong. The dashboard uses the project-size buckets instead.
+    retention_rate = fields.Float(aggregator=None)
     total_references_count = fields.Integer(
-        string="References Listed",
+        string="References Listed", aggregator=None,
         help="Number of references the website shows for this partner. "
              "It is the expected count used to validate the stored references.",
     )
-    largest_project_size = fields.Integer()
-    average_project_size = fields.Float()
+    largest_project_size = fields.Integer(aggregator=None)
+    average_project_size = fields.Float(aggregator=None)
     to_reprocess_references = fields.Boolean(
         string="Needs Re-scrape",
         help="Set when the active references in the database do not match the listed count, "
@@ -64,7 +68,7 @@ class PartnerMonitorPartner(models.Model):
 
     # --- Supporting fields (docs/architecture.md 5.2) ---
     source_id = fields.Integer(
-        string="Website ID", required=True, readonly=True,
+        string="Website ID", required=True, readonly=True, aggregator=None,
         help="The number at the end of the partner's website link. It identifies the partner; "
              "names are never used as identities.",
     )
@@ -82,17 +86,31 @@ class PartnerMonitorPartner(models.Model):
     largest_project_size_known = fields.Boolean(readonly=True)
     average_project_size_known = fields.Boolean(readonly=True)
 
+    # --- Dashboard support (Stage 06, docs/architecture.md 5.8) ---
+    project_size_bucket = fields.Selection(
+        PROJECT_SIZE_BUCKETS, string="Project Size", compute="_compute_project_size_bucket",
+        store=True, index=True,
+        help="Bucket of the average project size: below 5, 5 to below 11, 11 to below 25, "
+             "25 and above, or unknown when the website does not show it (decision D-05).",
+    )
+    first_seen_year = fields.Integer(
+        string="Year First Seen", compute="_compute_first_seen_year", store=True, index=True,
+        aggregator=None,
+        help="Year of First Seen On: when our sync first saw the partner, not when it joined Odoo "
+             "(decision D-14).",
+    )
+
     # --- Validation and change detection (Stage 05, docs/resilience.md) ---
     # Expected (total_references_count), found, stored, prior and outcome are
     # kept apart.
     # The numbers default to 0, so the column is filled when it is added to an
     # existing database: SQL never matches "NULL < 5".
     previous_references_count = fields.Integer(
-        string="Previously Listed References", readonly=True, default=0,
+        string="Previously Listed References", readonly=True, default=0, aggregator=None,
         help="The listed reference count before it last changed on the website.",
     )
     snapshot_reference_count = fields.Integer(
-        string="References Found", readonly=True, default=0,
+        string="References Found", readonly=True, default=0, aggregator=None,
         help="References found on the partner's page at the last details read.",
     )
     active_reference_count = fields.Integer(
@@ -116,7 +134,7 @@ class PartnerMonitorPartner(models.Model):
              "A different hash schedules a details refresh.",
     )
     reprocess_attempts = fields.Integer(
-        string="Re-scrape Attempts", readonly=True, default=0,
+        string="Re-scrape Attempts", readonly=True, default=0, aggregator=None,
         help="Details re-reads the reference-validation job has queued for the current "
              "mismatch. It stops after the limit; a matching read or a manager resets it.",
     )
@@ -152,6 +170,17 @@ class PartnerMonitorPartner(models.Model):
         ("reprocess_attempts_not_negative", "CHECK(reprocess_attempts >= 0)",
          "The re-scrape attempt count cannot be negative."),
     ]
+
+    @api.depends("average_project_size", "average_project_size_known")
+    def _compute_project_size_bucket(self):
+        for partner in self:
+            partner.project_size_bucket = project_size_bucket(
+                partner.average_project_size, partner.average_project_size_known)
+
+    @api.depends("first_seen_on")
+    def _compute_first_seen_year(self):
+        for partner in self:
+            partner.first_seen_year = partner.first_seen_on.year if partner.first_seen_on else 0
 
     @api.depends("reference_ids.is_active")
     def _compute_active_reference_count(self):

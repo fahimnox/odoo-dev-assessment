@@ -8,3 +8,4 @@ from . import sync_error
 from . import res_config_settings
 from . import ingest
 from . import worker
+from . import dashboard

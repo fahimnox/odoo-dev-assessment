@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- The root opens its first child, Partners. Stage 06 adds the dashboard
-         as the module's entry point. -->
+    <!-- The root opens its first child, so the dashboard is the module's
+         entry point (Stage 06). -->
     <menuitem id="menu_root" name="Partner Monitor" sequence="60"
               web_icon="azk_odoo_partner_monitor,static/description/icon.png"
               groups="group_reader"/>
 
+    <!-- A client action has no model, so Odoo cannot hide this menu through
+         access rules as it does for the others: the group is set here. -->
+    <menuitem id="menu_dashboard" name="Dashboard" parent="menu_root" action="dashboard_action" sequence="1"
+              groups="group_reader"/>
     <menuitem id="menu_partners" name="Partners" parent="menu_root" action="partner_action" sequence="10"/>
     <menuitem id="menu_countries" name="Countries" parent="menu_root" action="country_action" sequence="20"/>
     <menuitem id="menu_status_history" name="Status History" parent="menu_root" action="status_history_action" sequence="30"/>

@@ -118,6 +118,35 @@ The checks TP-PM-01 to TP-PM-05 are automated in `addons/azk_odoo_partner_monito
 - **TP-PM-15** (crash and restart, L3): `scripts/restart_check.sh`, outside the test suite, on the disposable `azk_ee24_test` after the suite ran. It kills the worker's container (SIGKILL) during its second batch and restarts it. Steps and observed SQL state: [resilience.md](resilience.md) section 12.
 - **Still not covered:** TP-PM-07's login, rate-limit, HTTP-error and truncated pages (synthetic fixtures and the page-download module deferred), and TP-PM-21's live run through the module.
 
+### 3.4 Implemented in Stage 06 (2026-11-10)
+
+- `test_dashboard.py`, `TestDashboard` (14 tests, website data built by the test: Andes 4, Baltic 4, Caspian 3, Delta 2, Euphrates 1, plus an archived partner, an inactive country and a country without partners):
+  - **TP-PM-18** (dashboard data):
+    - ranking without filters and the name tie-break, checked against the graph view's own group order: `test_ranking_without_filters_and_tie_order`;
+    - filters applied before ranking (Gold; Gold and 2025; 2026; one country; Gold and Silver): `test_filters_apply_before_ranking`;
+    - countries with no matching partner take no part: `test_zero_match_countries_take_no_part`;
+    - empty result: `test_empty_result_is_labelled`;
+    - fewer than 5 and fewer than 10 countries: the few and overlap flags, in the tests above;
+    - chart totals: for four filter sets and both cohorts, the totals of `web_read_group` (called as each graph view calls it) equal the matching records, the summaries, the bucket counts and an independent search built from the field values: `test_chart_totals_equal_the_filtered_records`;
+    - both charts of a side read the same cohort: `test_same_cohorts_feed_both_charts_of_a_side`;
+    - bucket boundaries 4.99, 5, 10.99, 11, 24.99, 25, a known 0 and unknown, with the stored field following new observations: `test_project_size_buckets`;
+    - website and demo data never mixed: `test_demo_and_website_data_are_never_mixed`;
+    - the sync state, including waiting, last success and the queue for managers: `test_sync_state_shows_waiting_last_success_and_queue`.
+  - **TP-PM-19** (access): `test_access_is_enforced_on_the_server` (no group refused; reader without queue or Sync Now; manager with them; the chart query refused without the group) and `test_filter_values_are_validated` (a domain, strings and unknown ids are dropped).
+  - Entry point and views: `test_dashboard_is_the_entry_point`, `test_graph_and_pivot_views_load_for_readers`, and `test_template_escapes_website_text` (the template uses `t-esc` only).
+- `TestDashboardDemoData` (2 tests): the demo data ranking (12 countries, 47 partners; Top 5 Epsilon 8, Zeta 7, Eta 6, Alpha 5, Iota 5; Bottom 5 Beta, Gamma, Nu 1, Mu 2, Kappa 3) and the handoff walkthrough (Gold and 2025: Epsilon 3 first; its partner list holds 3 records).
+- **TP-PM-20** (UI, L6): `scripts/ui_smoke_check.py` drives headless Chrome through the DevTools protocol against `azk_ee24` and saves screenshots. It checks:
+  - no asset error;
+  - the app opens on the dashboard with four charts;
+  - the charts use the dashboard graph view;
+  - the demo banner;
+  - Gold and 2025 applied;
+  - the first country's partner list holds the count shown;
+  - with `--sync`: Sync Now queues a run, and the dashboard shows it waiting for a page source;
+  - no JavaScript error.
+  The country selector, a bar click and the reader role are manual steps (Stage 06 handoff).
+- **Fixture sync demonstration:** `scripts/fixture_sync_demo.py`, on `azk_ee24_test`, from saved fixture pages: one country sync, a status change and a reference change, printed before and after.
+
 ## 4. Exercise 2: Dynamic Trial Balance
 
 ### 4.1 Fixtures and hand-calculated expectations

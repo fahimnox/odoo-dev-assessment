@@ -72,7 +72,7 @@ class PartnerMonitorCountry(models.Model):
     )
     validated_at = fields.Datetime(string="Last Validated", readonly=True)
     reprocess_attempts = fields.Integer(
-        string="Re-scrape Attempts", readonly=True, default=0,
+        string="Re-scrape Attempts", readonly=True, default=0, aggregator=None,
         help="Re-scrapes the country-validation job has queued for the current mismatch. "
              "It stops after the limit; a matching snapshot or a manager resets it.",
     )

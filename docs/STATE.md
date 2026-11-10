@@ -1,9 +1,29 @@
 # Project state
 
-_Last updated: 2026-11-10, end of Stage 05. Stage 04 is still PARTIAL._
+_Last updated: 2026-11-10, end of Stage 06. Stage 04 is still PARTIAL._
 
 ## Current position
 
+- **Stage 06: DONE (2026-11-10).** `azk_odoo_partner_monitor` 18.0.1.4.0.
+  - **Implemented:**
+    - the dashboard, the module's entry point (Partner Monitor > Dashboard): an OWL client action with shared Status, Year First Seen and Country filters;
+    - one server method (`models/dashboard.py`) that ranks countries after the filters, with grouped ORM queries as the user;
+    - four standard graph views defined in XML: Top 5 and Bottom 5 by status, and the project-size buckets of the same two cohorts;
+    - the sync state on the dashboard, including "waiting for a page source", and Sync Now for managers;
+    - website data and demo data shown separately, with a demo banner;
+    - pivots and graphs for partners, status history and references;
+    - larger demo data: 13 countries, 50 partners.
+    Design: [architecture.md](architecture.md) 5.13; decisions D-37 to D-42. Handoff: [handoffs/stage_06_en.md](handoffs/stage_06_en.md).
+  - **Evidence (2026-11-10):**
+    - `scripts/dev.sh test azk_odoo_partner_monitor` on the final code: PASS. "0 failed, 0 error(s) of 129 tests" in a fresh `azk_ee24_test`: 113 earlier tests plus 16 dashboard tests. 0 warning lines, exit code 0, 8 min 27 s; the host was slow, as an earlier run took 3 min 31 s. The first run found one failure (the dashboard menu without its own group), fixed before the later runs.
+    - Fixture sync demonstration (`scripts/fixture_sync_demo.py`, `azk_ee24_test`, saved fixture pages, nothing committed): PASS. One country sync, a promotion and a reference removal, printed before and after.
+    - `scripts/dev.sh update azk_odoo_partner_monitor` on `azk_ee24`: PASS, 0 warnings.
+    - Headless Chrome (`scripts/ui_smoke_check.py`) on `azk_ee24`: run 4 PASS, 7 of 7. The code differed from the final code only by one space character in the template. An earlier run (run 2) with `--sync` PASSED Sync Now and the waiting state. Screenshots: [screenshots/](screenshots/). The final browser run is BLOCKED: after the disk-full event below, the host answered a page in 24 s (2 GB of RAM free).
+  - **Disk event, 2026-11-10 at about 11:35 UTC:**
+    - drive C: fell to 0.15 GB free;
+    - the largest recent writes were Windows' page file (12.4 GB), Docker's virtual disk (17.6 GB, growing), a 1.84 GB backup of another project, and a CLI update;
+    - Docker's VM stopped our two containers abruptly (exit 255). `scripts/dev.sh start` restarted them, PostgreSQL recovered automatically, and `azk_ee24` was checked intact;
+    - free space then went back to 3.6 GB.
 - **Stage 05: DONE for the worker, tested offline (2026-11-10).** `azk_odoo_partner_monitor` 18.0.1.3.0.
   - **Implemented:** the sync engine `models/worker.py` and four scheduled jobs (`data/ir_cron.xml`): daily discovery, a worker processing bounded batches, country validation and reference validation.
     - Claims are row locks (`FOR NO KEY UPDATE SKIP LOCKED`). Each unit runs in its own savepoint, and failures are recorded after the rollback.
@@ -67,13 +87,14 @@ _Last updated: 2026-11-10, end of Stage 05. Stage 04 is still PARTIAL._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** Stage 06 (Partner dashboard), when the user requests it. A real sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
-- **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. No browser check of the matched-pair environment (port 8071) has been done yet; the agent has no browser here. It is recommended (steps in [enterprise_transition.md](enterprise_transition.md)).
+- **Next step:** Stage 07 (Trial Balance wizard and calculation contract), when the user requests it. Before more test runs, free disk space on C: (3.6 GB free; see the disk event above). A real Partner Monitor sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
+- **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. On port 8071 the agent ran headless Chrome (installed on this machine) through the DevTools protocol in Stage 06: the Partner Monitor dashboard check passed 7 of 7 (`scripts/ui_smoke_check.py`). Other screens of the environment were not checked in a browser; the manual steps are in the Stage 06 handoff.
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
   - its parsers and ingestion, tested offline (Stage 04, partial);
-  - its scheduled jobs and worker, tested offline (Stage 05).
-  - Not yet: the page download (deferred) and the dashboard. The Trial Balance addon is still an installable skeleton with smoke tests.
+  - its scheduled jobs and worker, tested offline (Stage 05);
+  - its dashboard, pivots and graphs (Stage 06).
+  - Not yet: the page download (deferred). The Trial Balance addon is still an installable skeleton with smoke tests.
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
   - Enterprise: `scripts/dev.sh test`, 4 tests, 0 failed, 0 errors.
@@ -100,7 +121,7 @@ _Last updated: 2026-11-10, end of Stage 05. Stage 04 is still PARTIAL._
 | 03 | Partner Monitor models, permissions, basic UI | DONE (2026-11-08): 53 tests pass; installs and upgrades without warnings |
 | 04 | Partner scraping | PARTIAL (2026-11-08): parsers, ingestion and 38 offline tests pass; the page-download module and a live run through it are missing |
 | 05 | Partner resilience | DONE for the worker (2026-11-10): jobs, worker, retries, validation and notes; tests and the restart check pass offline; live sync NOT RUN (needs Stage 04's page-download module) |
-| 06 | Partner dashboard | NOT STARTED |
+| 06 | Partner dashboard | DONE (2026-11-10): dashboard entry point, shared filters, four charts, sync state; 129 tests pass; browser check 7 of 7 (final browser run BLOCKED by the host's state) |
 | 07 | Trial Balance wizard and calculation contract | NOT STARTED |
 | 08 | Trial Balance calculation engine | NOT STARTED |
 | 09 | Trial Balance outputs (Preview, PDF, XLSX) | NOT STARTED |
@@ -160,6 +181,13 @@ _Last updated: 2026-11-10, end of Stage 05. Stage 04 is still PARTIAL._
   - D-34: run end states and one note per run;
   - D-35: claims are row locks, no lease;
   - D-36: an empty-country notice is confirmed by the country list read in the same unit; a country missing from a complete list has its partners archived.
+- **Stage 06 decisions** ([assumptions.md](assumptions.md)):
+  - D-37: website data and demo data are shown one at a time, demo with a banner;
+  - D-38: everyone sees the run state and waiting reason; managers also see the queue and Sync Now;
+  - D-39: the dashboard is the first menu, with its own reader group;
+  - D-40: no sums or averages of the partner metrics (unknown values are stored as 0);
+  - D-41: the bucket keys carry their order;
+  - D-42: the four charts use a graph view without toolbar and with fixed status colors; ranking ties follow the country order in the database.
 
 ## Corrections applied
 
@@ -174,7 +202,7 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 
 - **Disk space:** resolved by the user before the 2026-11-05 continuation. C: had 17 to 19 GB free during that work, and 13 GB during Stage 02. The drop happened between the two sessions and was not investigated. On 2026-11-08, C: had 14 GB free before Stage 03's two test runs and 9.7 GB after them. Docker's virtual disk (`docker_data.vhdx`, shared with another project) was 14.6 GB on 2026-11-03 and 15.4 GB after the runs, so it explains at most 0.8 GB of the drop; the rest is not attributed. Keep several GB free before long test runs (see [environment.md](environment.md)).
 - **After a machine restart:** the Compose services use `restart: "no"`, so `scripts/dev.sh start` is needed once Docker Desktop is up (found on 2026-11-08, after the restart of 2026-11-06).
-- **Browser check of the Partner Monitor UI (user, recommended):** log in at http://127.0.0.1:8071 (admin), open Partner Monitor > Partners and a demo partner, and Settings > Partner Monitor. Not run by the agent (no browser).
+- **Browser check of the Partner Monitor UI (user, recommended):** the agent's headless check covered the dashboard (Stage 06). Still for the user, in a normal browser: the country selector, a click on a chart bar, the reader role, the pivot and graph views, a partner form and Settings > Partner Monitor (steps in the Stage 06 handoff).
 - **Compatibility blocker:** resolved on 2026-11-05 for the matched pair (all eight `TestTrialBalanceReport` tests pass). The Stage 01B pair still fails `test_trial_balance_comparisons` and stays blocked; it is kept only for `azk_ent`.
 - **Browser check (user, recommended):** the user reported a browser check of the Stage 01B environment (no detailed results given). The matched-pair environment on port 8071 has not been checked in a browser yet; steps are in [enterprise_transition.md](enterprise_transition.md).
 - **Enterprise source verification:** the Enterprise files cannot be checked against an official baseline without access to the private repository. Only the tarball's file list and timestamps support them.
