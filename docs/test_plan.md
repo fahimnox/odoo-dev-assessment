@@ -147,6 +147,26 @@ The checks TP-PM-01 to TP-PM-05 are automated in `addons/azk_odoo_partner_monito
   The country selector, a bar click and the reader role are manual steps (Stage 06 handoff).
 - **Fixture sync demonstration:** `scripts/fixture_sync_demo.py`, on `azk_ee24_test`, from saved fixture pages: one country sync, a status change and a reference change, printed before and after.
 
+### 3.5 Implemented in Stage 10 (2026-11-15): the page download and the live check
+
+New automated tests (18), all with mocked responses or saved pages, never the network (Odoo's test framework also blocks real requests):
+
+- `test_http_client.py`, `TestHttpClient`, 13 tests (TP-PM-07 at the download layer):
+  - a page with its final URL after a redirect, the request arguments and headers, and the spacing between requests, also across clients;
+  - URLs and redirect targets refused by the URL rules (never requested), and endless redirects;
+  - login pages (a redirect, a password field);
+  - rate limits (HTTP 429, a 503 with Retry-After, a "Too Many Requests" page): the pause and its limits;
+  - HTTP errors (only 502, 503 and 504 retried), timeouts, cut-off and slow pages;
+  - oversized, empty, non-HTML and 204 answers;
+  - the charset and Retry-After parsing.
+- `test_http_client.py`, `TestWorkerWithHttpClient`, 3 tests: whole units through the client (Andorra and RoayaTec stored); a login page as a failed unit that keeps the data; a rate limit that stops the batch, keeps the queue and tells the scheduler nothing was done.
+- `test_worker.py`: `test_paused_downloads_keep_the_queue_and_say_so` (replaces the "missing page source" test) and the regression `test_units_queued_by_a_unit_are_due_in_the_same_batch` (RF-03).
+- `test_parsers.py`: the regression `test_an_empty_card_is_not_a_reference` (RF-04).
+
+TP-PM-21, the bounded live check through the module: `scripts/pm_live_check.py` on the disposable test database (robots.txt read and checked first, the country list, Andorra and one partner page, at most 8 requests, rolled back). Results: [live_site_notes.md](live_site_notes.md) and [test_results.md](test_results.md).
+
+Status after Stage 10: TP-PM-07 and TP-PM-21 PASS; every TP-PM check has automated or live evidence.
+
 ## 4. Exercise 2: Dynamic Trial Balance
 
 ### 4.1 Fixtures and hand-calculated expectations
@@ -388,6 +408,23 @@ Status of the checks of 4.2 after Stage 09 (results in [test_results.md](test_re
 - **PASS:** TP-TB-01 to TP-TB-17, with TP-TB-11 now covering the exports and the download route.
 - **NOT RUN:** the analytic dropdown in the browser (Analytic Accounting is off on `azk_ee24`); custom fiscal years and branch companies (Stage 10, D-60).
 
+### 4.6 Implemented in Stage 10 (2026-11-15)
+
+New automated tests (12), with hand-calculated numbers and the standard report on the same data:
+
+- `test_fiscal_years_and_branches.py`, `TestFiscalYearFixture` (TB-F), 3 tests: a July-to-June fiscal year from the company setting and from an `account.fiscal.year` record; June 2026, July 2026 and 15 June to 15 July 2026, against the hand-calculated numbers and the standard report.
+- `test_fiscal_years_and_branches.py`, `TestBranchFixture` (TB-B), 6 tests:
+  - a root company and its branch sharing a chart and a journal; each report covers exactly its company and equals the standard report;
+  - the standard report adds up active branches, ours does not (D-16);
+  - a branch-only user gets the full branch report (the regression of RF-06), and the standard report shows that user nothing;
+  - a branch ignores its root's fiscal-year records.
+- `test_native_reports.py`, `TestNativeReportsUnchanged`, 2 tests: the standard Trial Balance and General Ledger XLSX equal, cell by cell, those of the original Enterprise methods; the standard PDF uses none of our templates.
+- `test_demo_data.py`: the regression `test_a_new_demo_company_installs_no_localization` (RF-07).
+
+Also run in Stage 10: the vendor's `TestTrialBalanceReport` and `TestAccountReportAnnotationsExport` with our addon installed; `scripts/tb_analytic_smoke_check.py` (the analytic selector, recalculation, exports and tampered downloads as a read-only accountant, in a browser, on a disposable server with Analytic Accounting on); `scripts/tb_benchmark.py`.
+
+Status after Stage 10: TP-TB-01 to TP-TB-17 PASS, including the analytic dropdown in a browser, custom fiscal years and branch companies.
+
 ## 5. Acceptance (Stage 11) and general checks
 
 | ID | Check | Expected result | Requirements |
@@ -410,6 +447,12 @@ scripts/dev.sh test account_reports /account_reports:TestTrialBalanceReport   # 
 scripts/dev.sh clean-install                                                   # acceptance install
 scripts/dev.sh shell azk_ee24 < scripts/tb_demo_data_counts.py                 # demo record counts (read-only)
 python scripts/tb_preview_smoke_check.py OUTPUT_DIR    # Stage 09 browser and download check (PM_UI_LOGIN, PM_UI_PASSWORD)
+scripts/dev.sh shell azk_ee24_test < scripts/pm_live_check.py     # Stage 10 bounded live check (disposable DB, rolled back)
+scripts/dev.sh shell azk_ee24_test < scripts/pm_benchmark.py      # Stage 10 Partner Monitor benchmark (rolled back)
+scripts/dev.sh shell azk_ee24_test < scripts/tb_benchmark.py      # Stage 10 Trial Balance benchmark (rolled back)
+scripts/dev.sh test azk_dynamic_trial_balance /account_reports:TestTrialBalanceReport,/account_reports:TestAccountReportAnnotationsExport
+scripts/dev.sh clean-install azk_odoo_partner_monitor,azk_dynamic_trial_balance --without-demo
+python scripts/tb_analytic_smoke_check.py OUTPUT_DIR  # Stage 10, against a temporary server of a disposable DB (PM_UI_URL)
 ```
 
 One Stage 09 class can be run alone, for example:

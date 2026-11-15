@@ -1,6 +1,6 @@
 {
     "name": "Odoo Partner Monitor",
-    "version": "18.0.1.4.0",
+    "version": "18.0.1.5.0",
     "summary": "Track partners listed on the official Odoo Partners pages: "
                "status history, client references and dashboards.",
     "category": "Tools",

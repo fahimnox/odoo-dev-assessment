@@ -392,6 +392,11 @@ def parse_partner_page(html, source_url):
     for card in title.find_next_siblings("div", class_="card") if title is not None else []:
         link = card.select_one('a[href*="/customers/"]')
         image = card.select_one('img[src*="/web/image/res.partner/"]')
+        if link is None and image is None and not _text(card):
+            # A completely empty card holds no reference (seen live on
+            # 2026-11-15: 18 cards for "References - 17", one of them empty).
+            # Whether the list is complete is still decided by the count.
+            continue
         if link is not None:
             ref_name = _text(link.select_one("span") or link)
         elif image is not None:

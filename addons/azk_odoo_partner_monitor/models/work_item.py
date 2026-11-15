@@ -101,8 +101,12 @@ class PartnerMonitorWorkItem(models.Model):
         ]
 
     @api.model
-    def _enqueue(self, kind, run, country=None, partner=None):
+    def _enqueue(self, kind, run, country=None, partner=None, now=None):
         """Queue one unit unless the same work is already pending.
+
+        ``now``: when the unit is due. A unit that queues more work passes its
+        batch's moment, so the new units are due in the same batch (and counted
+        as remaining); by default, the current time.
 
         Returns the pending item, or an empty recordset when another transaction
         queued it at the same moment (the partial unique index refused ours).
@@ -110,14 +114,17 @@ class PartnerMonitorWorkItem(models.Model):
         existing = self.search(self._pending_domain(kind, country, partner), limit=1)
         if existing:
             return existing
+        values = {
+            "kind": kind,
+            "run_id": run.id,
+            "country_id": country.id if country else False,
+            "partner_id": partner.id if partner else False,
+        }
+        if now:
+            values["next_attempt_at"] = now
         try:
             with mute_logger("odoo.sql_db"), self.env.cr.savepoint():
-                return self.create({
-                    "kind": kind,
-                    "run_id": run.id,
-                    "country_id": country.id if country else False,
-                    "partner_id": partner.id if partner else False,
-                })
+                return self.create(values)
         except psycopg2.errors.UniqueViolation:
             return self.browse()
 

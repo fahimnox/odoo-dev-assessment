@@ -2,9 +2,9 @@
 
 ``fetch(url)`` is any callable that returns ``(final_url, html)`` for a page
 of the site, after redirects, and RAISES on any failure: a timeout, a
-connection error, an HTTP error, an unexpected page. The page-download
-function itself is not part of this module (Stage 04 is partial; see
-docs/handoffs/stage_04_en.md). The tests use fixture-backed fakes.
+connection error, an HTTP error, an unexpected page. In production it is
+services/http_client.py (PartnersHttpClient); the tests use fixture-backed
+fakes.
 
 Nothing here turns a failure into an empty result: an exception from
 ``fetch``, a refused URL or a ParseError propagates to the caller, which must

@@ -7,6 +7,8 @@ installed with demo data (never on an upgrade: Odoo loads demo files as
 noupdate data). The function must still create the records once only,
 whoever calls it again.
 """
+from unittest.mock import patch
+
 from odoo.tests import TransactionCase, tagged
 
 DEMO_COMPANY = "azk_dynamic_trial_balance.demo_company"
@@ -70,6 +72,38 @@ class TestDemoData(TransactionCase):
                 row = next(row for row in result["leaf_rows"] if row["account_id"] == bank.id)
                 self.assertEqual((row["initial_balance"], row["debit"], row["ending_balance"]),
                                  (1000.0, 500.0, expected))
+
+    def test_a_new_demo_company_installs_no_localization(self):
+        # Regression (Stage 10): outside tests and module loading, as in the
+        # documented one-time call from an Odoo shell, a new company with a
+        # country makes Odoo install that country's localization (a commit)
+        # and queue its chart. Odoo skips this while a chart is being loaded
+        # (context chart_template_load), and the demo function sets that flag.
+        # In tests Odoo never installs; the spy sees what the hook was asked.
+        self.company.name = "AZK Trial Balance Demo (earlier)"
+        self.env["ir.model.data"].search([("module", "=", "azk_dynamic_trial_balance"),
+                                          ("name", "=", "demo_company")]).unlink()
+        Company = type(self.env["res.company"])
+        original, flags = Company.install_l10n_modules, []
+
+        def spy(companies):
+            flags.append(bool(companies.env.context.get("chart_template_load")))
+            return original(companies)
+
+        # Only the company matters here: no second set of analytic plans (their
+        # fields would share labels with the first ones) and no entries.
+        Demo = type(self.env["azk_dynamic_trial_balance.demo"])
+        with patch.object(Company, "install_l10n_modules", spy), \
+                patch.object(Demo, "_demo_analytic_accounts", lambda demo, company: {}), \
+                patch.object(Demo, "_demo_entries", lambda demo, *args: None):
+            self.assertTrue(self.env["azk_dynamic_trial_balance.demo"]._create_demo_data())
+        new = self.env.ref(DEMO_COMPANY)
+        self.assertNotEqual(new, self.company)
+        self.assertTrue(flags)
+        self.assertTrue(all(flags), flags)
+        self.assertEqual((new.country_id.code, new.chart_template, new.currency_id.name),
+                         ("EG", "generic_coa", "EGP"))
+        self.assertFalse(new.env.context.get("chart_template_load"))
 
     def test_running_the_demo_function_again_creates_nothing(self):
         before = self.counts()

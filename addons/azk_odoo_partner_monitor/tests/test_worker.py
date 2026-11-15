@@ -7,8 +7,8 @@ from odoo.tools import SQL, mute_logger
 
 from ..models.common import MAX_ATTEMPTS, retry_delay
 from ..models.sync_run import NOTIFY_USER_PARAM
-from ..models.worker import BATCH_SIZE_PARAM, NO_PAGE_SOURCE
-from ..services import parsers, urls
+from ..models.worker import BATCH_SIZE_PARAM, DOWNLOADS_PAUSED, DOWNLOADS_PAUSED_PARAM
+from ..services import http_client, parsers, urls
 from .common import (ALL_PAGES, EGYPT_P1, EGYPT_P11, MANAGER, ROAYATEC, FixtureSite,
                      andorra_variant, country_list_variant, fixture, listing_card_variant)
 
@@ -91,21 +91,26 @@ class TestWorker(WorkerCase):
 
     # ---------------------------------------------------------------- page source
 
-    def test_missing_page_source_keeps_the_queue_and_says_so(self):
+    def test_paused_downloads_keep_the_queue_and_say_so(self):
         run = self.Worker._cron_daily_discovery()
         unit = run.work_item_ids
         self.assertRecordValues(unit, [{"kind": "country_list", "state": "pending", "attempt_count": 0}])
-        # The real cron entry point: the page-download module is not installed.
+        # Without the setting, the page source is the HTTP client (never
+        # called here); with it, there is none.
+        self.assertIsInstance(self.Worker._get_page_source(), http_client.PartnersHttpClient)
+        self.env["ir.config_parameter"].set_param(DOWNLOADS_PAUSED_PARAM, "True")
+        self.assertIsNone(self.Worker._get_page_source())
+        # The real cron entry point, while a system administrator pauses the downloads.
         with self.mock_mail_gateway(), self.assertLogs(WORKER_LOG, "WARNING") as logs:
             first = self.Worker._cron_process_queue()
             second = self.Worker._cron_process_queue()
         self.assertEqual((first["processed"], first["waiting"], first["remaining"]), (0, True, 1))
         self.assertEqual((second["processed"], second["waiting"]), (0, True))
-        self.assertIn("1 queued units are waiting, none was attempted", logs.output[0])
+        self.assertIn("1 queued units are waiting, no request is sent", logs.output[0])
         # Nothing was attempted, failed or lost.
         self.assertRecordValues(unit, [{"state": "pending", "attempt_count": 0, "last_error": False}])
         self.assertFalse(self.SyncError.search([("run_id", "=", run.id)]))
-        self.assertRecordValues(run, [{"state": "running", "waiting_reason": NO_PAGE_SOURCE}])
+        self.assertRecordValues(run, [{"state": "running", "waiting_reason": DOWNLOADS_PAUSED}])
         # The configured user is told once, not at every worker call.
         notes = self.notes(run)
         self.assertEqual(len(notes), 1)
@@ -117,6 +122,22 @@ class TestWorker(WorkerCase):
         result = self.process(site, max_units=1)
         self.assertEqual(result["done"], unit.ids)
         self.assertFalse(run.waiting_reason)
+
+    def test_units_queued_by_a_unit_are_due_in_the_same_batch(self):
+        # Regression (Stage 10 live check): a batch fixes its moment when it
+        # starts, and units queued seconds later used the current time, so
+        # they were neither claimable nor counted as remaining in that batch.
+        # Here the batch started 30 seconds before the frozen clock.
+        started = NOW - timedelta(seconds=30)
+        unit = self.queue("country_partners", self.andorra)
+        unit.next_attempt_at = started
+        result = self.process(self.site(), now=started, max_units=5)
+        pages = self.WorkItem.search([("kind", "=", "partner_details"), ("run_id", "=", unit.run_id.id)])
+        self.assertEqual(len(pages), 2)
+        self.assertEqual(pages.mapped("next_attempt_at"), [started + retry_delay(1)] * 2)
+        # Both pages were tried in the same batch (they are not saved, so the try failed).
+        self.assertEqual(result["processed"], 3)
+        self.assertEqual(pages.mapped("attempt_count"), [1, 1])
 
     # ---------------------------------------------------------------- a whole run
 

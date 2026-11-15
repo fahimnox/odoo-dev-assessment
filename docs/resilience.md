@@ -5,8 +5,8 @@ _Written 2026-11-10 in Stage 05. Code: `models/worker.py` (the engine), `models/
 ## 1. Status
 
 - The scheduled jobs, the worker and the failure handling are built and tested with the saved live-derived pages.
-- No live sync has run. The page-download module is still deferred (Stage 04 PARTIAL). Until it exists, `worker._get_page_source()` returns nothing, and the worker keeps every queued unit and marks the run as waiting (section 11).
-- Observed results are in section 12; the open live check is in section 13.
+- Stage 10 (2026-11-15) added the page download (`services/http_client.py`, architecture 5.14) and ran one bounded live check through the worker on the disposable database ([live_site_notes.md](live_site_notes.md)). A system administrator can pause the downloads (section 11).
+- Observed results are in section 12 (Stage 05) and section 15 (Stage 10); limits are in section 13.
 
 ## 2. The jobs
 
@@ -105,10 +105,11 @@ scheduler (ir.cron._run_job)        worker._cron_process_queue (one call = one b
 - A run that waits for a page source gets one "waiting" note (section 11).
 - Tests use Odoo's mail mocks and an Inbox user, so no email leaves the test.
 
-## 11. When the page source is missing
+## 11. When no request may be sent
 
-- `worker._get_page_source()` is the integration point of the deferred page-download module. It returns None today.
-- The worker then attempts nothing: units stay pending with no try counted, no error row and no lost work. The open runs get `waiting_reason` ("no page source is available ..."), shown as a banner on the run and filterable as "Waiting". The configured user gets one note per run. Each worker call logs a WARNING, and reports no progress, so the scheduler waits for the next interval.
+- `worker._get_page_source()` returns a new `PartnersHttpClient` per batch, or None while Settings > Partner Monitor > Pause Website Downloads is on (D-64). Until Stage 10 it always returned None (the page download was deferred).
+- While downloads are paused, and while the process waits after a rate limit (the client's `paused_reason()`), the worker attempts nothing: units stay pending with no try counted, no error row and no lost work. The open runs get `waiting_reason`, shown as a banner on the run and filterable as "Waiting". The configured user gets one note per run. Each worker call logs a WARNING and reports no progress, so the scheduler waits for the next interval.
+- A rate limit met during a batch stops it after that unit (one counted try with the unit's backoff); the batch then reports no progress, so the scheduler does not start another batch at once.
 - The daily job adds nothing while the country list is still queued, so waiting runs do not pile up.
 
 ## 12. Observed results (2026-11-10, edition `enterprise-20241208`)
@@ -182,8 +183,8 @@ While it was blocked:
 
 ## 13. Limits and open checks
 
-- **No live sync yet.** The worker has only run on saved pages. A bounded live run needs the page-download module (Stage 04).
-- **Unit duration.** The time budget is checked between units. One country unit reads up to 60 listing pages (`reader.MAX_LISTING_PAGES`), each bounded by the future module's timeouts. In multi-process mode the scheduler kills a call that exceeds `limit_time_real_cron` (or `limit_time_real`, 120 s by default). A unit that always runs longer would be replayed until the scheduler counts 3 time-outs and marks the job failed. Page-level checkpoints are the next step if live timings show it is needed.
+- **Live runs so far.** One bounded check (Stage 10): the country list, Andorra and one partner page. A full sync has not been run from this machine on purpose (D-64).
+- **Unit duration.** The time budget is checked between units. One country unit reads up to 60 listing pages (`reader.MAX_LISTING_PAGES`), each bounded by the client's timeouts and spaced by at least 3 s. The largest country of 2026-11-08, the United States, needs 14 pages: at least 42 s, about 50 s with transfers (review finding RF-12). In multi-process mode the scheduler kills a call that exceeds `limit_time_real_cron` (or `limit_time_real`, 120 s by default). A unit that always runs longer would be replayed until the scheduler counts 3 time-outs and marks the job failed. Page-level checkpoints are the next step if live timings show it is needed.
 - **Error rows of a crashed batch** are rolled back with it; the server log keeps the lines written before the crash.
 - **Parallel workers** on the same partner can deadlock; the unit fails and is retried (section 5).
 - **Delivery** of the note follows the recipient's preference (D-08): with "Handle by Emails", Odoo queues an email.
@@ -192,3 +193,9 @@ While it was blocked:
 
 - **NULL retry counts.** The first restart check showed empty try counts: integer fields without a default are NULL in the database. The validation jobs selected `reprocess_attempts < 5`, which never matches NULL, so a row flagged before an upgrade would never have been re-scraped. Fixed with defaults of 0 and a "not exhausted" filter. Regression test: `test_flag_without_a_retry_count_is_still_validated`.
 - **An ERROR line in the restart check.** Importing the tests' helpers inside `odoo shell` made Odoo log "Importing test framework ... when not running in test mode". The script now declares test mode around that one import.
+
+## 15. Stage 10 additions (2026-11-15)
+
+- **The page download** (architecture 5.14, D-65): bounded timeouts, size, spacing and retries; redirects checked before they are followed; HTTP errors, login pages and rate limits raise, so they become failed units that store and delete nothing (`TestWorkerWithHttpClient`).
+- **Work queued by a unit** is due at its batch's moment (`_enqueue(now=...)`), so the country units of the country list and the partner pages of a listing can run in the same batch and count as remaining; before, the scheduler could stop its loop and wait for the next interval (review finding RF-03).
+- **Restart check rerun on the Stage 10 code:** PASS, 12 of 12 (`scripts/restart_check.sh`, 16:33 to 16:35 UTC, on `azk_ee24_test` right after the final Partner Monitor run). The worker's container was killed with SIGKILL during its second batch, at 16:34:28 UTC (exit status 137). After the restart in a new container, only the interrupted batch's units ran again (Anguilla's listing and RoayaTec's page), then DEVONEERS' page. There was no duplicate history row, reference or note, no email was queued, and no unit was left pending. The worker still uses the saved pages there (`FixtureSite`), so the check never reaches the website.

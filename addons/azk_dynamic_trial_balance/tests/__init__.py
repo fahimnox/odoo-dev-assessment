@@ -8,3 +8,5 @@ from . import test_engine_access
 from . import test_report_outputs
 from . import test_report_access
 from . import test_demo_data
+from . import test_fiscal_years_and_branches
+from . import test_native_reports

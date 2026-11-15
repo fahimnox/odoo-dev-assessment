@@ -339,6 +339,12 @@ The Stage 07 base fixture expects Bank 1,000 / +500 / -300 = 1,200 (posted) and 
 - **Testing the PDF (D-63).** Unit tests replace wkhtmltopdf with a stub that keeps the HTML document `export_to_pdf` hands over, and compare it with the printed lines; real PDFs and the download route are checked on the running server.
 - **Not covered, for Stage 10:** custom fiscal years (`account.fiscal.year`) and branch companies (D-60).
 
+### 4.12 Changed in Stage 10 (2026-11-15)
+
+- **Branch-only users** (D-66, review finding RF-06): `TrialBalanceEngine._chart_accounts()` searches the report company's chart as the user with an explicit order (by id). The default order of `account.account` joins each account to its first company among the user's own companies, so a user with a branch but not its root company lost the Current Year Earnings row, the accounts without items and every prefix match. Still no `sudo()` and no SQL.
+- **Fiscal years and branches** are now tested (TB-F, TB-B; D-60): the engine and the standard report follow `compute_fiscalyear_dates` of the report company, and a report covers exactly one company (D-16).
+- **Demo data** (D-59, review finding RF-07): the demo company is created with the `chart_template_load` flag, so a call from an Odoo shell never installs the Egyptian localization.
+
 ## 5. Exercise 1: Odoo Partner Monitor
 
 ### 5.1 What the source looks like (verified in Odoo 18's own module; live site checked in Stage 04)
@@ -542,7 +548,7 @@ The original views specification was not supplied. The proposed views are an ass
   - A partner's reference list is complete only when its size equals the expected count: the page's "References - N", or, when the page shows no count, the listing's known count. An incomplete list adds new references, closes none, and sets `to_reprocess_references`.
   - Only a complete country list deactivates missing countries. Demo records are never touched.
 - **Failures:** a ParseError, a refused URL or any exception from the page source propagates. Nothing is ingested for that scope. A failure is never treated as an empty result.
-- **Missing:** the requests-based page-download module and a live run through it. See the Stage 04 handoff.
+- **Missing in Stage 04, built in Stage 10:** the requests-based page download and a live run through it (section 5.14).
 
 ### 5.12 As built in Stage 05 (2026-11-10)
 
@@ -615,6 +621,31 @@ From the menu to the numbers:
 - **Charts:** a graph view `js_class` in Odoo's lazy view bundle (`static/src/dashboard_graph/`) hides the toolbar and gives Gold, Silver and Ready fixed colors (D-42). A bar click opens the matching partners. The tables link each country to its partners with the same filters, and "Show them" opens all matching partners.
 - **Data sources:** website data or demo data, one at a time, with a banner for demo data (D-37). The demo data has 13 countries (12 active), 50 partners and 57 history rows (`demo/partner_monitor_demo.xml`).
 - **Other views:** pivots for partners, status history and references; graphs for partners and status history; groupings by project size and year. Partner metrics are not offered as sums or averages (D-40).
+
+### 5.14 As built in Stage 10 (2026-11-15): the page download
+
+```text
+  worker._cron_process_queue()        one bounded batch per scheduler call
+     |  _get_page_source(): None while Settings > Pause Website Downloads is on (D-64),
+     |  else a new services/http_client.PartnersHttpClient
+     v
+  PartnersHttpClient(url)  = the fetch(url) of services/reader.py
+     |  urls.fetch_allowed(url)      www.odoo.com over HTTPS, robots.txt rules (D-25)
+     |  RequestPacer.wait()          >= 3 s between requests of the process
+     |  session.get(stream, no auto redirects, timeouts 5 s / 20 s)
+     |  status: 200 page | 3xx -> check the target, follow (max 5)
+     |          429, 503 + Retry-After -> pause the process, RateLimitedError
+     |          502/503/504 -> retry (max 3 tries, 2 s then 4 s) | other -> HttpStatusError
+     |  body: <= 3 MB, <= 30 s, HTML only, not empty, not a login or rate-limit page
+     v
+  (final URL, text)  or a FetchError subclass: never an empty page
+```
+
+- **One client per batch, one pacer per process:** the session (and its connections) lives for one batch; the spacing and the pause after a rate limit are kept by `DEFAULT_PACER`, which every client of the process shares, because the scheduler may run up to 10 batches in a row.
+- **A rate limit stops the batch:** after the unit that met it (one counted try, with the unit's own backoff), the worker starts no other unit, marks the open runs as waiting with the time the pause ends, and reports no progress, so the scheduler does not loop (`_process_queue`, `_cron_process_queue`).
+- **Work queued by a unit** (the country units of the country list, the partner pages of a listing) is due at the batch's own moment (`_enqueue(now=...)`), so it can run in the same batch and counts as remaining (review finding RF-03).
+- **Headers:** a generic User-Agent naming the module, English pages, and gzip only (review finding RF-02).
+- **Tests:** `tests/test_http_client.py` replaces the session with a fake that answers prepared `requests.Response` objects and the clock with a fake; Odoo's test framework blocks real requests anyway. The bounded live check is `scripts/pm_live_check.py` (disposable database, at most 8 requests, rolled back).
 
 ## 6. Version and edition notes
 

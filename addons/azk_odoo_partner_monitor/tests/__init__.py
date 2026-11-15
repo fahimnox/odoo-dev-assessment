@@ -10,3 +10,4 @@ from . import test_ingest
 from . import test_worker
 from . import test_worker_concurrency
 from . import test_dashboard
+from . import test_http_client

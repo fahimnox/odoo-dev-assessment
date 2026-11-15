@@ -1,5 +1,7 @@
 import re
 
+from bs4 import BeautifulSoup
+
 from odoo.tests import BaseCase, tagged
 
 from ..services import parsers
@@ -111,6 +113,21 @@ class TestParsers(BaseCase):
             ("22148381", "AL Fouad Pharmacies", "link"),
             ("31670917", "AROSCENT FOR FRAGRANCE S.A.E", "link"),
         ])
+
+    def test_an_empty_card_is_not_a_reference(self):
+        # Regression (Stage 10 live check): BDR GROUP SLU's live page had 18
+        # cards for "References - 17", one of them completely empty. Read as
+        # "a reference without a name", it made a full list look incomplete.
+        soup = BeautifulSoup(fixture(ROAYATEC[1]), "html.parser")
+        title = soup.select_one("h3#references")
+        title.insert_after(BeautifulSoup('<div class="card mt-3 border-0">\n</div>', "html.parser"))
+        page = parsers.parse_partner_page(str(soup), ROAYATEC[0])
+        self.assertEqual((len(page.references), page.problems), (3, []))
+        # A card with content but no name is still a problem.
+        title.insert_after(BeautifulSoup('<div class="card"><div class="card-body"><p>?</p></div></div>',
+                                         "html.parser"))
+        page = parsers.parse_partner_page(str(soup), ROAYATEC[0])
+        self.assertEqual(page.problems, ["a reference without a name"])
 
     def test_partner_page_without_references(self):
         page = parsers.parse_partner_page(fixture(DEVONEERS[1]), DEVONEERS[0])

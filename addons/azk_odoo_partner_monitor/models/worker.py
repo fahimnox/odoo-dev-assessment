@@ -24,9 +24,9 @@ from datetime import timedelta
 import psycopg2
 
 from odoo import api, fields, models
-from odoo.tools import SQL
+from odoo.tools import SQL, str2bool
 
-from ..services import reader
+from ..services import http_client, reader
 from .common import MAX_ATTEMPTS, retry_delay
 
 _logger = logging.getLogger(__name__)
@@ -37,8 +37,9 @@ DEFAULT_BATCH_SIZE = 20
 DEFAULT_TIME_BUDGET = 60  # seconds; the scheduler's real-time limit must exceed it plus the longest unit
 STALE_DETAILS_AFTER = timedelta(days=7)
 STALE_DETAILS_PER_RUN = 200
-NO_PAGE_SOURCE = ("no page source is available (the page-download module is not installed; "
-                  "Stage 04 is partial)")
+# Settings > Partner Monitor > Pause Website Downloads (a system parameter).
+DOWNLOADS_PAUSED_PARAM = "azk_odoo_partner_monitor.downloads_paused"
+DOWNLOADS_PAUSED = "website downloads are paused (Settings > Partner Monitor > Pause Website Downloads)"
 # The country list feeds the country units, which feed the partner units.
 KIND_ORDER = SQL("CASE kind WHEN 'country_list' THEN 0 WHEN 'country_partners' THEN 1 ELSE 2 END")
 
@@ -55,6 +56,15 @@ class _UrlTracker:
         return self.fetch(url)
 
 
+def _paused_reason(fetch):
+    """Why the page source sends no request now (after a rate limit), or None.
+
+    services/http_client.py clients answer this; test fakes may not.
+    """
+    reason = getattr(fetch, "paused_reason", None)
+    return reason() if callable(reason) else None
+
+
 def _config_number(env, key, default):
     value = env["ir.config_parameter"].sudo().get_param(key) or ""
     try:
@@ -69,24 +79,30 @@ class PartnerMonitorWorker(models.AbstractModel):
     _description = "Partner Monitor Sync Worker"
 
     # ------------------------------------------------------------------
-    # Page source: integration point of the deferred page-download module
+    # Page source
     # ------------------------------------------------------------------
 
     @api.model
     def _get_page_source(self):
-        """Return the page source, a ``fetch(url)`` callable, or None when there is none.
+        """Return the page source, a ``fetch(url)`` callable, or None while downloads are paused.
 
         Contract (services/reader.py): ``fetch(url)`` returns
         ``(final_url, html)``, the URL after redirects and the page text, and
         RAISES on any failure: timeout, connection error, HTTP error, login or
-        rate-limit page. A failure must never come back as an empty page.
+        rate-limit page. A failure never comes back as an empty page.
 
-        The requests-based module (services/http_client.py) is deferred
-        (Stage 04 PARTIAL), so this returns None: the worker then keeps every
-        unit queued and marks the open runs as waiting. Tests replace this
-        method with a fixture-backed fetch (tests/common.py, FixtureSite).
+        The source is services/http_client.py: one client per batch. Its
+        request spacing and its pause after a rate limit are shared by the
+        whole process. While a system administrator pauses the downloads
+        (Settings), this returns None: the worker keeps every unit queued and
+        marks the open runs as waiting (D-33, D-64). Tests replace this method
+        with a fixture-backed fetch (tests/common.py, FixtureSite) or give the
+        client a fake session; Odoo's test framework also blocks real requests.
         """
-        return None
+        paused = self.env["ir.config_parameter"].sudo().get_param(DOWNLOADS_PAUSED_PARAM) or ""
+        if str2bool(paused, default=False):
+            return None
+        return http_client.PartnersHttpClient()
 
     # ------------------------------------------------------------------
     # Cron entry points (data/ir_cron.xml). Producers only enqueue.
@@ -108,15 +124,18 @@ class PartnerMonitorWorker(models.AbstractModel):
         """Worker job: one bounded batch per scheduler call, then report progress.
 
         With units left and progress made, the scheduler calls again at once
-        (up to 10 times), committing after each call. Without progress (no
-        page source, or every due unit locked by another worker) it reports
-        nothing done, which the scheduler treats as finished: no tight loop.
+        (up to 10 times), committing after each call. Without progress
+        (downloads paused, or every due unit locked by another worker) it
+        reports nothing done, which the scheduler treats as finished: no tight
+        loop. A batch stopped by the website's rate limit also reports nothing
+        done, so the scheduler does not start another batch at once.
         """
         result = self._process_queue(
             self._get_page_source(),
             max_units=int(_config_number(self.env, BATCH_SIZE_PARAM, DEFAULT_BATCH_SIZE)),
             time_budget=_config_number(self.env, TIME_BUDGET_PARAM, DEFAULT_TIME_BUDGET))
-        self.env["ir.cron"]._notify_progress(done=result["processed"], remaining=result["remaining"])
+        done = 0 if result["waiting"] else result["processed"]
+        self.env["ir.cron"]._notify_progress(done=done, remaining=result["remaining"])
         return result
 
     @api.model
@@ -209,14 +228,21 @@ class PartnerMonitorWorker(models.AbstractModel):
         """Process one bounded batch of due units with ``fetch`` (see _get_page_source).
 
         Returns a summary: processed (done + failed tries), the done and
-        failed item ids, the due units remaining, and whether the batch was
-        waiting for a page source. Never commits.
+        failed item ids, the due units remaining, and whether the batch is
+        waiting (downloads paused, or the website's rate limit). Never commits.
+
+        When the page source reports a pause after a rate limit, no unit is
+        started, and a running batch stops after the unit that met the limit
+        (that unit has a counted try); the other units stay queued untouched.
         """
         now = now or fields.Datetime.now()
         WorkItem = self.env["azk_odoo_partner_monitor.work.item"]
         Run = self.env["azk_odoo_partner_monitor.sync.run"]
         if fetch is None:
-            return self._wait_for_page_source(now)
+            return self._wait_for_page_source(now, DOWNLOADS_PAUSED)
+        paused = _paused_reason(fetch)
+        if paused:
+            return self._wait_for_page_source(now, paused)
         Run.search([("state", "=", "running"), ("waiting_reason", "!=", False)]).write(
             {"waiting_reason": False})
         started = time.monotonic()
@@ -229,20 +255,25 @@ class PartnerMonitorWorker(models.AbstractModel):
                 done |= item
             else:
                 failed |= item
+            paused = _paused_reason(fetch)
+            if paused:
+                break
         Run._finalize_finished(now)
         remaining = WorkItem.search_count([("state", "=", "pending"), ("next_attempt_at", "<=", now)])
+        if paused:
+            self._wait_for_page_source(now, paused)
         return {"processed": len(done) + len(failed), "done": done.ids, "failed": failed.ids,
-                "remaining": remaining, "waiting": False}
+                "remaining": remaining, "waiting": bool(paused)}
 
     @api.model
-    def _wait_for_page_source(self, now):
-        """No page source: keep every unit queued, mark the runs waiting, report no progress."""
+    def _wait_for_page_source(self, now, reason):
+        """No request may be sent: keep every unit queued, mark the runs waiting, report no progress."""
         pending = self.env["azk_odoo_partner_monitor.work.item"].search([("state", "=", "pending")])
         due = pending.filtered(lambda item: item.next_attempt_at <= now)
         if pending:
-            pending.run_id._set_waiting(NO_PAGE_SOURCE)
-            _logger.warning("Partner Monitor: %s queued units are waiting, none was attempted: %s.",
-                            len(pending), NO_PAGE_SOURCE)
+            pending.run_id._set_waiting(reason)
+            _logger.warning("Partner Monitor: %s queued units are waiting, no request is sent: %s.",
+                            len(pending), reason)
         return {"processed": 0, "done": [], "failed": [], "remaining": len(due), "waiting": bool(pending)}
 
     @api.model
@@ -326,7 +357,8 @@ class PartnerMonitorWorker(models.AbstractModel):
         countries = self.env["azk_odoo_partner_monitor.country"].search([("is_demo", "=", False)])
         WorkItem = self.env["azk_odoo_partner_monitor.work.item"]
         for country in countries:
-            WorkItem._enqueue("country_partners", item.run_id, country=country)
+            # Due at this batch's moment: claimable in the same batch (Stage 10 finding).
+            WorkItem._enqueue("country_partners", item.run_id, country=country, now=now)
         return (f"{summary['countries']} countries read, list "
                 f"{'complete' if summary['complete'] else 'incomplete'}, "
                 f"{len(summary['deactivated'])} deactivated, {len(countries)} countries to read")
@@ -343,7 +375,7 @@ class PartnerMonitorWorker(models.AbstractModel):
             country, pages, now.date(), country_list=country_list, now=now)
         WorkItem = self.env["azk_odoo_partner_monitor.work.item"]
         for partner in self.env["azk_odoo_partner_monitor.partner"].browse(summary["unread"]):
-            WorkItem._enqueue("partner_details", item.run_id, partner=partner)
+            WorkItem._enqueue("partner_details", item.run_id, partner=partner, now=now)
         return (f"{summary['scope']}: {summary['found']} of {summary['expected']} partners, "
                 f"{'complete' if summary['complete'] else 'incomplete'}, "
                 f"{len(summary['archived'])} archived, {len(summary['unread'])} partner pages queued, "

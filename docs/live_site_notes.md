@@ -79,3 +79,30 @@ This was a one-off script run in the Odoo image, not an automated test. Results:
 - **DEVONEERS:** no references, retention unknown, average and largest 0.
 
 The automated tests use the trimmed fixtures instead. Their results are in [STATE.md](STATE.md) and the Stage 04 handoff.
+
+## Stage 10: the bounded live check through the module (2026-11-15)
+
+`scripts/pm_live_check.py`, run with `scripts/dev.sh shell azk_ee24_test`, on the disposable test database only. It reads robots.txt directly, then runs the real cron entry point (`worker._cron_process_queue`) with the real client (`services/http_client.py`), parsers and ingestion:
+
+- batch 1: the country list;
+- batch 2 (after cancelling every country unit but Andorra's): Andorra's listing, then the first partner page that unit queued.
+
+A hard budget of 8 HTTP requests applies, and everything is rolled back at the end. Results, in order:
+
+- **Run 1 (15:14 UTC): FAIL, nothing stored.** The robots.txt request ended with "Remote end closed connection without response". Seven single diagnostic requests followed, about 5 seconds apart (review finding RF-02). The website closes HTTP/1.1 connections that offer `Accept-Encoding: gzip, deflate`, the `requests` default, after about 15 seconds; `gzip` alone gets HTTP 200 at once. The client now offers gzip only.
+- **Run 2 (15:22 UTC): PASS for what ran.**
+  - robots.txt: HTTP 200, 1,627 bytes, 56 rules for every crawler, still disallowing `*?*country_id=*`, `*?*grade_id=*`, `*?*page=`, `*?*search=*`, `*?*order=`, `*?*orderby=` and `*/page/*/*`. Both planned URLs were allowed.
+  - Requests: `/partners?country_all=1` (HTTP 200, 381,630 bytes, 2.21 s); `/partners/country/1` (HTTP 301 to `/partners/country/andorra-1`, 0.13 s); `/partners/country/andorra-1` (HTTP 200, 322,042 bytes, 0.43 s).
+  - Stored: 170 countries, a complete list; Andorra 2 of 2 partners, complete, validation matched: BDR GROUP SLU (22015187, Ready, retention 85 %, 17 references listed) and Process Control Technology Andorra (24934006, Ready, retention 75 %, 3 references listed).
+  - Found: the partner pages queued by Andorra's unit were not due in the same batch, and batch 1 reported 0 remaining with 170 units queued (RF-03, fixed).
+- **Run 3 (15:25 UTC): PASS.**
+  - 4 page requests plus robots.txt. Batch 1 reported 170 remaining. Batch 2 ran Andorra (2 of 2, complete, matched) and BDR GROUP SLU's page (`/partners/bdr-group-slu-22015187`, HTTP 200, 87,050 bytes, 0.23 s): 17 references found of 17 and stored.
+  - Found: the unit said "mismatch". One request (with the module's headers, from the host) saved that page privately in `runtime/logs/stage10/` for offline analysis: 18 reference cards, one of them completely empty (RF-04, fixed).
+- **Run 4 (16:32 UTC, final code): PASS.**
+  - robots.txt HTTP 200, 1,627 bytes, the same 56 rules.
+  - Batch 1: 2.69 s, the country list (170 countries, complete), 170 remaining.
+  - Batch 2: 6.80 s, Andorra (2 of 2, complete, matched) and BDR GROUP SLU's page: "17 of 17 references, matched, 17 added" (RF-04 fixed).
+  - 4 page requests, each allowed by robots.txt: the country list (200, 381,630 bytes, 2.06 s), `/partners/country/1` (301, 0.12 s), Andorra (200, 322,042 bytes, 0.52 s) and BDR GROUP SLU (200, 87,050 bytes, 0.44 s).
+  - No error row. Rolled back: no unit of the run left.
+
+Requests to www.odoo.com on 2026-11-15: 23 requests between 15:14 and 16:33 UTC: the four live check runs (1, 4, 5 and 5 requests, robots.txt included), 7 single diagnostic requests to robots.txt (RF-02), and 1 request that saved BDR GROUP SLU's page for offline analysis.

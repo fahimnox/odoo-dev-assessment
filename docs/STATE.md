@@ -1,9 +1,29 @@
 # Project state
 
-_Last updated: 2026-11-15, end of Stage 09. Stage 04 is still PARTIAL._
+_Last updated: 2026-11-15, end of Stage 10. Stage 04 is DONE since Stage 10._
 
 ## Current position
 
+- **Stage 10: DONE (2026-11-15).** Engineering review of both addons: [review_findings.md](review_findings.md) (findings RF-01 to RF-15, with severity, evidence, fix and verification). `azk_odoo_partner_monitor` 18.0.1.5.0; `azk_dynamic_trial_balance` still 18.0.1.3.0 (Python changes only).
+  - **Partner Monitor, Stage 04 completed:**
+    - `services/http_client.py`, the page download (D-65): bounded timeouts, size, spacing and retries; redirects checked against the URL and robots rules; HTTP errors, login pages and rate limits raise;
+    - connected to the worker; Settings > Pause Website Downloads (D-64), on for `azk_ee24`;
+    - one bounded live check through the worker on `azk_ee24_test` (the country list, Andorra, one partner page; rolled back).
+  - **Fixed and verified:**
+    - RF-02: the website closed connections that offered `deflate`, so the client asks for gzip only;
+    - RF-03: work queued by a unit is due in the same batch;
+    - RF-04: empty reference cards are skipped;
+    - RF-05: the pause switch;
+    - RF-06: branch-only users get the full Trial Balance (accounts searched with an explicit order);
+    - RF-07: the demo company never triggers a localization install.
+  - **Trial Balance coverage:** custom fiscal years and branches (TB-F, TB-B), standard reports unchanged, the analytic selector in a browser, a benchmark (D-60 closed; D-66).
+  - **Evidence (2026-11-15):**
+    - tests on fresh `azk_ee24_test` databases: Partner Monitor 147 of 147 and Trial Balance 114 of 114, both with 0 warning lines. Trial Balance runs 1 and 2 failed on RF-06, which was fixed in run 3. The vendor's `TestTrialBalanceReport` and annotation-export tests passed 11 of 11 with our addon installed;
+    - the bounded live check through the worker: run 4 PASS on the final code. Runs 1 to 3 found RF-02 to RF-04. 23 requests to www.odoo.com in all, every one listed in [live_site_notes.md](live_site_notes.md);
+    - the analytic browser check as a read-only accountant, on a temporary server for the disposable database: 6 of 6. The restart check: 12 of 12;
+    - an install without demo data: 0 warnings. The documented demo call then created no localization and gave the install-time counts;
+    - benchmarks (rolled back): constant Trial Balance query counts from 2,000 to 10,000 journal items; 7 and 4 queries per Partner Monitor card;
+    - `azk_ee24` upgraded with 0 warnings. Downloads stay paused there, and its browser checks pass again: dashboard 7 of 7, preview 20 of 20.
 - **Stage 09: DONE (2026-11-15).** `azk_dynamic_trial_balance` 18.0.1.3.0, on top of the Stage 08 commit `845accb`.
   - **Implemented:**
     - the Preview, PDF and XLSX through the standard `account_reports` framework: our report record (`data/trial_balance_report.xml`) and custom handler (`models/trial_balance_report_handler.py`) feed the standard UI and exporters from one engine call per request (K-01, D-54);
@@ -139,14 +159,14 @@ _Last updated: 2026-11-15, end of Stage 09. Stage 04 is still PARTIAL._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** Stage 10 (engineering review), when the user requests it. Its known inputs: custom fiscal years and branch companies are not tested yet, and two standard-framework limits are kept (D-60). A real Partner Monitor sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
+- **Next step:** Stage 11 (clean acceptance), when the user requests it. Stage 10's results: [review_findings.md](review_findings.md).
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. On port 8071 the agent ran headless Chrome (installed on this machine) through the DevTools protocol in Stage 06: the Partner Monitor dashboard check passed 7 of 7 (`scripts/ui_smoke_check.py`). Other screens of the environment were not checked in a browser; the manual steps are in the Stage 06 handoff.
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
-  - its parsers and ingestion, tested offline (Stage 04, partial);
+  - its parsers and ingestion, tested offline (Stage 04);
   - its scheduled jobs and worker, tested offline (Stage 05);
   - its dashboard, pivots and graphs (Stage 06).
-  - Not yet: the page download (deferred).
+  - its page download and a bounded live check through the worker (Stage 10, completing Stage 04).
   - The Trial Balance wizard, its validation and the calculation contract (Stage 07), the calculation engine (Stage 08), and the Preview, PDF and XLSX outputs with the demo data (Stage 09).
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
@@ -172,13 +192,13 @@ _Last updated: 2026-11-15, end of Stage 09. Stage 04 is still PARTIAL._
 | 01B | Enterprise transition | DONE (2026-11-05): matched pair validated; the Stage 01B pair stays blocked and preserved |
 | 02 | Requirements, assumptions, architecture | DONE (2026-11-05): design agreed; native Trial Balance probed on the matched pair |
 | 03 | Partner Monitor models, permissions, basic UI | DONE (2026-11-08): 53 tests pass; installs and upgrades without warnings |
-| 04 | Partner scraping | PARTIAL (2026-11-08): parsers, ingestion and 38 offline tests pass; the page-download module and a live run through it are missing |
+| 04 | Partner scraping | DONE (2026-11-15, completed in Stage 10): parsers, ingestion, the page download and a bounded live check through the worker |
 | 05 | Partner resilience | DONE for the worker (2026-11-10): jobs, worker, retries, validation and notes; tests and the restart check pass offline; live sync NOT RUN (needs Stage 04's page-download module) |
 | 06 | Partner dashboard | DONE (2026-11-10): dashboard entry point, shared filters, four charts, sync state; 129 tests pass; browser check 7 of 7; rerun on the final code on 2026-11-15: 7 of 7 |
 | 07 | Trial Balance wizard and calculation contract | DONE (2026-11-15): wizard, option contract, calculation contract and fixtures; 48 tests pass; the standard Trial Balance matches the hand-calculated numbers; browser check of the wizard 8 of 8; outputs are entry points only |
 | 08 | Trial Balance calculation engine | DONE (2026-11-15): engine with one normalized result; 85 tests pass; equal to the hand-calculated constants and to the standard Trial Balance where both apply; constant query count |
 | 09 | Trial Balance outputs (Preview, PDF, XLSX) | DONE (2026-11-15): Preview, PDF and XLSX from one engine call per request; demo data; 102 tests pass; browser and download-route check 20 of 20; upgrades duplicate no demo record |
-| 10 | Engineering review | NOT STARTED |
+| 10 | Engineering review | DONE (2026-11-15): review findings with evidence; the page download and a live check; fiscal years, branches and analytics tested; 147 Partner Monitor and 114 Trial Balance tests pass, the vendor's 11 tests pass with our addon, and the live, analytic, restart and no-demo checks pass |
 | 11 | Clean acceptance | NOT STARTED |
 | 12 | Submission documentation | NOT STARTED |
 | 13 | Code walkthrough | NOT STARTED |
@@ -255,6 +275,10 @@ _Last updated: 2026-11-15, end of Stage 09. Stage 04 is still PARTIAL._
   - D-51: with currency rows, an account without items is listed in its own currency or the company currency;
   - D-52: the carry-forward is computed only when the earnings row is in the report; without an earnings account, a warning;
   - D-53: the engine is a plain service on the ORM; the `account_reports` handler that renders it is Stage 09.
+- **Stage 10 decisions** ([assumptions.md](assumptions.md)):
+  - D-64: website downloads run by default and can be paused in Settings; paused on `azk_ee24`;
+  - D-65: the page download's bounds, headers (gzip only) and failure kinds;
+  - D-66: users with a branch but not its root company are supported (accounts searched with an explicit order).
 - **Stage 09 decisions** ([assumptions.md](assumptions.md)):
   - D-54: our report record and custom handler in the standard framework; competing standard filters off; per-currency totals as lines;
   - D-55: our PDF company block, options block and grouped column header;
@@ -280,7 +304,8 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 
 - **Disk space:** resolved by the user before the 2026-11-05 continuation. C: had 17 to 19 GB free during that work, and 13 GB during Stage 02. The drop happened between the two sessions and was not investigated. On 2026-11-08, C: had 14 GB free before Stage 03's two test runs and 9.7 GB after them. Docker's virtual disk (`docker_data.vhdx`, shared with another project) was 14.6 GB on 2026-11-03 and 15.4 GB after the runs, so it explains at most 0.8 GB of the drop; the rest is not attributed. Keep several GB free before long test runs (see [environment.md](environment.md)).
 - **After a machine restart:** the Compose services use `restart: "no"`, so `scripts/dev.sh start` is needed once Docker Desktop is up (found on 2026-11-08, after the restart of 2026-11-06).
-- **Analytic Accounting is off on `azk_ee24`:** so the wizard's Analytic Accounts field and the preview's analytic dropdown are hidden there (D-62). To try them, enable Accounting > Configuration > Settings > Analytic Accounting. The analytic option set passed in the unit tests and through the download route.
+- **Analytic Accounting is off on `azk_ee24`:** so the wizard's Analytic Accounts field and the preview's analytic dropdown are hidden there (D-62). To try them, enable Accounting > Configuration > Settings > Analytic Accounting. Stage 10 tried them in a browser on a disposable database with the setting on (review finding RF-15).
+- **Website downloads are paused on `azk_ee24`** (D-64): its run 1 (2026-11-10) waits with that reason. Untick Settings > Partner Monitor > Pause Website Downloads only to start a real, full sync from this machine (about 330 listing pages and, the first time, about 4,500 partner pages, at one request per 3 s or more).
 - **Memory:** in Stage 09 the CLI stopped a background test run when the machine was critically low on memory. Close unused applications before long runs; the browser checks need about 0.5 GB more.
 - **Browser check of the Trial Balance (user, recommended):** the walkthrough is in [handoffs/stage_09_en.md](handoffs/stage_09_en.md).
 - **Browser check of the Partner Monitor UI (user, recommended):** the agent's headless check covered the dashboard (Stage 06). Still for the user, in a normal browser: the country selector, a click on a chart bar, the reader role, the pivot and graph views, a partner form and Settings > Partner Monitor (steps in the Stage 06 handoff).
@@ -294,7 +319,7 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - Clarifications Q-02 to Q-06 for the team lead are drafted in [assumptions.md](assumptions.md) and not yet asked. None blocks Stage 06.
 - Ambiguities D-01 to D-07 were resolved in Stage 02, and D-08 to D-17 were added and decided ([assumptions.md](assumptions.md)).
 - **Verification still ahead:**
-  - The live partners site was checked on a small manual sample in Stage 04 (A-19, [live_site_notes.md](live_site_notes.md)); a live run through the module and the worker is still ahead (needs the page-download module).
+  - The live partners site was checked on a small manual sample in Stage 04 (A-19) and through the module and the worker in Stage 10 ([live_site_notes.md](live_site_notes.md)); a full live sync has not been run from this machine, on purpose (D-64).
   - The `account_reports` display and export hooks were verified and used in Stage 09 (column groups, the PDF templates, the XLSX writer, the preview filter component); the fallback of [architecture.md](architecture.md) 4.7 was not needed.
 - Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06). The license of `azk_dynamic_trial_balance`, which will depend on the OEEL-1 module `account_reports`, is question Q-06.
 - Commits use the global Git identity `fahimnox <mohamed.fahim@noxholding.com>`, which becomes public in Stage 15 unless the user decides otherwise.

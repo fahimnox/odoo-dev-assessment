@@ -92,7 +92,9 @@ Example: ODOO_EDITION=community scripts/dev.sh test
   psql [DB]                 psql as the odoo role on DB (default: dev DB)
   test [ADDONS] [TAGS]      recreate the test DB, install ADDONS (default: both addons)
                             and run their tests; TAGS defaults to /addon1,/addon2
-  clean-install [ADDONS]    recreate the clean DB and install ADDONS (default: both)
+  clean-install [ADDONS] [--without-demo]
+                            recreate the clean DB and install ADDONS (default: both),
+                            with demo data unless --without-demo is given
   reset-db DB               drop a disposable database (test or clean DB of the
                             edition) and its filestore
   source                    copy the Odoo Community source from the pinned image to
@@ -278,10 +280,13 @@ main() {
             compose exec $(tty_flag) db psql --username=odoo --dbname="$db" ;;
         test) cmd_test "$@" ;;
         clean-install)
-            local addons="${1:-$ADDONS_ALL}"
+            local addons="${1:-$ADDONS_ALL}" demo=()
+            if [[ "${2:-}" == "--without-demo" ]]; then demo=(--without-demo=all)
+            elif [[ -n "${2:-}" ]]; then die "clean-install: unknown option '$2'"
+            fi
             reset_db "$CLEAN_DB"
-            odoo_run "$CLEAN_DB" --init="$addons" --stop-after-init
-            echo "Installed $addons into a fresh $CLEAN_DB." ;;
+            odoo_run "$CLEAN_DB" --init="$addons" ${demo[@]+"${demo[@]}"} --stop-after-init
+            echo "Installed $addons into a fresh $CLEAN_DB${demo[0]+ without demo data}." ;;
         reset-db) reset_db "${1:?database name required}" ;;
         help|-h|--help) usage ;;
         *) usage; die "unknown command: $cmd" ;;

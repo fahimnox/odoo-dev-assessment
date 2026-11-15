@@ -399,6 +399,9 @@ class TrialBalanceCase(AccountTestInvoicingCommon):
         move = cls.env["account.move"].with_company(company).create({
             "move_type": "entry",
             "date": date,
+            # Explicit, so that a branch can post in its root company's
+            # shared journal (TB-B).
+            "company_id": company.id,
             "journal_id": journal.id,
             "ref": ref,
             "line_ids": [
@@ -520,22 +523,24 @@ class TrialBalanceCase(AccountTestInvoicingCommon):
     # ------------------------------------------------------------------
     def native_trial_balance(self, date_from, date_to, company=None, draft=False,
                              hierarchy=False, journal=None, analytic=None, user=None,
-                             accounts=None):
+                             accounts=None, active_companies=None):
         """Run the standard Trial Balance and return its numbers by line.
 
         Keys: the short account names of ``accounts`` (default
         ``self.accounts``; the account code when an account has no short
         name), "group <prefix>" for account-group lines, "(No Group)" and
         "total". Values: Initial Debit/Credit, period Debit/Credit and End
-        Debit/Credit, rounded to cents. Only one company is ever active, as
-        in our report.
+        Debit/Credit, rounded to cents. Only ``company`` is active, as in our
+        report, unless ``active_companies`` (``company`` first) says otherwise:
+        the standard report then covers every active company.
         """
         company = company or self.company
+        active_companies = active_companies or company
         accounts = accounts or self.accounts
         report = self.env.ref("account_reports.trial_balance_report")
         if user:
             report = report.with_user(user)
-        report = report.with_context(allowed_company_ids=[company.id])
+        report = report.with_context(allowed_company_ids=active_companies.ids)
         options = report.get_options({
             "selected_variant_id": report.id,
             "date": {"date_from": date_from, "date_to": date_to, "mode": "range",
@@ -545,7 +550,7 @@ class TrialBalanceCase(AccountTestInvoicingCommon):
             "unfold_all": True,
             "analytic_accounts": analytic.ids if analytic else [],
         })
-        self.assertEqual([c["id"] for c in options["companies"]], [company.id])
+        self.assertEqual([c["id"] for c in options["companies"]], active_companies.ids)
         self.assertEqual(options["all_entries"], draft)
         if journal:
             options = copy.deepcopy(options)

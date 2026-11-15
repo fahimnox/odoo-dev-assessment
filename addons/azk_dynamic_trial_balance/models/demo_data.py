@@ -66,10 +66,16 @@ class TrialBalanceDemo(models.AbstractModel):
         (egp | usd | eur).write({"active": True})
 
         # Without a country, loading the generic chart would make its fiscal
-        # country (the United States) the company's country.
-        company = self.env["res.company"].create({
+        # country (the United States) the company's country. With a country,
+        # outside tests and module loading (for example the one-time call from
+        # an Odoo shell), Odoo installs that country's localization, which
+        # commits the transaction, and queues the country's own chart for the
+        # new company. This function loads the generic chart itself, so it sets
+        # the flag that Odoo sets while it loads a chart (chart_template_load),
+        # which turns that automatic install off; the flag is then dropped.
+        company = self.env["res.company"].with_context(chart_template_load=True).create({
             "name": DEMO_COMPANY_NAME, "currency_id": egp.id, "country_id": self.env.ref("base.eg").id,
-        })
+        }).with_env(self.env)
         self.env["ir.model.data"]._update_xmlids([
             {"xml_id": DEMO_COMPANY_XMLID, "record": company, "noupdate": True},
         ])

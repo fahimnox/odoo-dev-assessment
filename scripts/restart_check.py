@@ -12,7 +12,7 @@
 #   verify  check the stored result and print PASS or FAIL per check
 #
 # Pages come from the saved live-derived fixtures (tests/common.py,
-# FixtureSite): the page-download module is deferred (Stage 04 partial).
+# FixtureSite), so the check is repeatable and never contacts the website.
 
 import os
 import sys

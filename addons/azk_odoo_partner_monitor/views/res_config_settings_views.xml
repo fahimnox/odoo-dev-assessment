@@ -10,6 +10,12 @@
             <xpath expr="//form" position="inside">
                 <app data-string="Partner Monitor" string="Partner Monitor" name="azk_odoo_partner_monitor"
                      groups="base.group_system">
+                    <block title="Website Downloads" id="partner_monitor_downloads">
+                        <setting id="partner_monitor_downloads_paused"
+                                 help="While paused, the sync jobs keep their queue and download nothing from the Odoo website; open runs show that they are waiting.">
+                            <field name="partner_monitor_downloads_paused"/>
+                        </setting>
+                    </block>
                     <block title="Failure Notifications" id="partner_monitor_notifications">
                         <setting id="partner_monitor_failure_recipient" string="Failure Recipient"
                                  help="Internal user who receives a note when a sync run fails or ends partially. Default: the administrator.">

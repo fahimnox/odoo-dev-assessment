@@ -2,6 +2,173 @@
 
 Exact commands and results, newest stage first. Every result is PASS, FAIL, BLOCKED or NOT RUN. The commands run from `solution/` in Git Bash on the target edition `enterprise-20241208`: service `odoo-ee-20241208`, port 8071, the matched pair of [enterprise_transition.md](enterprise_transition.md). Full command logs are private, in `<kit-root>/runtime/logs/`. Earlier stages record their results in [STATE.md](STATE.md) and their handoffs.
 
+## Stage 10 (2026-11-15): engineering review
+
+Code: `azk_odoo_partner_monitor` 18.0.1.5.0 and `azk_dynamic_trial_balance` 18.0.1.3.0 (Python changes only), on top of Stage 09 commit `564b71b`. Findings and their verification: [review_findings.md](review_findings.md). The heavy checks ran one at a time, with free RAM sampled (about 1.9 to 2.6 GB free); C: had 40 to 41 GB free.
+
+### Automated tests
+
+```text
+scripts/dev.sh test azk_odoo_partner_monitor
+scripts/dev.sh test azk_dynamic_trial_balance
+scripts/dev.sh test azk_dynamic_trial_balance /account_reports:TestTrialBalanceReport,/account_reports:TestAccountReportAnnotationsExport
+```
+
+- **Partner Monitor:**
+  - run 1 (15:06 to 15:11 UTC, fresh `azk_ee24_test`): PASS, "0 failed, 0 error(s) of 145 tests", 0 warning lines, exit 0 (129 earlier and 16 new tests);
+  - final run, on the final code: PASS, "0 failed, 0 error(s) of 147 tests" (16:30 to 16:32 UTC, fresh `azk_ee24_test`), 0 warning lines, exit 0 (129 earlier and 18 new tests).
+- **Trial Balance:**
+  - run 1 (15:32 to 15:39 UTC): FAIL, "1 failed, 0 error(s) of 113 tests": `test_a_branch_user_sees_the_branch_only` (no Current Year Earnings row for a branch-only user; RF-06);
+  - run 2 (15:55 to 16:01 UTC): FAIL, "1 failed, 0 error(s) of 114 tests". The same test still failed: the first fix (a narrow `sudo()`) did not address the cause. There were also 3 warning lines from the new demo test, which recreated the demo's analytic plans;
+  - run 3 (16:07 to 16:13 UTC), final code: PASS, "0 failed, 0 error(s) of 114 tests", 0 warning lines, exit 0, 114 post-tests in 178.6 s (102 earlier and 12 new tests).
+- **The vendor's own tests with our addon installed:** PASS, "0 failed, 0 error(s) of 11 tests" (16:26 to 16:29 UTC, fresh `azk_ee24_test` with `azk_dynamic_trial_balance` installed, 0 warning lines): the 8 `TestTrialBalanceReport` tests, including `test_trial_balance_comparisons`, and the 3 `TestAccountReportAnnotationsExport` tests, which export the standard reports to XLSX.
+
+### The bounded live check through the module (TP-PM-21)
+
+```text
+scripts/dev.sh shell azk_ee24_test < scripts/pm_live_check.py
+```
+
+- **Run 1 (15:14 UTC): FAIL.** robots.txt: "Remote end closed connection without response". Then seven single diagnostic requests (RF-02).
+- **Run 2 (15:22 UTC): PASS for what ran.** 3 page requests; RF-03 found.
+- **Run 3 (15:25 UTC): PASS.**
+  - robots.txt HTTP 200, 1,627 bytes, 56 rules, both planned URLs allowed.
+  - Batch 1: 3.50 s, 1 unit (the country list: 170 countries, complete), 170 remaining.
+  - Batch 2: 6.43 s, 2 units: Andorra (2 of 2, complete, matched) and BDR GROUP SLU's page (17 of 17 references stored). That unit said "mismatch", which led to RF-04.
+  - Requests:
+    - `/partners?country_all=1`: 200, 381,670 bytes, 2.00 s;
+    - `/partners/country/1`: 301, 0.12 s;
+    - `/partners/country/andorra-1`: 200, 322,042 bytes, 0.47 s;
+    - `/partners/bdr-group-slu-22015187`: 200, 87,050 bytes, 0.23 s.
+- **Run 4 (16:32 UTC, final code): PASS.**
+  - robots.txt HTTP 200, 1,627 bytes, the same 56 rules.
+  - Batch 1: 2.69 s, the country list (170 countries, complete), 170 remaining.
+  - Batch 2: 6.80 s, Andorra (2 of 2, complete, matched) and BDR GROUP SLU's page: "17 of 17 references, matched, 17 added" (RF-04 fixed).
+  - 4 page requests, each allowed by robots.txt: the country list (200, 381,630 bytes, 2.06 s), `/partners/country/1` (301, 0.12 s), Andorra (200, 322,042 bytes, 0.52 s) and BDR GROUP SLU (200, 87,050 bytes, 0.44 s).
+  - No error row. Rolled back: no unit of the run left.
+- Every request: [live_site_notes.md](live_site_notes.md).
+
+### Browser checks
+
+**Analytic selector, as a read-only accountant, on a disposable server (RF-15)**
+
+```text
+# with TB_RO_PASSWORD set to a random value, never printed:
+docker compose run --rm -T -e TB_RO_PASSWORD odoo-ee-20241208 odoo shell --database=azk_ee24_test --no-http < scripts/tb_analytic_setup.py
+docker compose run -d --rm --name azk-tb-disposable-8072 -p 127.0.0.1:8072:8072 odoo-ee-20241208     odoo --http-port=8072 --database=azk_ee24_test --db-filter='^azk_ee24_test$' --max-cron-threads=0
+PM_UI_URL=http://127.0.0.1:8072 PM_UI_LOGIN=tb_readonly PM_UI_PASSWORD=... python scripts/tb_analytic_smoke_check.py OUTPUT_DIR
+```
+
+- **Setup** (`azk_ee24_test`, committed; the database was recreated afterwards): Analytic Accounting on for internal users; `web.base.url` set to http://127.0.0.1:8072; user `tb_readonly` with only `account.group_account_readonly` (no accounting user rights), in the demo company only.
+- **Run 1: NOT RUN.** The memory guard's path reached the host's Python in a form it could not open; no check ran. The setup and the server worked.
+- **Run 2: PASS, 6 of 6:**
+  - the wizard showed the Analytic Accounts field; choosing "Sales Department" and Preview opened the report with that account selected. 1 account row in March 2026 (7 without the filter), equal to the engine;
+  - the preview's dropdown, "All analytic accounts": recalculated, equal to the engine;
+  - the dropdown, "Sales Department" again: recalculated, equal to the engine;
+  - PDF and Download Excel with the filter: the XLSX equalled the engine (2 rows with the Total), and the 1-page PDF stated "Analytic Accounts: Sales Department";
+  - tampered downloads were refused: another company in our options gave "AccessError: You are not allowed to report on this company."; another company in the company list gave "AccessError: Access to unauthorized or invalid companies.";
+  - no JavaScript error.
+- **Server log:** 0 warning or error lines. The first `/odoo` page took 72.5 s, while the fresh server built its asset bundles. The lowest commit headroom was 3,355 MB.
+- Screenshots: `screenshots/stage10_analytic_*.png` (wizard, filtered preview, unfiltered preview, PDF page).
+
+**`azk_ee24` after the upgrade to the Stage 10 code** (`scripts/dev.sh update azk_odoo_partner_monitor,azk_dynamic_trial_balance`, 16:40 to 16:42 UTC)
+
+- **Update: PASS.** Exit 0, 0 warning and 0 error lines; versions 18.0.1.5.0 (Partner Monitor) and 18.0.1.3.0 (Trial Balance); downloads paused (D-64).
+- **One call of the worker job's entry point, with any HTTP request refused by a patch: PASS.**
+  - Nothing processed and nothing sent: 1 unit remaining, waiting.
+  - Run 1 now waits with "website downloads are paused (Settings > Partner Monitor > Pause Website Downloads)" and still has one note.
+  - Still 0 partners from the website.
+- **`scripts/ui_smoke_check.py`** (headless Chrome, admin): **PASS, 7 of 7**, the same checks as Stage 06. The dashboard shows the paused banner (`screenshots/stage10_dashboard_downloads_paused.png`).
+- **`scripts/tb_preview_smoke_check.py`** (headless Chrome, admin): **PASS, 20 of 20**, the same checks as Stage 09:
+  - Bank 1,200.00, then 1,000.00 with Draft Entries;
+  - search and folding;
+  - both downloads, and a 1-page and a 3-page PDF;
+  - the empty state;
+  - the route refusing tampered options and giving no file without a session;
+  - all eight option sets through the route, equal to the engine.
+- **Lowest commit headroom:** 3,824 MB and 3,451 MB.
+- **Server log since the upgrade:** 0 warning or error lines.
+
+### Installation without demo data, and the documented demo call
+
+```text
+scripts/dev.sh clean-install azk_odoo_partner_monitor,azk_dynamic_trial_balance --without-demo
+scripts/dev.sh shell azk_ee24_clean < (a read-only state check)
+docker compose run --rm -T -e PHASE=call odoo-ee-20241208 odoo shell --database=azk_ee24_clean --no-http < (the same check, then the call)
+scripts/dev.sh shell azk_ee24_clean < scripts/tb_demo_data_counts.py
+```
+
+- **Install without demo data (16:35 to 16:38 UTC): PASS.** Exit 0, 0 warning and 0 error lines, 2 min 39 s.
+  - Both addons and `account_reports` installed with demo off.
+  - `l10n_eg` not installed; one company, "My Company".
+  - No Trial Balance demo company, while the report record and its menu exist.
+  - No Partner Monitor country, partner or run; its four jobs active; downloads not paused (the default).
+  - No server serves this database, so no job ran.
+- **The documented one-time demo call (D-59), in a real Odoo shell, committed: PASS.**
+  - The first call created the company: "AZK Trial Balance Demo (EGP)", country EG, generic chart, EGP.
+  - `l10n_eg` stayed uninstalled: the RF-07 fix, outside test mode.
+  - A second call created nothing.
+  - The counts equal the install-time demo of Stage 09: 16 entries (13 posted, 2 draft, 1 cancelled), 32 journal items, 10 account groups, 2 analytic plans, 3 analytic accounts, 2 currency rates, 7 journals.
+
+### Benchmarks
+
+**Trial Balance** (`scripts/tb_benchmark.py`, 16:14 to 16:18 UTC, rolled back: 0 benchmark companies left)
+
+- **Dataset (seeded, reproducible):**
+  - a new company with Odoo's generic chart plus 100 extra accounts, 146 accounts in all, with no account groups;
+  - balanced two-line entries in one miscellaneous journal, dated 2025-01-01 to 2026-03-31, about 10% left in draft;
+  - two sizes: 1,000 entries (2,000 journal items), then 5,000 entries (10,000 items).
+- **Environment:** the Docker setup of this repository on Windows 11 (Intel Core i7-8650U, 4 cores, 15.9 GB RAM, about 2.5 GB free), PostgreSQL 16, one Odoo shell process, the admin user, report period January to March 2026.
+- **Measured:** the median of 3 runs with the ORM cache cleared. The PDF timing stops before wkhtmltopdf: it covers the HTML that would be printed. Results by size, 1,000 entries then 5,000 entries:
+  - **Engine `compute()`:**
+    - all accounts, posted only: 0.033 s, then 0.061 s; 15 queries at both sizes;
+    - drafts, hierarchy, skip zero: 0.050 s, then 0.070 s; 16 queries at both sizes.
+  - **Preview lines (`_get_lines`):** 0.17 to 0.25 s, then 0.21 to 0.29 s; 18 to 19 queries.
+  - **XLSX export:** 0.09 to 0.12 s, then 0.12 to 0.17 s; 40 to 41 queries; 16 to 18 KB.
+  - **PDF export without wkhtmltopdf:** 0.54 to 0.66 s, then 0.58 to 0.84 s; 57 to 58 queries; about 220 KB of HTML. The very first PDF build took 11.6 s (cold templates).
+  - **Rows:** 149 lines (all accounts), or 146 to 147 lines (skip zero), all balanced.
+- **What it shows:**
+  - The query counts do not change when the journal items grow fivefold: there is no per-account or per-item query loop.
+  - The time grows slowly, because the totals are computed by PostgreSQL in three grouped queries.
+- **Limits:**
+  - one company and one journal;
+  - no account groups, so the hierarchy only adds "(No Group)";
+  - a laptop under memory pressure;
+  - the wkhtmltopdf conversion itself not timed.
+  - This is no capacity figure for production.
+
+**Partner Monitor** (`scripts/pm_benchmark.py`, 16:32 to 16:33 UTC, rolled back: 0 benchmark countries left)
+
+- **Dataset (seeded, no network):** synthetic parse results built with the module's own dataclasses, 20 cards per page as on the live site:
+  - one country listing of 100 cards (5 pages), then one of 1,000 cards (50 pages);
+  - one partner page with 135 references, RoayaTec's size;
+  - the dashboard over every partner in the database (1,150, demo partners included).
+- **Measured:** as the cron's superuser would run it (the dashboard with `sudo`, so record rules were not timed); the median of 3 runs where a step can repeat.
+- **Results:**
+  - **Listing, first read** (partners and history created): 100 cards 0.44 s with 704 queries; 1,000 cards 4.86 s with 7,002 queries. That is 7 queries and about 4.5 to 5 ms per card.
+  - **The same pages again** (nothing new): 100 cards 0.21 s with 402 queries; 1,000 cards 1.91 s with 4,002 queries. That is 4 queries and about 2 ms per card.
+  - **A partner page with 135 references:** 0.030 s with 7 queries the first time (the references are created in one batch), 0.007 s with 4 queries again.
+  - **Dashboard data:** 0.061 to 0.081 s, 21 queries (34 on the first, cold call), with or without a status filter.
+- **What it shows:**
+  - Storing a listing costs a constant few queries per card: a per-card loop by design. Each card has its own savepoint, so one bad card cannot stop the others (RF-11).
+  - The whole directory (4,517 partners on 2026-11-08) would take about 32,000 queries and some 20 seconds of database work on a first sync. That is small next to the downloads, at 3 seconds or more per request (RF-12).
+  - The references and the dashboard use grouped or batched queries.
+- **Limits:** synthetic cards (no parsing time), one process, and the same laptop. This is no capacity figure for production.
+
+### Restart check (TP-PM-15), rerun
+
+```text
+scripts/restart_check.sh
+```
+
+PASS, 12 of 12 (`scripts/restart_check.sh`, 16:33 to 16:35 UTC, on `azk_ee24_test` right after the final Partner Monitor run). The worker's container was killed with SIGKILL during its second batch, at 16:34:28 UTC (exit status 137). After the restart in a new container, only the interrupted batch's units ran again (Anguilla's listing and RoayaTec's page), then DEVONEERS' page. There was no duplicate history row, reference or note, no email was queued, and no unit was left pending. The worker still uses the saved pages there (`FixtureSite`), so the check never reaches the website.
+
+### NOT RUN
+
+- A full live sync of the directory (about 330 listing pages and, the first time, about 4,500 partner pages): not requested, and paused on `azk_ee24` on purpose (D-64).
+- The live check of an empty country through the module: the bounded check covered one country with partners. Anguilla's fallback page stays covered by the live-derived fixture.
+- A browser check by the user.
+
 ## Stage 09 (2026-11-15): Trial Balance outputs (Preview, PDF, XLSX)
 
 Code: `azk_dynamic_trial_balance` 18.0.1.3.0 on top of Stage 08 commit `845accb`. Memory was tight on the host during this stage (other applications used most of the 15.9 GB). Free RAM was therefore sampled with free space on C:, and the browser checks ran under a guard that would stop them below 500 MB of commit headroom (it never triggered).

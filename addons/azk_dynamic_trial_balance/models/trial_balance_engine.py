@@ -141,20 +141,34 @@ class TrialBalanceEngine(models.AbstractModel):
             },
         }
 
+    def _chart_accounts(self, domain=()):
+        """Accounts of the report company's chart matching ``domain``, searched as the user.
+
+        Ordered by id on purpose. The default order of account.account in
+        this build ("code, placeholder_code") joins each account to its first
+        company among the user's own companies. A branch shares the accounts
+        of its root company, and Odoo 18 lets a user access a branch without
+        its root: for that user the join drops every shared account, so a
+        search with the default order finds none of them, although the
+        record rules let the user count and read them (Stage 10,
+        docs/review_findings.md, RF-06). Rows are sorted by code later.
+        """
+        Account = self.env["account.account"]
+        return Account.search([*Account._check_company_domain(self.env.company), *domain], order="id")
+
     def _accounts_in_scope(self, opts):
         """The company's accounts whose code starts with a prefix (all if none).
 
-        Searched as the user in the report company, so accounts of other
+        Only the report company's chart is searched, so accounts of other
         companies never match a prefix. Deprecated accounts are included
         here; they are listed only when they have amounts (D-12).
         """
-        Account = self.env["account.account"]
-        domain = list(Account._check_company_domain(self.env.company))
+        domain = []
         if opts["account_prefixes"]:
-            domain += expression.OR([
+            domain = expression.OR([
                 [("code", "=like", like_prefix_pattern(prefix))] for prefix in opts["account_prefixes"]
             ])
-        return Account.search(domain)
+        return self._chart_accounts(domain)
 
     def _scope_domain(self, opts):
         """The journal items in scope, for opening, carry-forward and movement alike (contract 4)."""
@@ -220,11 +234,7 @@ class TrialBalanceEngine(models.AbstractModel):
         the prefixes, and is shown only when the earnings account itself is
         in the report (D-15).
         """
-        Account = self.env["account.account"]
-        earnings = Account.search([
-            *Account._check_company_domain(self.env.company),
-            ("account_type", "=", "equity_unaffected"),
-        ], limit=1)
+        earnings = self._chart_accounts([("account_type", "=", "equity_unaffected")])[:1]
         if earnings and opts["account_prefixes"] and earnings not in accounts:
             return earnings, None
         domain = expression.AND([

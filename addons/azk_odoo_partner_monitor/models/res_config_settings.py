@@ -1,6 +1,7 @@
 from odoo import fields, models
 
 from .sync_run import NOTIFY_USER_PARAM
+from .worker import DOWNLOADS_PAUSED_PARAM
 
 
 class ResConfigSettings(models.TransientModel):
@@ -15,4 +16,11 @@ class ResConfigSettings(models.TransientModel):
         domain=[("share", "=", False)],
         help="Internal user who receives a note when a Partner Monitor sync run fails "
              "or ends partially.",
+    )
+    # Unticked (the default) deletes the parameter: downloads run (D-64).
+    partner_monitor_downloads_paused = fields.Boolean(
+        string="Pause Website Downloads",
+        config_parameter=DOWNLOADS_PAUSED_PARAM,
+        help="While paused, the sync jobs keep their queue and download nothing from the Odoo "
+             "website; open runs show that they are waiting.",
     )

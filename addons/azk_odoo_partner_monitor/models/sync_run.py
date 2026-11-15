@@ -172,8 +172,8 @@ class PartnerMonitorSyncRun(models.Model):
                 run._post_note(Markup("<p>%s</p><p>%s</p>") % (
                     self.env._("Partner Monitor %(run)s is waiting: %(reason)s",
                                run=run.display_name, reason=reason),
-                    self.env._("%(pending)s units are queued and kept; none was attempted or marked "
-                               "failed. The run continues when the condition is resolved.",
+                    self.env._("%(pending)s units are queued and kept, and none is marked failed. "
+                               "The run continues when the condition is resolved.",
                                pending=run.pending_count)))
 
     # ------------------------------------------------------------------
