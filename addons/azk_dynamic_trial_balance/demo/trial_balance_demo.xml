@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Demo data of the Dynamic Trial Balance: a dedicated company in EGP with
+        Odoo's generic chart, account groups five levels deep, posted, draft
+        and cancelled entries, entries in USD and EUR, and analytic
+        distributions (models/demo_data.py).
+
+        Odoo loads demo files as noupdate data, so this function runs when the
+        module is installed with demo data, never on an upgrade. The function
+        also checks the company's XML id first, so a second call creates
+        nothing. The creation waits until every module is loaded
+        (_register_hook).
+    -->
+    <function model="azk_dynamic_trial_balance.demo" name="_create_demo_data"/>
+</odoo>

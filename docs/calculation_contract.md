@@ -334,3 +334,12 @@ The number of queries does not depend on the number of accounts (measured in `te
 - With Show Amount Currency, an account without items is listed (Skip Zero Balance off) in the account's own currency, or in the company currency, with an amount currency of 0 (D-51).
 - A leaf row's level is its group's level plus 1, or 2 under "(No Group)". Without a hierarchy, every row is level 1.
 - The carry-forward is computed only when the earnings account is in the report. Without an earnings account, a non-zero carry-forward produces the warning `no_earnings_account` (D-52).
+
+## 16. How the outputs show the result (Stage 09)
+
+The outputs add no arithmetic. Each request (a preview reload, a PDF, an XLSX) validates the options again and calls `compute()` once; the handler turns the result into report lines.
+
+- **Columns:** the nine numbers in three groups, Initial Balance, the period and End Balance, each with Debit, Credit and Balance; with Show Amount Currency a tenth column, "Movement" under "Amount Currency", holds the row's `amount_currency`.
+- **Rows:** `lines` in order (group rows, then accounts), then one Total row (`totals`), then with Show Amount Currency one "Total in XXX" row per entry of `currency_totals`. A per-currency total shows the base-currency movement debit, credit and balance and the amount-currency total of its rows; its initial and ending cells stay empty, because they are only meaningful per account.
+- **Display:** amounts are rounded by the engine to the company currency (section 6). The preview and the PDF format them with the company currency, and the amount currency with the row's currency. The XLSX writes the same rounded numbers as numbers with the format `#,##0.00;-#,##0.00;0.00`, and the currency code in its own column.
+- **Search and folding:** a display filter only. Hidden rows keep their place in every total, as in the preview.

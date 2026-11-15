@@ -370,6 +370,24 @@ Total: 85 tests (48 from Stage 07). Commands, results, the scope of the standard
 - **PASS for the calculation, open for the exports (Stage 09):** TP-TB-11.
 - **Stage 09:** TP-TB-13 to TP-TB-17.
 
+### 4.5 Implemented in Stage 09 (2026-11-15)
+
+New automated tests (17), all on real data, all compared with the engine result or with hand-calculated constants (102 in total):
+
+- `test_report_outputs.py`, `TestReportOutputs`, 11 tests, on the installed demo company. For each option set (posted only, drafts, hierarchy, parents only, amount currency, analytic, zero filtering, empty result) the preview lines equal the engine rows, the XLSX cells equal the printed lines (codes, numbers, number types), and every PDF row prints exactly the name and formatted cells of one printed line. Also: Bank 1,200 and 1,000 in all three outputs; per-currency totals (USD 60, EUR 50, never 110); the PDF header, filters and columns; the rounding unit printed while the XLSX keeps exact numbers; the repeating table header; the XLSX metadata, number formats, frozen header and absence of formulas; exports following the preview's search and folded groups; the preview's columns, filter component and messages; the wizard's options round trip.
+- `test_report_access.py`, `TestReportAccess`, 3 tests, on TB-BASE: an accounting reader can preview and export; employees and billing users get AccessError; tampered options (another company's journal, an unknown key, a wrongly typed value, a non-code prefix, a non-dictionary, another report, an unauthorized company, including through the company list the download route uses) are refused on the preview and on both exports.
+- `test_demo_data.py`, `TestDemoData`, 3 tests: the demo company's country, states, currencies, analytic items and five-level groups; its Bank example through the engine (1,200 and 1,000); a second run of the demo function creates nothing.
+- Changed: `test_wizard.py` (the buttons now return the report and download actions with the wizard's options) and `test_engine_access.py` (another user's wizard cannot be previewed or exported).
+
+PDFs in unit tests: `tests/common.py` `capture_wkhtmltopdf` replaces `_run_wkhtmltopdf` with a stub that records the HTML documents, which are exactly what the PDF prints. Odoo's own `account_reports` tests replace it too. A real wkhtmltopdf started from a unit test made no progress in the first Stage 09 run, and an `HttpCase` makes Odoo build every asset bundle first. Real PDFs are therefore produced and read back on the running server.
+
+Browser and server check `scripts/tb_preview_smoke_check.py` (headless Chrome, `azk_ee24`, demo company): the wizard, the Preview, Draft Entries, the search, the hierarchy with folding, the PDF and XLSX buttons, a short and a multipage PDF rendered to PNG for visual inspection, the empty state, the download route with tampered options and without a session, and the eight option sets through the real route (PDF text with PyMuPDF, XLSX cells with openpyxl, both against the engine).
+
+Status of the checks of 4.2 after Stage 09 (results in [test_results.md](test_results.md)):
+
+- **PASS:** TP-TB-01 to TP-TB-17, with TP-TB-11 now covering the exports and the download route.
+- **NOT RUN:** the analytic dropdown in the browser (Analytic Accounting is off on `azk_ee24`); custom fiscal years and branch companies (Stage 10, D-60).
+
 ## 5. Acceptance (Stage 11) and general checks
 
 | ID | Check | Expected result | Requirements |
@@ -390,6 +408,14 @@ scripts/dev.sh test azk_dynamic_trial_balance
 scripts/dev.sh test azk_dynamic_trial_balance /azk_dynamic_trial_balance:TestNativeParity
 scripts/dev.sh test account_reports /account_reports:TestTrialBalanceReport   # vendor regression check
 scripts/dev.sh clean-install                                                   # acceptance install
+scripts/dev.sh shell azk_ee24 < scripts/tb_demo_data_counts.py                 # demo record counts (read-only)
+python scripts/tb_preview_smoke_check.py OUTPUT_DIR    # Stage 09 browser and download check (PM_UI_LOGIN, PM_UI_PASSWORD)
+```
+
+One Stage 09 class can be run alone, for example:
+
+```text
+scripts/dev.sh test azk_dynamic_trial_balance /azk_dynamic_trial_balance:TestReportOutputs
 ```
 
 Test class names are provisional; Stage 03 onward records the real ones (section 3.1). One Stage 03 test can be run alone, for example:

@@ -235,6 +235,7 @@ The only deliberate differences from the native report are the assessment's addi
 - **PDF:** the native `export_to_pdf`, which needs a real wkhtmltopdf. The native header shows the company name and address, but the period appears only as the column header (for example "Jan 2026"). So a small header template, supplied through the handler's `pdf_export` display hook, adds an explicit "From F to T" line and the selected filters (T-17).
 - **XLSX:** the native `export_to_xlsx`. Stage 09 checks numeric cells, indentation by level and number formats against the specification, and adds a writer hook only for a verified gap.
 - **Fallback:** if a native exporter cannot meet a requirement, a custom QWeb `ir.actions.report` or a custom xlsxwriter writer consumes the same engine result.
+- **As built (Stage 09):** see 4.11. The standard exporters are used; the XLSX sheet of this report is written by our own writer from the same lines (D-56), and no custom `ir.actions.report` was needed.
 
 ### 4.8 Evidence: native Trial Balance on the matched pair (probe, 2026-11-05)
 
@@ -309,6 +310,34 @@ The Stage 07 base fixture expects Bank 1,000 / +500 / -300 = 1,200 (posted) and 
 - **Hierarchy:** built in Python from `account.account.group_id` and `account.group.parent_id`, so it can apply the level limit, list "(No Group)" and keep currencies apart. The display order, levels and group sums match the standard hierarchy on TB-H.
 - **Wizard:** `TrialBalanceWizard._compute_report()` returns the engine result for the wizard's options, with the caller's access. The Preview, PDF and XLSX buttons still only validate (D-47); Stage 09 builds the handler and report record that render the result (D-53).
 - **Not used from `account_reports` yet:** the report framework itself. The engine reuses the ORM and the same model helpers as the standard report; parity is tested, not inherited (architecture 4.1).
+
+### 4.11 As built in Stage 09 (2026-11-15): Preview, PDF and XLSX
+
+- **One path for every output (K-01).** The report record `dynamic_trial_balance_report` (`data/trial_balance_report.xml`) names our custom handler `azk_dynamic_trial_balance.report.handler` (`models/trial_balance_report_handler.py`). The standard report UI, `export_to_pdf` and `export_to_xlsx` all get their lines from `account.report._get_lines(options)`. That method calls the handler's `_dynamic_lines_generator`, which calls `engine.compute()` once per request. No output computes an amount itself, so the outputs cannot drift apart.
+- **Options on every request.** The handler's `_custom_options_initializer` runs on the first opening, after every filter change and for each export:
+  - it rebuilds the engine options from `options['azk_tb']` plus the standard `date` and `all_entries` (Draft Entries) keys;
+  - it validates them with `normalize_options`, so options sent back by the browser (preview reloads, the `/account_reports` download route) pass the same checks as the wizard;
+  - it sets `options['companies']` to the report company only (D-45), which the download route also uses for the active companies;
+  - it lays out the columns and stores the display texts (`azk_tb_display`) and the preview's journal and analytic choices (`azk_tb_choices`).
+- **Columns.** Three column groups (Initial Balance, the period, End Balance), each with Debit, Credit and Balance, plus an Amount Currency group (the period movement) when asked. The standard PDF header ignores the groups' width, so our header template replaces it (D-55).
+- **Lines.** Group, account, total and per-currency total lines from the engine rows. Line ids are hierarchical (`parent|child`), so the standard fold, unfold and search work. Every line is sent with its `unfolded` flag: folding hides children in the browser, and unfolding never needs a server call.
+- **Preview.** The wizard's Preview returns the standard `account_report` client action with the wizard's options (`ignore_session`, so stale session options are not reused). Our OWL component `TrialBalanceFilters` (`static/src/components/trial_balance/`) extends the standard filter bar through `_get_custom_display_config()['components']`. It adds a company badge, a "Trial Balance" menu (hierarchy, only parents and level, Skip Zero Balance, Show Amount Currency), account prefixes, journal and analytic account. Each change calls the standard `applyFilters`, which reloads the report from the server, so the engine recalculates. The standard date filter, Draft Entries, Unfold All and search bar stay. Messages: the engine's warnings, an empty result, and filters that make the report unbalanced. Group rows are bold, as in the PDF (`trial_balance.scss`).
+- **PDF.** The standard `export_to_pdf` (wkhtmltopdf; landscape because the report has more than five columns; the table header repeats on every page). Our three templates (`data/pdf_export_templates.xml`), plugged in through the `pdf_export` display hook:
+  - the company block shows the report company, not the company switcher's (D-55);
+  - the filters block lists every option as "label: value";
+  - the table header shows the column groups with their widths.
+- **XLSX.** For this report only, `account.report._inject_report_into_xlsx_sheet` writes our own sheet (`models/account_report.py`, D-56) from the same `_get_lines` output:
+  - the company, the period and every option above the table;
+  - merged group headers, then Code, Account, the column names and Currency;
+  - codes and names written as text, amounts with `write_number` and a number format;
+  - the currency code in its own column, frozen header rows and fixed widths.
+  The standard exporter creates the workbook with `strings_to_formulas` off, and its Filters sheet lists the same summary.
+- **Exports follow the preview (D-57).** In print mode, `_custom_line_postprocessor` applies the preview's search rule (a match, its ancestors and its descendants, the rule of the standard `isLineRelatedTo`), and the standard `_filter_out_folded_children` drops the children of folded groups.
+- **Freshness and isolation (D-58).** No result is stored. Every request recalculates as the requesting user, so a result cannot be reused by someone else. The download route needs a session (`auth='user'`) and checks the options again. A wizard is readable only by its creator, and each button reads it first.
+- **Demo data (D-59).** `models/demo_data.py` and `demo/trial_balance_demo.xml` create a dedicated Egyptian company in EGP when the module is installed with demo data, after every module is loaded (`_register_hook`). Odoo runs functions of demo files at install only, and the function checks the company's XML id, so upgrades never duplicate it. A database that got the module earlier receives it by calling the function once from an Odoo shell.
+- **Display options kept from the standard report.** The rounding unit changes the amounts shown in the preview and the PDF, and the PDF prints it; the XLSX keeps exact numbers (D-61). Analytic fields show only with Odoo's Analytic Accounting setting (D-62).
+- **Testing the PDF (D-63).** Unit tests replace wkhtmltopdf with a stub that keeps the HTML document `export_to_pdf` hands over, and compare it with the printed lines; real PDFs and the download route are checked on the running server.
+- **Not covered, for Stage 10:** custom fiscal years (`account.fiscal.year`) and branch companies (D-60).
 
 ## 5. Exercise 1: Odoo Partner Monitor
 

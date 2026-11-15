@@ -1,4 +1,4 @@
-"""Dynamic Trial Balance wizard smoke check in a real browser (Stage 07).
+"""Dynamic Trial Balance wizard smoke check in a real browser (Stage 07, updated in Stage 09).
 
 Uses the DevTools helpers of scripts/ui_smoke_check.py (headless Chrome or
 Edge on the machine that runs it) against the local web server. Credentials
@@ -9,13 +9,13 @@ Usage: python scripts/tb_wizard_smoke_check.py OUTPUT_DIR
 
 Steps, each reported as PASS or FAIL:
   1. log in, open the Accounting app, then Reporting > Dynamic Trial Balance
-     from the menu: the wizard opens in a dialog with the notice that the
-     outputs are not connected yet;
+     from the menu: the wizard opens in a dialog;
   2. the dialog shows the assessment's fields; Hierarchy Only Parents
      appears only after Hierarchy and Subtotals is ticked, and Account Level
      Up To only after Hierarchy Only Parents is ticked;
   3. a typed account prefix becomes a tag;
-  4. Preview shows the "not available yet" message;
+  4. Preview opens the Dynamic Trial Balance report (Stage 09; the full
+     preview and download check is scripts/tb_preview_smoke_check.py);
   5. no JavaScript error.
 """
 
@@ -107,8 +107,6 @@ def main():
         report("the menu opens the wizard in a dialog",
                facts["open"] and facts["title"] == "Dynamic Trial Balance",
                f"menu item {menu_text!r}, dialog title {facts['title']!r}")
-        report("the dialog says the outputs are not connected yet",
-               "not connected yet" in facts["notice"], facts["notice"][:120])
 
         # 2. Fields, and the options that depend on other options.
         missing = [label for label in EXPECTED_LABELS if label not in facts["labels"]]
@@ -137,14 +135,14 @@ def main():
         report("a typed prefix becomes a tag", facts["tags"] == ["10"], f"tags {facts['tags']}")
         page.screenshot(os.path.join(output, "stage07_wizard.png"))
 
-        # 4. Preview: the options are valid, the output is not built yet.
+        # 4. Preview opens the report (Stage 09).
         page.js("document.querySelector('.modal-footer button[name=action_preview]').click()")
-        page.wait("[...document.querySelectorAll('.modal .modal-body')]"
-                  ".some((n) => n.innerText.includes('not available yet'))", timeout=60)
-        message = page.js("[...document.querySelectorAll('.modal .modal-body')]"
-                          ".map((n) => n.innerText.trim()).find((t) => t.includes('not available yet'))")
-        report("Preview says the output is not available yet", "options are valid" in message, message[:160])
-        page.screenshot(os.path.join(output, "stage07_wizard_preview_message.png"))
+        report_view = ".o_action.account_report.azk_dynamic_trial_balance"
+        page.wait(f"document.querySelector('{report_view} tr[data-id=line]') !== null", timeout=120)
+        title = page.js("(document.querySelector('.o_breadcrumb') || {}).innerText || ''")
+        report("Preview opens the Dynamic Trial Balance report", "Dynamic Trial Balance" in title,
+               f"breadcrumb {title.strip()!r}")
+        page.screenshot(os.path.join(output, "stage09_wizard_preview_report.png"))
 
         errors = [error for error in page.errors if error]
         report("no JavaScript error in the browser", not errors, "; ".join(errors)[:300])

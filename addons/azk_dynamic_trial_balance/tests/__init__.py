@@ -5,3 +5,6 @@ from . import test_native_conventions
 from . import test_advanced_fixtures
 from . import test_engine_boundaries
 from . import test_engine_access
+from . import test_report_outputs
+from . import test_report_access
+from . import test_demo_data

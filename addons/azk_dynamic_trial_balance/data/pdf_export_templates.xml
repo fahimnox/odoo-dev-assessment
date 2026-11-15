@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Parts of the standard PDF export (account_reports.pdf_export_main) that
+        the Dynamic Trial Balance replaces through its handler's display
+        configuration. The standard template keeps the page layout, the table
+        body and the cells.
+    -->
+
+    <!-- The report company, not the company that happens to be current in the switcher. -->
+    <template id="pdf_company_information">
+        <t t-set="tb_company" t-value="env['res.company'].browse(options['azk_tb_display']['company_id'])"/>
+        <div class="row">
+            <div class="col-10" t-out="tb_company.name"/>
+        </div>
+        <address class="mb-0 o_text_muted" t-field="tb_company.partner_id"
+                 t-options='{"widget": "contact", "fields": ["address"], "no_marker": True}'/>
+    </template>
+
+    <!--
+        The period and every option, so the printed report states what it shows.
+        The standard rounding unit (for example "In K") changes the printed
+        amounts, so it is printed too, as the standard template does. It does
+        not change the XLSX, which keeps the exact numbers.
+    -->
+    <template id="pdf_export_filters">
+        <t t-foreach="options['azk_tb_display']['summary']" t-as="item">
+            <div class="o_azk_tb_filter">
+                <span class="fw-bold" t-out="item[0]"/>:
+                <span t-out="item[1]"/>
+            </div>
+        </t>
+        <t t-set="rounding_names" t-value="{key: value[1] for key, value in options['rounding_unit_names'].items() if value[1]}"/>
+        <div class="o_azk_tb_filter fw-bold" t-if="options.get('rounding_unit') in rounding_names"
+             t-out="rounding_names[options['rounding_unit']]"/>
+    </template>
+
+    <!--
+        Column headers with their own widths: three columns under Initial
+        Balance, the period and End Balance, and one under Amount Currency.
+        A table header repeats on every printed page.
+    -->
+    <template id="pdf_export_main_table_header">
+        <thead id="table_header">
+            <tr>
+                <th/>
+                <t t-foreach="options['column_headers'][0]" t-as="header">
+                    <th t-att-colspan="header.get('colspan', 1)" class="o_overflow_name">
+                        <t t-out="header.get('name')"/>
+                    </th>
+                </t>
+            </tr>
+            <tr>
+                <th/>
+                <t t-foreach="options['columns']" t-as="column">
+                    <th><t t-out="column.get('name')"/></th>
+                </t>
+            </tr>
+        </thead>
+    </template>
+</odoo>

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates>
+    <!-- The standard filter bar, plus the Dynamic Trial Balance options before the standard "Options" dropdown. -->
+    <t t-name="azk_dynamic_trial_balance.TrialBalanceFilters" t-inherit="account_reports.AccountReportFiltersCustomizable">
+        <xpath expr="//div[@id='filter_extra_options']" position="before">
+            <div id="filter_azk_tb_company">
+                <span class="btn btn-secondary disabled o_azk_tb_company" title="Report company">
+                    <i class="fa fa-building me-1"/>
+                    <t t-out="controller.options.azk_tb_display.company_name"/>
+                </span>
+            </div>
+
+            <div id="filter_azk_tb_structure">
+                <Dropdown>
+                    <button class="btn btn-secondary o_azk_tb_structure_toggle">
+                        <i class="fa fa-sitemap me-1"/>Trial Balance
+                    </button>
+                    <t t-set-slot="content">
+                        <DropdownItem
+                            class="{ 'o_azk_tb_hierarchy': true, 'selected': tbOptions.hierarchy_subtotals }"
+                            onSelected="() => this.toggleTb('hierarchy_subtotals')"
+                            closingMode="'none'"
+                        >
+                            Hierarchy and Subtotals
+                        </DropdownItem>
+                        <t t-if="tbOptions.hierarchy_subtotals">
+                            <DropdownItem
+                                class="{ 'o_azk_tb_only_parents': true, 'selected': tbOptions.hierarchy_only_parents }"
+                                onSelected="() => this.toggleTb('hierarchy_only_parents')"
+                                closingMode="'none'"
+                            >
+                                Hierarchy Only Parents
+                            </DropdownItem>
+                        </t>
+                        <t t-if="tbOptions.hierarchy_only_parents">
+                            <t t-foreach="[1, 2, 3, 4, 5]" t-as="level" t-key="level">
+                                <DropdownItem
+                                    class="{ 'o_azk_tb_level': true, 'selected': tbOptions.account_level === level }"
+                                    onSelected="() => this.setTbOptions({ account_level: level })"
+                                    closingMode="'none'"
+                                >
+                                    <span class="ms-3">Account Level Up To <t t-out="level"/></span>
+                                </DropdownItem>
+                            </t>
+                        </t>
+                        <div class="dropdown-divider"/>
+                        <DropdownItem
+                            class="{ 'o_azk_tb_skip_zero': true, 'selected': tbOptions.skip_zero_balance }"
+                            onSelected="() => this.toggleTb('skip_zero_balance')"
+                            closingMode="'none'"
+                        >
+                            Skip Zero Balance
+                        </DropdownItem>
+                        <t t-if="!tbOptions.hierarchy_only_parents">
+                            <DropdownItem
+                                class="{ 'o_azk_tb_amount_currency': true, 'selected': tbOptions.show_amount_currency }"
+                                onSelected="() => this.toggleTb('show_amount_currency')"
+                                closingMode="'none'"
+                            >
+                                Show Amount Currency
+                            </DropdownItem>
+                        </t>
+                    </t>
+                </Dropdown>
+            </div>
+
+            <div id="filter_azk_tb_accounts">
+                <Dropdown>
+                    <button class="btn btn-secondary o_azk_tb_accounts_toggle">
+                        <i class="fa fa-list-ol me-1"/>Accounts:
+                        <t t-if="tbPrefixesText" t-out="tbPrefixesText"/>
+                        <t t-else="">All</t>
+                    </button>
+                    <t t-set-slot="content">
+                        <div class="dropdown-item">
+                            <input
+                                type="text"
+                                class="o_input o_azk_tb_prefixes"
+                                placeholder="Code prefixes, for example 10, 4"
+                                t-att-value="tbPrefixesText"
+                                t-on-change="(ev) => this.setPrefixes(ev)"
+                            />
+                        </div>
+                    </t>
+                </Dropdown>
+            </div>
+
+            <div id="filter_azk_tb_journal">
+                <Dropdown>
+                    <button class="btn btn-secondary o_azk_tb_journal_toggle">
+                        <i class="fa fa-book me-1"/><t t-out="tbJournalName"/>
+                    </button>
+                    <t t-set-slot="content">
+                        <DropdownItem
+                            class="{ 'selected': !tbOptions.journal_id }"
+                            onSelected="() => this.setTbOptions({ journal_id: null })"
+                        >
+                            All journals
+                        </DropdownItem>
+                        <t t-foreach="tbChoices.journals" t-as="journal" t-key="journal.id">
+                            <DropdownItem
+                                class="{ 'selected': tbOptions.journal_id === journal.id }"
+                                onSelected="() => this.setTbOptions({ journal_id: journal.id })"
+                            >
+                                <t t-out="journal.name"/>
+                            </DropdownItem>
+                        </t>
+                    </t>
+                </Dropdown>
+            </div>
+
+            <div id="filter_azk_tb_analytic" t-if="controller.groups.analytic_accounting">
+                <Dropdown>
+                    <button class="btn btn-secondary o_azk_tb_analytic_toggle">
+                        <i class="fa fa-folder-open me-1"/><t t-out="tbAnalyticName"/>
+                    </button>
+                    <t t-set-slot="content">
+                        <DropdownItem
+                            class="{ 'selected': !tbOptions.analytic_account_id }"
+                            onSelected="() => this.setTbOptions({ analytic_account_id: null })"
+                        >
+                            All analytic accounts
+                        </DropdownItem>
+                        <t t-foreach="tbChoices.analytic_accounts" t-as="account" t-key="account.id">
+                            <DropdownItem
+                                class="{ 'selected': tbOptions.analytic_account_id === account.id }"
+                                onSelected="() => this.setTbOptions({ analytic_account_id: account.id })"
+                            >
+                                <t t-out="account.name"/>
+                            </DropdownItem>
+                        </t>
+                    </t>
+                </Dropdown>
+            </div>
+        </xpath>
+    </t>
+
+    <!-- Alerts above the report (handler: _add_warnings). -->
+    <t t-name="azk_dynamic_trial_balance.tb_warning_no_lines">
+        No journal items match these options. Change the period, Draft Entries or the filters.
+    </t>
+    <t t-name="azk_dynamic_trial_balance.tb_warning_filtered">
+        Account, journal or analytic filters are active, so the debits and credits of this report need not balance.
+    </t>
+    <t t-name="azk_dynamic_trial_balance.tb_warning_no_earnings_account">
+        <t t-out="warningParams.message"/>
+    </t>
+    <t t-name="azk_dynamic_trial_balance.tb_warning_no_account_groups">
+        <t t-out="warningParams.message"/>
+    </t>
+</templates>

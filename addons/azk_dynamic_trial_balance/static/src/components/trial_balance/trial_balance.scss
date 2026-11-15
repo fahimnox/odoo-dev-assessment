@@ -1,0 +1,12 @@
+// Parent rows (account groups) and per-currency totals of the Dynamic Trial
+// Balance preview. The standard report styles account rows and the total, and
+// makes unfolded rows bold; group rows stay bold when folded too.
+.azk_dynamic_trial_balance {
+    tr.o_azk_tb_group > td {
+        font-weight: bold;
+    }
+
+    tr.o_azk_tb_currency_total > td {
+        font-style: italic;
+    }
+}

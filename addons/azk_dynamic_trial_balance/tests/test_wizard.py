@@ -1,3 +1,5 @@
+import json
+
 from odoo import Command, fields
 from odoo.addons.azk_dynamic_trial_balance.models.report_options import normalize_options
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -311,22 +313,38 @@ class TestTrialBalanceWizard(TrialBalanceCase):
     # ------------------------------------------------------------------
     # Entry points and menu
     # ------------------------------------------------------------------
-    def test_output_buttons_validate_then_say_not_available(self):
-        wizard = self._wizard().with_user(self.reader).with_context(
-            allowed_company_ids=self.company.ids)
-        for method in ("action_preview", "action_export_pdf", "action_export_xlsx"):
+    def test_output_buttons_open_the_report_with_the_wizard_options(self):
+        # Stage 09: the buttons are connected (they validated, then said "not
+        # available yet", until Stage 08).
+        wizard = self._wizard(include_unposted=True, skip_zero_balance=True).with_user(
+            self.reader).with_context(allowed_company_ids=self.company.ids)
+        report = self.env.ref("azk_dynamic_trial_balance.dynamic_trial_balance_report")
+        preview = wizard.action_preview()
+        self.assertEqual((preview["type"], preview["tag"]), ("ir.actions.client", "account_report"))
+        self.assertEqual(preview["context"]["report_id"], report.id)
+        options = preview["params"]["options"]
+        self.assertTrue(preview["params"]["ignore_session"])
+        self.assertEqual(options["date"]["date_from"], "2026-01-01")
+        self.assertTrue(options["all_entries"])
+        self.assertEqual(options["azk_tb"]["company_id"], self.company.id)
+        self.assertTrue(options["azk_tb"]["skip_zero_balance"])
+        for method, generator in (("action_export_pdf", "export_to_pdf"),
+                                  ("action_export_xlsx", "export_to_xlsx")):
             with self.subTest(button=method):
-                with self.assertRaises(UserError) as caught:
-                    getattr(wizard, method)()
-                self.assertNotIsInstance(caught.exception, (ValidationError, AccessError))
-                self.assertIn("not available yet", str(caught.exception))
-        # Invalid options are reported as such, before the "not available" message.
+                action = getattr(wizard, method)()
+                self.assertEqual(action["type"], "ir_actions_account_report_download")
+                self.assertEqual(action["data"]["file_generator"], generator)
+                sent = json.loads(action["data"]["options"])
+                self.assertEqual(sent["report_id"], report.id)
+                self.assertEqual(sent["azk_tb"]["company_id"], self.company.id)
+        # Invalid options are refused before any action is returned.
         both = self.company + self.company_2
         wizard_2 = self._wizard(user=self.two_company_reader, companies=both,
                                 company_id=self.company_2.id)
-        with self.assertRaises(ValidationError):
-            wizard_2.with_user(self.two_company_reader).with_context(
-                allowed_company_ids=self.company.ids).action_preview()
+        for method in ("action_preview", "action_export_pdf", "action_export_xlsx"):
+            with self.subTest(refused=method), self.assertRaises(ValidationError):
+                getattr(wizard_2.with_user(self.two_company_reader).with_context(
+                    allowed_company_ids=self.company.ids), method)()
 
     def test_menu_opens_the_wizard_next_to_the_standard_trial_balance(self):
         menu = self.env.ref("azk_dynamic_trial_balance.menu_dynamic_trial_balance")

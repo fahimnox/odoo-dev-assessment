@@ -2,6 +2,107 @@
 
 Exact commands and results, newest stage first. Every result is PASS, FAIL, BLOCKED or NOT RUN. The commands run from `solution/` in Git Bash on the target edition `enterprise-20241208`: service `odoo-ee-20241208`, port 8071, the matched pair of [enterprise_transition.md](enterprise_transition.md). Full command logs are private, in `<kit-root>/runtime/logs/`. Earlier stages record their results in [STATE.md](STATE.md) and their handoffs.
 
+## Stage 09 (2026-11-15): Trial Balance outputs (Preview, PDF, XLSX)
+
+Code: `azk_dynamic_trial_balance` 18.0.1.3.0 on top of Stage 08 commit `845accb`. Memory was tight on the host during this stage (other applications used most of the 15.9 GB). Free RAM was therefore sampled with free space on C:, and the browser checks ran under a guard that would stop them below 500 MB of commit headroom (it never triggered).
+
+### Automated tests
+
+```text
+scripts/dev.sh test azk_dynamic_trial_balance
+```
+
+| Run | Code | Result line | Warnings | Exit, time | C: free, RAM free |
+|---|---|---|---|---|---|
+| 1 | first Stage 09 code: an `HttpCase` class and real wkhtmltopdf in unit tests | none: stopped | 1 | none | 48 GB |
+| 2 | wkhtmltopdf replaced by a capturing stub, no `HttpCase`, demo creation after loading | "0 failed, 0 error(s) of 101 tests" | 0 | 0, 419 s | 48.4 GB; 2.0 to 2.7 GB |
+| 3 | plus the demo company's country | none: stopped by the agent while installing modules, superseded by run 4 | - | 130, 176 s | 48.0 GB |
+| 4 | final code: plus bold group rows, the rounding unit in the PDF, a regression test | "0 failed, 0 error(s) of 102 tests" | 0 | 0, 438 s | 48.0 GB; 0.9 to 1.7 GB |
+
+**Result: PASS** (run 4, final code; 102 post-tests in 189.30 s). The 102 tests are the 85 of Stage 08 and 17 new. The documentation and the browser scripts changed after run 4; the module did not.
+
+- **Run 1 details** (log notes kept privately):
+  - The demo data logged "Incorrect usage of try_loading without a fully loaded registry". Fixed: the creation now waits for `_register_hook`, as the `account` module does for its own first chart.
+  - The `HttpCase` class made Odoo build every asset bundle before the post-install tests (about 13 minutes).
+  - The first real PDF render in a unit test then made no progress (a `wkhtmltopdf` process with no CPU use for over 1 min 44 s).
+  - At about 08:41 UTC the CLI stopped the background command because the machine was critically low on memory (1.0 GB of RAM free). The test container kept running, stuck; the agent stopped it with `docker stop`.
+  - Up to that point the Stage 07 and 08 classes and `TestDemoData` had run without a failure, but the run has no summary, so it counts as neither PASS nor FAIL.
+- **Fixes, following Odoo's own `account_reports` tests:**
+  - unit tests replace `_run_wkhtmltopdf` with a stub that keeps the HTML documents, and the tests read those (they are exactly what the PDF prints);
+  - the download route and real PDFs are checked on the running server instead (below).
+
+New tests by area:
+
+1. **The three outputs against the engine** (`test_report_outputs.py`, `TestReportOutputs`, 11 tests, on the installed demo company):
+   - for eight option sets (posted only, drafts, hierarchy, parents only, amount currency, analytic, zero filtering, empty result), the preview lines equal the engine rows, the XLSX cells equal the printed lines, and every PDF row prints exactly the name and the formatted cells of one printed line (`test_outputs_follow_the_engine_for_each_option_set`);
+   - Bank 1,200 posted only and 1,000 with drafts in all three outputs (`test_bank_in_all_three_outputs`);
+   - per-currency rows and totals, USD 60 and EUR 50, never 110 (`test_amount_currency_rows_and_totals`);
+   - the PDF's company, period, options, column titles and "[Draft]" (`test_pdf_states_company_period_options_and_columns`), its table header in `thead` with the group widths (`test_pdf_table_header_repeats_on_every_page`), and the rounding unit (`test_rounding_unit_is_printed_and_xlsx_keeps_exact_numbers`);
+   - the XLSX metadata, number formats, frozen header and the absence of formulas (`test_xlsx_cells_metadata_and_frozen_header`);
+   - exports follow the preview's search and folded groups;
+   - the preview's columns, filter component and messages, and the wizard's options round trip.
+2. **Access and tampering** (`test_report_access.py`, `TestReportAccess`, 3 tests, on TB-BASE):
+   - an accounting reader previews and exports;
+   - employees and billing users get AccessError;
+   - tampered options are refused on the preview and both exports: another company's journal, an unknown key, a wrongly typed value, a non-code prefix, a non-dictionary, another report, and an unauthorized company, also through the company list that the download route turns into the active companies;
+   - no tampered export reached the PDF converter.
+3. **Demo data** (`test_demo_data.py`, `TestDemoData`, 3 tests): the demo company is Egyptian, in EGP, with the generic chart; it has 13 posted, 2 draft and 1 cancelled entries, EGP, USD and EUR items, analytic distributions and groups 1 > 10 > 101 > 1014 > 10140 above Bank; the engine gives Bank 1,200 and 1,000; a second call of the demo function creates nothing.
+4. **Changed:** `test_wizard.py` (the buttons return the report and download actions with the wizard's options) and `test_engine_access.py` (another user's wizard cannot be previewed or exported).
+
+### Demo data and upgrades
+
+Counts from `scripts/dev.sh shell DB < scripts/tb_demo_data_counts.py` (read-only, rolled back). Every count below was the same each time: demo company id 2, EGP; 16 demo entries (13 posted, 2 draft, 1 cancelled); 32 journal items; 10 account groups; 2 analytic plans; 3 analytic accounts; 2 currency rates; 7 journals.
+
+- **A finding first:** the first `scripts/dev.sh update azk_dynamic_trial_balance` on `azk_ee24` (exit 0, 71 s, 0 warnings) did not create the demo company. Odoo loads demo files as noupdate data, and `<function>` tags of noupdate files run only when a module is installed (pinned source: `load_data` in `odoo/modules/loading.py`, `_tag_function` in `odoo/tools/convert.py`). `azk_ee24` had the module since Stage 07. The comments that claimed otherwise were corrected.
+- **Install, then upgrade** (`azk_ee24_test`, freshly installed by the final test run): counts after the install; `scripts/dev.sh update azk_dynamic_trial_balance azk_ee24_test` exit 0, 62 s, 0 warnings; the same counts. Country EG, fiscal country US. The same check on run 2's install gave the same counts too (upgrade exit 0, 68 s).
+- **`azk_ee24`:**
+  - the demo function was called once from an Odoo shell, as install would have done (`_create_demo_data()` returned True; 0 warnings);
+  - the company's country was then set to Egypt, the value a fresh install now gives;
+  - three upgrades (exit 0 in 70, 71 and 65 s, 0 warnings each) left every count unchanged.
+
+**Result: PASS:** no upgrade duplicated a demo record.
+
+### Browser and server checks on `azk_ee24` (headless Chrome)
+
+```text
+PM_UI_LOGIN=... PM_UI_PASSWORD=... python scripts/tb_preview_smoke_check.py OUTPUT_DIR
+PM_UI_LOGIN=... PM_UI_PASSWORD=... python scripts/tb_wizard_smoke_check.py OUTPUT_DIR
+```
+
+(Run with a private virtual environment that has websocket-client, openpyxl and PyMuPDF, outside the repository.)
+
+- **`tb_preview_smoke_check.py`:**
+  - Run 1: 19 of 20. The FAIL was the check itself: it expected a refused download to answer with an error status, but the standard route answers HTTP 200 with a JSON error body. The check now reads the error.
+  - Run 2: 20 of 20.
+  - Run 3, on the final code: **20 of 20, PASS**:
+    - Preview: Bank cells 1,000.00 / 0.00 / 1,000.00 / 500.00 / 300.00 / 200.00 / 1,200.00 / 0.00 / 1,200.00;
+    - Draft Entries: Bank ends at 1,000.00;
+    - search "bank": only "101401 Bank" visible;
+    - hierarchy: 11 group rows, and folding 10140 hides Bank;
+    - downloads: PDF and "Download Excel" (gear menu); the XLSX equals the engine (19 rows with Total), numeric, formatted, frozen at C17;
+    - a 1-page PDF, and a 3-page PDF with the header printed 3 times;
+    - empty state: "No journal items match these options. ...";
+    - the route refused a tampered prefix with `odoo.exceptions.ValidationError` and gave only the login page without a session;
+    - all eight option sets through the real route: the XLSX equals the engine and every row is in the real PDF text (for example posted only 49 leaf rows, 2 pages; hierarchy 61 XLSX rows, 3 pages; empty result 1 XLSX row);
+    - no JavaScript error.
+    Lowest commit headroom: 1.43 GB.
+- **`tb_wizard_smoke_check.py`, updated for Stage 09** (no more "not connected yet" notice; Preview opens the report), on the final code: **7 of 7, PASS**.
+- **A style probe** (scratch script, not committed) found the group rows at weight 600: our stylesheet overrode the standard bold. Fixed, then seen bold in run 3.
+- **Visual inspection** of the real PDFs rendered to PNG (the 1-page, the 3-page and the amount-currency PDF):
+  - landscape A4, readable, no clipping;
+  - the company block with the report company (Egypt), the options block, the column groups, bold groups, muted zeros, balanced totals, "page / pages" in the footer;
+  - the column header on every page;
+  - two rows on pages 2 and 3 of the 3-page PDF have slightly taller gaps (no extra rows: the unit tests show one PDF row per printed line).
+  - Before the country fix, the address showed "United States" (the generic chart's fiscal country).
+- Samples: [samples/](samples/); screenshots and PDF renders: [screenshots/](screenshots/) (`stage09_*.png`).
+
+### NOT RUN
+
+- The analytic dropdown in the browser. Analytic fields need Odoo's Analytic Accounting setting, which is off on `azk_ee24`, so the dropdown is hidden there. The analytic option set passed in the unit tests and through the real route.
+- A real wkhtmltopdf in unit tests: replaced by the stub by design (above).
+- Custom fiscal years and branch companies: Stage 10 (D-60).
+- A browser check by the user.
+
 ## Stage 08 (2026-11-15): Trial Balance calculation engine
 
 Code: `azk_dynamic_trial_balance` 18.0.1.2.0 on top of Stage 07 commit `cabfb75`.

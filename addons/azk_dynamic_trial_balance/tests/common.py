@@ -18,8 +18,58 @@ debit/credit are gross totals; a balance is debit minus credit.
 """
 import copy
 
+from lxml import html as lxml_html
+
 from odoo import Command
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+
+# ---------------------------------------------------------------------------
+# PDF exports in unit tests (Stage 09)
+# ---------------------------------------------------------------------------
+STUB_PDF = b"%PDF-1.4 unit-test stub: wkhtmltopdf is not started in unit tests"
+
+
+def capture_wkhtmltopdf(case):
+    """Replace wkhtmltopdf for one test and collect the HTML documents it would print.
+
+    Unit tests never start the real binary. Odoo's own account_reports tests
+    replace ``_run_wkhtmltopdf`` as well: the binary fetches the report's
+    style sheets over HTTP from the server, and in our first Stage 09 run a
+    real wkhtmltopdf started from a unit test made no progress for minutes.
+    The captured documents are exactly what the PDF prints, because
+    ``export_to_pdf`` builds them before calling the binary. Real PDFs are
+    rendered and read back on the running server
+    (scripts/tb_preview_smoke_check.py).
+    """
+    calls = []
+
+    def run_wkhtmltopdf(report, bodies, report_ref=False, header=None, footer=None, landscape=False,
+                        specific_paperformat_args=None, set_viewport_size=False):
+        calls.append({
+            "bodies": [body.decode() if isinstance(body, bytes) else str(body) for body in bodies],
+            "landscape": landscape,
+        })
+        return STUB_PDF
+
+    case.patch(type(case.env["ir.actions.report"]), "_run_wkhtmltopdf", run_wkhtmltopdf)
+    return calls
+
+
+def html_text(document):
+    """The visible text of an HTML document, with whitespace collapsed."""
+    return " ".join(lxml_html.fromstring(document).text_content().split())
+
+
+def pdf_rows(document):
+    """(name, cell texts) of every body row of the PDF table, in order."""
+    def text(node):
+        return " ".join(node.text_content().split())
+
+    rows = []
+    for tr in lxml_html.fromstring(document).xpath("//tr[@name='pdf_export_main_table_body_lines_tr']"):
+        name = tr.xpath("./td[contains(@class, 'o_line_name_level')]")[0]
+        rows.append((text(name), [text(td) for td in tr.xpath("./td[contains(@class, 'o_cell_td')]")]))
+    return rows
 
 # ---------------------------------------------------------------------------
 # TB-BASE: the Stage 07 base fixture. Report period 2026-01-01 to 2026-01-31.

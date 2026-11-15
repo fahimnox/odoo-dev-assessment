@@ -1,5 +1,5 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import ValidationError
 from odoo.tools import date_utils
 
 from .report_options import ACCOUNT_LEVELS, check_combination, check_company, normalize_options
@@ -214,27 +214,56 @@ class TrialBalanceWizard(models.TransientModel):
 
         The engine validates the options again with the caller's access and
         computes as the caller, so the result never holds journal items the
-        user may not read. The outputs of Stage 09 render this result.
+        user may not read.
         """
         self.ensure_one()
         return self.env["azk_dynamic_trial_balance.engine"].compute(self._get_report_options())
 
-    def _output_not_available(self, output):
-        # Entry point only: the options are validated, and the calculation
-        # exists (_compute_report), but the outputs (Stage 09) are not built
-        # yet. Saying so is better than a button that seems to work.
-        self._get_report_options()
-        raise UserError(_(
-            "%(output)s is not available yet. Your options are valid, but the "
-            "report outputs are still being built.",
-            output=output,
-        ))
+    def _get_report(self):
+        return self.env.ref("azk_dynamic_trial_balance.dynamic_trial_balance_report")
+
+    def _get_preview_options(self):
+        """The wizard's choices in the form the report framework expects.
+
+        Date From and Date To become the standard date filter, Include
+        Unposted Entries the standard Draft Entries option, and the other
+        choices travel as ``azk_tb``. Groups start unfolded.
+        """
+        options = self._get_report_options()
+        return {
+            "date": {"date_from": options["date_from"], "date_to": options["date_to"],
+                     "mode": "range", "filter": "custom"},
+            "all_entries": options["include_unposted"],
+            "unfold_all": True,
+            "azk_tb": {key: value for key, value in options.items()
+                       if key not in ("date_from", "date_to", "include_unposted")},
+        }
 
     def action_preview(self):
-        return self._output_not_available(_("The Preview"))
+        """Open the report in the standard report UI with these options.
+
+        ``ignore_session`` makes the UI use these options rather than the
+        ones it remembered from an earlier visit.
+        """
+        report = self._get_report()
+        return {
+            "type": "ir.actions.client",
+            "name": report.name,
+            "tag": "account_report",
+            "params": {"options": self._get_preview_options(), "ignore_session": True},
+            "context": {"report_id": report.id},
+        }
+
+    def _export(self, file_generator):
+        # The full report options are built (and validated) now; the
+        # download route rebuilds and validates them again before writing
+        # the file, as the requesting user.
+        report = self._get_report()
+        options = report.get_options(self._get_preview_options())
+        return report.export_file(options, file_generator)
 
     def action_export_pdf(self):
-        return self._output_not_available(_("The PDF export"))
+        return self._export("export_to_pdf")
 
     def action_export_xlsx(self):
-        return self._output_not_available(_("The XLSX export"))
+        return self._export("export_to_xlsx")

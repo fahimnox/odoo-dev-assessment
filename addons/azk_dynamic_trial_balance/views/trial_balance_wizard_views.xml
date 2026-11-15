@@ -5,10 +5,6 @@
         <field name="model">azk_dynamic_trial_balance.wizard</field>
         <field name="arch" type="xml">
             <form string="Dynamic Trial Balance">
-                <div class="alert alert-warning mb-3" role="alert">
-                    The Preview, PDF and XLSX outputs are not connected yet.
-                    Their buttons check your options and then say so.
-                </div>
                 <group>
                     <group string="Period">
                         <field name="date_from"/>

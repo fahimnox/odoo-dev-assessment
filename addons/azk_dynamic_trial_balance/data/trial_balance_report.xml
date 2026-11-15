@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        The report record that hosts our calculation in the standard report
+        framework (account_reports). Its lines come from the custom handler,
+        which asks the engine; the standard UI, PDF and XLSX exports render
+        them. The standard filters that would contradict our options are off:
+        journals and analytic accounts (ours are single choices), the
+        account-group hierarchy (ours adds levels and Only Parents) and
+        "hide lines at 0" (ours is Skip Zero Balance).
+    -->
+    <record id="dynamic_trial_balance_report" model="account.report">
+        <field name="name">Dynamic Trial Balance</field>
+        <field name="custom_handler_model_id" ref="model_azk_dynamic_trial_balance_report_handler"/>
+        <field name="default_opening_date_filter">this_month</field>
+        <field name="filter_multi_company">disabled</field>
+        <field name="filter_date_range" eval="True"/>
+        <field name="filter_show_draft" eval="True"/>
+        <field name="filter_unfold_all" eval="True"/>
+        <field name="search_bar" eval="True"/>
+        <field name="filter_hierarchy">never</field>
+        <field name="filter_hide_0_lines">never</field>
+        <field name="filter_journals" eval="False"/>
+        <field name="filter_analytic" eval="False"/>
+        <field name="filter_period_comparison" eval="False"/>
+        <field name="filter_growth_comparison" eval="False"/>
+        <field name="filter_unreconciled" eval="False"/>
+        <field name="filter_partner" eval="False"/>
+        <field name="filter_fiscal_position" eval="False"/>
+        <field name="filter_account_type">disabled</field>
+        <field name="filter_aml_ir_filters" eval="False"/>
+        <field name="filter_budgets" eval="False"/>
+        <field name="column_ids">
+            <record id="dynamic_trial_balance_report_debit" model="account.report.column">
+                <field name="name">Debit</field>
+                <field name="expression_label">debit</field>
+                <field name="sequence">1</field>
+            </record>
+            <record id="dynamic_trial_balance_report_credit" model="account.report.column">
+                <field name="name">Credit</field>
+                <field name="expression_label">credit</field>
+                <field name="sequence">2</field>
+            </record>
+            <record id="dynamic_trial_balance_report_balance" model="account.report.column">
+                <field name="name">Balance</field>
+                <field name="expression_label">balance</field>
+                <field name="sequence">3</field>
+            </record>
+            <record id="dynamic_trial_balance_report_amount_currency" model="account.report.column">
+                <field name="name">Movement</field>
+                <field name="expression_label">amount_currency</field>
+                <field name="sequence">4</field>
+            </record>
+        </field>
+    </record>
+</odoo>

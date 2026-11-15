@@ -89,10 +89,10 @@ class TestEngineAccess(TrialBalanceCase):
         # Another user cannot run a report from someone else's wizard.
         with self.assertRaises(AccessError):
             wizard.with_user(self.other_reader)._compute_report()
-        # The output buttons are still entry points (Stage 09).
-        with self.assertRaises(Exception) as caught:
-            wizard.action_preview()
-        self.assertIn("not available yet", str(caught.exception))
+        # Nor open the preview or an export from it (Stage 09).
+        for method in ("action_preview", "action_export_pdf", "action_export_xlsx"):
+            with self.subTest(button=method), self.assertRaises(AccessError):
+                getattr(wizard.with_user(self.other_reader), method)()
 
     def test_query_count_does_not_grow_with_accounts(self):
         def queries(**options):

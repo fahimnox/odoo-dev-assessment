@@ -1,9 +1,25 @@
 # Project state
 
-_Last updated: 2026-11-15, end of Stage 08. Stage 04 is still PARTIAL._
+_Last updated: 2026-11-15, end of Stage 09. Stage 04 is still PARTIAL._
 
 ## Current position
 
+- **Stage 09: DONE (2026-11-15).** `azk_dynamic_trial_balance` 18.0.1.3.0, on top of the Stage 08 commit `845accb`.
+  - **Implemented:**
+    - the Preview, PDF and XLSX through the standard `account_reports` framework: our report record (`data/trial_balance_report.xml`) and custom handler (`models/trial_balance_report_handler.py`) feed the standard UI and exporters from one engine call per request (K-01, D-54);
+    - a filter bar component with the Trial Balance options, account prefixes, journal and analytic account (`static/src/components/trial_balance/`); every change recalculates; search, folding and messages;
+    - three PDF templates (report company, every option, column groups with a repeating header; D-55) and our own XLSX sheet for this report (numbers with a number format, text codes and names, currency column, options above the table, frozen header; D-56);
+    - exports follow the preview's search and folded groups (D-57); nothing is stored, every request recalculates as the user (D-58);
+    - the wizard's Preview, PDF and XLSX buttons connected (D-47 superseded);
+    - installable demo data: an Egyptian company in EGP with posted, draft, cancelled, USD, EUR and analytic entries and groups five levels deep, reproducing Bank 1,200 and 1,000 (D-59).
+    Design: [architecture.md](architecture.md) 4.11, [calculation_contract.md](calculation_contract.md) 16; decisions D-54 to D-63. Results: [test_results.md](test_results.md). Samples: [samples/](samples/). Handoff: [handoffs/stage_09_en.md](handoffs/stage_09_en.md).
+  - **Evidence (2026-11-15):**
+    - `scripts/dev.sh test azk_dynamic_trial_balance` on the final code: PASS, "0 failed, 0 error(s) of 102 tests" (85 earlier, 17 new), 0 warning lines, exit code 0, 438 s. Run 2 passed 101 of 101; run 1 was stopped (below); run 3 was superseded.
+    - Demo data and upgrades: a fresh install then an upgrade of `azk_ee24_test`, and three upgrades of `azk_ee24`, left every demo count unchanged (16 entries, 32 items, 10 groups, 2 plans, 3 analytic accounts, 2 rates). On `azk_ee24`, which had the module since Stage 07, the demo was created once by calling the demo function from an Odoo shell, because Odoo runs demo-file functions at install only.
+    - Headless Chrome on `azk_ee24` (`scripts/tb_preview_smoke_check.py`), final code: PASS, 20 of 20. It covers the real Preview, Draft Entries, search, folding, both downloads, a 1-page and a 3-page PDF, the empty state, the download route (tampered options refused, no file without a session) and the eight option sets through the real route against the engine. The updated wizard check: PASS, 7 of 7.
+    - The PDFs were rendered to PNG and inspected: landscape, readable, no clipping, the header on every page.
+  - **Run 1 stopped:** the CLI stopped the first test run's background command at about 08:41 UTC because the machine was critically low on memory (1.0 GB free). Its container was stuck in a real wkhtmltopdf render and was stopped with `docker stop`. Unit tests now replace wkhtmltopdf with a stub that keeps the HTML (as Odoo's own tests do), and the `HttpCase` class was removed (it made Odoo build every asset bundle, about 13 minutes). Real PDFs are checked on the running server (D-63).
+  - **Memory and disk:** RAM was tight all stage (other applications used most of it); free RAM was sampled during the runs (0.9 to 2.7 GB) and the browser checks ran under a guard (lowest commit headroom 1.34 GB). C: stayed at about 48 GB free.
 - **Stage 08: DONE (2026-11-15).** `azk_dynamic_trial_balance` 18.0.1.2.0, on top of the Stage 07 commit `cabfb75`.
   - **Implemented:**
     - the calculation engine `azk_dynamic_trial_balance.engine` (`models/trial_balance_engine.py`), whose `compute(options)` returns one normalized result: filters, display lines, leaf and hierarchy rows, totals, per-currency totals, warnings and metadata;
@@ -123,7 +139,7 @@ _Last updated: 2026-11-15, end of Stage 08. Stage 04 is still PARTIAL._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** Stage 09 (Preview, PDF and XLSX from the same engine result), when the user requests it. The Trial Balance demo data (T-21 to T-23) is still to be added. A real Partner Monitor sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
+- **Next step:** Stage 10 (engineering review), when the user requests it. Its known inputs: custom fiscal years and branch companies are not tested yet, and two standard-framework limits are kept (D-60). A real Partner Monitor sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. On port 8071 the agent ran headless Chrome (installed on this machine) through the DevTools protocol in Stage 06: the Partner Monitor dashboard check passed 7 of 7 (`scripts/ui_smoke_check.py`). Other screens of the environment were not checked in a browser; the manual steps are in the Stage 06 handoff.
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
@@ -131,7 +147,7 @@ _Last updated: 2026-11-15, end of Stage 08. Stage 04 is still PARTIAL._
   - its scheduled jobs and worker, tested offline (Stage 05);
   - its dashboard, pivots and graphs (Stage 06).
   - Not yet: the page download (deferred).
-  - The Trial Balance wizard, its validation and the calculation contract (Stage 07), and the calculation engine (Stage 08). Not yet: the Preview, PDF and XLSX outputs (Stage 09) and the Trial Balance demo data.
+  - The Trial Balance wizard, its validation and the calculation contract (Stage 07), the calculation engine (Stage 08), and the Preview, PDF and XLSX outputs with the demo data (Stage 09).
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
   - Enterprise: `scripts/dev.sh test`, 4 tests, 0 failed, 0 errors.
@@ -161,7 +177,7 @@ _Last updated: 2026-11-15, end of Stage 08. Stage 04 is still PARTIAL._
 | 06 | Partner dashboard | DONE (2026-11-10): dashboard entry point, shared filters, four charts, sync state; 129 tests pass; browser check 7 of 7; rerun on the final code on 2026-11-15: 7 of 7 |
 | 07 | Trial Balance wizard and calculation contract | DONE (2026-11-15): wizard, option contract, calculation contract and fixtures; 48 tests pass; the standard Trial Balance matches the hand-calculated numbers; browser check of the wizard 8 of 8; outputs are entry points only |
 | 08 | Trial Balance calculation engine | DONE (2026-11-15): engine with one normalized result; 85 tests pass; equal to the hand-calculated constants and to the standard Trial Balance where both apply; constant query count |
-| 09 | Trial Balance outputs (Preview, PDF, XLSX) | NOT STARTED |
+| 09 | Trial Balance outputs (Preview, PDF, XLSX) | DONE (2026-11-15): Preview, PDF and XLSX from one engine call per request; demo data; 102 tests pass; browser and download-route check 20 of 20; upgrades duplicate no demo record |
 | 10 | Engineering review | NOT STARTED |
 | 11 | Clean acceptance | NOT STARTED |
 | 12 | Submission documentation | NOT STARTED |
@@ -230,7 +246,7 @@ _Last updated: 2026-11-15, end of Stage 08. Stage 04 is still PARTIAL._
   - D-44: account prefixes use the account-code alphabet, are trimmed, at most 64 characters, de-duplicated, and match literally and case-sensitively;
   - D-45: the company must be one of the user's companies and active in the company switcher;
   - D-46: Account Level Up To exists only with Hierarchy Only Parents, and is required then;
-  - D-47: the Preview, PDF and XLSX buttons validate, then say that the output is not available yet, until Stage 09;
+  - D-47: the Preview, PDF and XLSX buttons validate, then say that the output is not available yet, until Stage 09 (superseded in Stage 09 by D-54);
   - D-48: Skip Zero Balance hides a row only when its opening, gross movement debit and credit, and ending are all zero;
   - D-49: with currency rows, netting happens per row, so netted totals can differ while balances reconcile;
   - V-08: `account_reports` brings `accountant` and `account_accountant`, whose fiscal-year override the contract follows.
@@ -239,6 +255,17 @@ _Last updated: 2026-11-15, end of Stage 08. Stage 04 is still PARTIAL._
   - D-51: with currency rows, an account without items is listed in its own currency or the company currency;
   - D-52: the carry-forward is computed only when the earnings row is in the report; without an earnings account, a warning;
   - D-53: the engine is a plain service on the ORM; the `account_reports` handler that renders it is Stage 09.
+- **Stage 09 decisions** ([assumptions.md](assumptions.md)):
+  - D-54: our report record and custom handler in the standard framework; competing standard filters off; per-currency totals as lines;
+  - D-55: our PDF company block, options block and grouped column header;
+  - D-56: our XLSX sheet for this report only;
+  - D-57: exports follow the preview's search and folded groups;
+  - D-58: no stored results, every request recalculates as the user;
+  - D-59: the demo company, created once at install;
+  - D-60: custom fiscal years and branches kept for Stage 10, and two standard-framework limits;
+  - D-61: the standard rounding unit is kept and printed, the XLSX keeps exact numbers;
+  - D-62: analytic fields only with Odoo's Analytic Accounting setting;
+  - D-63: unit tests capture the PDF's HTML; real PDFs are checked on the running server.
 
 ## Corrections applied
 
@@ -253,6 +280,9 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 
 - **Disk space:** resolved by the user before the 2026-11-05 continuation. C: had 17 to 19 GB free during that work, and 13 GB during Stage 02. The drop happened between the two sessions and was not investigated. On 2026-11-08, C: had 14 GB free before Stage 03's two test runs and 9.7 GB after them. Docker's virtual disk (`docker_data.vhdx`, shared with another project) was 14.6 GB on 2026-11-03 and 15.4 GB after the runs, so it explains at most 0.8 GB of the drop; the rest is not attributed. Keep several GB free before long test runs (see [environment.md](environment.md)).
 - **After a machine restart:** the Compose services use `restart: "no"`, so `scripts/dev.sh start` is needed once Docker Desktop is up (found on 2026-11-08, after the restart of 2026-11-06).
+- **Analytic Accounting is off on `azk_ee24`:** so the wizard's Analytic Accounts field and the preview's analytic dropdown are hidden there (D-62). To try them, enable Accounting > Configuration > Settings > Analytic Accounting. The analytic option set passed in the unit tests and through the download route.
+- **Memory:** in Stage 09 the CLI stopped a background test run when the machine was critically low on memory. Close unused applications before long runs; the browser checks need about 0.5 GB more.
+- **Browser check of the Trial Balance (user, recommended):** the walkthrough is in [handoffs/stage_09_en.md](handoffs/stage_09_en.md).
 - **Browser check of the Partner Monitor UI (user, recommended):** the agent's headless check covered the dashboard (Stage 06). Still for the user, in a normal browser: the country selector, a click on a chart bar, the reader role, the pivot and graph views, a partner form and Settings > Partner Monitor (steps in the Stage 06 handoff).
 - **Compatibility blocker:** resolved on 2026-11-05 for the matched pair (all eight `TestTrialBalanceReport` tests pass). The Stage 01B pair still fails `test_trial_balance_comparisons` and stays blocked; it is kept only for `azk_ent`.
 - **Browser check (user, recommended):** the user reported a browser check of the Stage 01B environment (no detailed results given). The matched-pair environment on port 8071 has not been checked in a browser yet; steps are in [enterprise_transition.md](enterprise_transition.md).
@@ -265,7 +295,7 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - Ambiguities D-01 to D-07 were resolved in Stage 02, and D-08 to D-17 were added and decided ([assumptions.md](assumptions.md)).
 - **Verification still ahead:**
   - The live partners site was checked on a small manual sample in Stage 04 (A-19, [live_site_notes.md](live_site_notes.md)); a live run through the module and the worker is still ahead (needs the page-download module).
-  - The `account_reports` display and export hooks are known by name; their exact mechanics (column groups, the PDF header template, the preview filter component) are verified in Stages 08-09, with the fallback documented in [architecture.md](architecture.md) 4.7.
+  - The `account_reports` display and export hooks were verified and used in Stage 09 (column groups, the PDF templates, the XLSX writer, the preview filter component); the fallback of [architecture.md](architecture.md) 4.7 was not needed.
 - Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06). The license of `azk_dynamic_trial_balance`, which will depend on the OEEL-1 module `account_reports`, is question Q-06.
 - Commits use the global Git identity `fahimnox <mohamed.fahim@noxholding.com>`, which becomes public in Stage 15 unless the user decides otherwise.
 - Not exercised: `scripts/dev.sh source` itself (an equivalent command made the source copy).
@@ -279,3 +309,4 @@ Inspected in Stage 01 and rechecked in Stage 01B; details in [environment.md](en
 - Docker Desktop 29.4.0 with Compose v5.1.1 (WSL2 backend). On 2026-11-15 the engine reported version 29.9.2, after a restart that stopped all containers at 06:20 UTC. Another project (ots-local) uses 127.0.0.1 ports 5433, 8000 and 9000; ports 8069 and 8070 were free. On this host Docker Desktop creates missing bind-mount folders even with `create_host_path: false`.
 - A host PostgreSQL 18 service listens on port 5432; this project does not use it.
 - Host `python` 3.12.0, `git` 2.53.0.windows.2 and `pdftotext` are available. wkhtmltopdf is not installed on the host; the Odoo image provides it.
+- Since Stage 09, a private virtual environment `runtime/tools/venv` (outside git) holds websocket-client 1.9.2, openpyxl 3.1.5 and PyMuPDF 2.1, used by `scripts/tb_preview_smoke_check.py` to read the downloaded files and render PDF pages to PNG. The image has PyPDF2 2.12.1, openpyxl 3.1.2 and XlsxWriter 3.1.9.
