@@ -1,9 +1,29 @@
 # Project state
 
-_Last updated: 2026-11-10, end of Stage 06. Stage 04 is still PARTIAL._
+_Last updated: 2026-11-15, end of Stage 07. Stage 04 is still PARTIAL._
 
 ## Current position
 
+- **Stage 07: DONE (2026-11-15).** `azk_dynamic_trial_balance` 18.0.1.1.0 now depends on `account_reports`.
+  - **Before the stage:** the Stage 06 dashboard smoke check was rerun at commit `3222285` on `azk_ee24`: PASS, 7 of 7 (committed separately as `597e0e8`).
+  - **Implemented:**
+    - the wizard `azk_dynamic_trial_balance.wizard` (Accounting > Reporting > Audit Reports > Dynamic Trial Balance) with every PDF field and help text;
+    - one option contract (`models/report_options.py`, `normalize_options`), used by the wizard and meant for every later entry path. It checks dates, an authorized and active company, the journal and analytic account, option combinations and literal code prefixes;
+    - private wizard and prefix records (record rules on `create_uid`);
+    - [calculation_contract.md](calculation_contract.md), written before any calculation code;
+    - fixtures from real entries, with hand-calculated constants: TB-BASE, TB-X, TB-Z, TB-C, TB-A, TB-M, TB-R and TB-H.
+    The Preview, PDF and XLSX buttons are entry points only: they validate, then say that the output is not available yet (D-47). Design: [architecture.md](architecture.md) 4.9; decisions D-43 to D-49 and V-08. Handoff: [handoffs/stage_07_en.md](handoffs/stage_07_en.md).
+  - **Evidence (2026-11-15):**
+    - `scripts/dev.sh test azk_dynamic_trial_balance` on the final code: PASS. "0 failed, 0 error(s) of 48 tests" in a fresh `azk_ee24_test`; 0 warning lines; exit code 0; 289 s.
+      - Run 1 had 1 failure and 2 errors in the wizard tests, plus 88 translation warnings, all fixed.
+      - In every run, the standard Trial Balance gave exactly the hand-calculated numbers for every fixture compared (TB-BASE posted, with drafts and per journal; TB-X in January and February; TB-Z; TB-C in company currency; TB-A; TB-M; TB-R; TB-H with its hierarchy).
+    - `scripts/dev.sh update azk_dynamic_trial_balance` on `azk_ee24`, twice, the second time on the final code: PASS, 0 warnings.
+    - Headless Chrome (`scripts/tb_wizard_smoke_check.py`) on `azk_ee24`, on the final code: PASS, 8 of 8. The menu opens the dialog; the notice is shown; Posted Entries is ticked; the fields are there; the dependent options appear in order; a typed prefix becomes a tag; Preview shows "not available yet"; no JavaScript error. The first run found that Posted Entries showed unticked in a new form, which was fixed. Screenshots: [screenshots/](screenshots/).
+  - **Disk:** free space on C: was sampled every 30 s during each test run.
+    - Run 1: from 54.7 to 50.0 GB. Run 2: from about 49 to 45.7 GB. Run 3: from 46.4 to 46.2 GB.
+    - Docker's virtual disk stayed at 17.63 GB (not sparse), and there is no WSL swap file. While idle, free space was stable.
+    - The use during runs 1 and 2 is not attributed: shadow storage needs administrator rights to inspect.
+    - Free space after the stage: about 46 GB.
 - **Stage 06: DONE (2026-11-10).** `azk_odoo_partner_monitor` 18.0.1.4.0.
   - **Implemented:**
     - the dashboard, the module's entry point (Partner Monitor > Dashboard): an OWL client action with shared Status, Year First Seen and Country filters;
@@ -87,14 +107,15 @@ _Last updated: 2026-11-10, end of Stage 06. Stage 04 is still PARTIAL._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** Stage 07 (Trial Balance wizard and calculation contract), when the user requests it. Before more test runs, free disk space on C: (3.6 GB free; see the disk event above). A real Partner Monitor sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
+- **Next step:** Stage 08 (Trial Balance calculation engine), when the user requests it. It implements [calculation_contract.md](calculation_contract.md) and is tested against the same hand-calculated constants (`tests/common.py`). A real Partner Monitor sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. On port 8071 the agent ran headless Chrome (installed on this machine) through the DevTools protocol in Stage 06: the Partner Monitor dashboard check passed 7 of 7 (`scripts/ui_smoke_check.py`). Other screens of the environment were not checked in a browser; the manual steps are in the Stage 06 handoff.
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
   - its parsers and ingestion, tested offline (Stage 04, partial);
   - its scheduled jobs and worker, tested offline (Stage 05);
   - its dashboard, pivots and graphs (Stage 06).
-  - Not yet: the page download (deferred). The Trial Balance addon is still an installable skeleton with smoke tests.
+  - Not yet: the page download (deferred).
+  - The Trial Balance wizard, its validation and the calculation contract (Stage 07). Not yet: the calculation engine (Stage 08) and the Preview, PDF and XLSX outputs (Stage 09).
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
   - Enterprise: `scripts/dev.sh test`, 4 tests, 0 failed, 0 errors.
@@ -122,7 +143,7 @@ _Last updated: 2026-11-10, end of Stage 06. Stage 04 is still PARTIAL._
 | 04 | Partner scraping | PARTIAL (2026-11-08): parsers, ingestion and 38 offline tests pass; the page-download module and a live run through it are missing |
 | 05 | Partner resilience | DONE for the worker (2026-11-10): jobs, worker, retries, validation and notes; tests and the restart check pass offline; live sync NOT RUN (needs Stage 04's page-download module) |
 | 06 | Partner dashboard | DONE (2026-11-10): dashboard entry point, shared filters, four charts, sync state; 129 tests pass; browser check 7 of 7; rerun on the final code on 2026-11-15: 7 of 7 |
-| 07 | Trial Balance wizard and calculation contract | NOT STARTED |
+| 07 | Trial Balance wizard and calculation contract | DONE (2026-11-15): wizard, option contract, calculation contract and fixtures; 48 tests pass; the standard Trial Balance matches the hand-calculated numbers; browser check of the wizard 8 of 8; outputs are entry points only |
 | 08 | Trial Balance calculation engine | NOT STARTED |
 | 09 | Trial Balance outputs (Preview, PDF, XLSX) | NOT STARTED |
 | 10 | Engineering review | NOT STARTED |
@@ -158,7 +179,7 @@ _Last updated: 2026-11-10, end of Stage 06. Stage 04 is still PARTIAL._
     - row-lock claims;
     - a failure note on the run's chatter to the configured user (D-08);
     - the dashboard as a small OWL client action embedding four XML graph views with shared filters (A-17).
-  - The manifest dependency change to `account_reports` happens in Stage 07, not in Stage 02.
+  - The manifest depends on `account_reports` since Stage 07.
 - **Stage 03 decisions** ([assumptions.md](assumptions.md)):
   - D-18: nobody edits scraped data, history or checkpoints through access rules; managers use four checked actions;
   - D-19: the default failure recipient is the administrator, because install hooks run as the superuser;
@@ -188,6 +209,15 @@ _Last updated: 2026-11-10, end of Stage 06. Stage 04 is still PARTIAL._
   - D-40: no sums or averages of the partner metrics (unknown values are stored as 0);
   - D-41: the bucket keys carry their order;
   - D-42: the four charts use a graph view without toolbar and with fixed status colors; ranking ties follow the country order in the database.
+- **Stage 07 decisions** ([assumptions.md](assumptions.md)):
+  - D-43: Show Amount Currency is refused with Hierarchy Only Parents;
+  - D-44: account prefixes use the account-code alphabet, are trimmed, at most 64 characters, de-duplicated, and match literally and case-sensitively;
+  - D-45: the company must be one of the user's companies and active in the company switcher;
+  - D-46: Account Level Up To exists only with Hierarchy Only Parents, and is required then;
+  - D-47: the Preview, PDF and XLSX buttons validate, then say that the output is not available yet, until Stage 09;
+  - D-48: Skip Zero Balance hides a row only when its opening, gross movement debit and credit, and ending are all zero;
+  - D-49: with currency rows, netting happens per row, so netted totals can differ while balances reconcile;
+  - V-08: `account_reports` brings `accountant` and `account_accountant`, whose fiscal-year override the contract follows.
 
 ## Corrections applied
 

@@ -1,6 +1,6 @@
 # Test and acceptance plan (Stage 02)
 
-_Written 2026-11-05 as the plan. Stage 03 (2026-11-08) implemented TP-PM-01 to TP-PM-05 (section 3.1), and Stage 04 (partial) the offline parser and ingestion tests (section 3.2); the other tests do not exist yet. The design they verify is in [architecture.md](architecture.md), the requirements in [requirements_matrix.md](requirements_matrix.md)._
+_Written 2026-11-05 as the plan. Stages 03 to 06 implemented the Partner Monitor tests (sections 3.1 to 3.4). Stage 07 (2026-11-15) implemented the Trial Balance fixtures, the wizard tests and the comparisons with the standard Trial Balance (sections 4.1 to 4.3); the engine and output tests come in Stages 08 and 09. The design they verify is in [architecture.md](architecture.md), the requirements in [requirements_matrix.md](requirements_matrix.md)._
 
 ## 1. Rules for every result
 
@@ -10,7 +10,7 @@ _Written 2026-11-05 as the plan. Stage 03 (2026-11-08) implemented TP-PM-01 to T
 - Tests send no real email; they use Odoo's mail mocks.
 - Dates are frozen with `freezegun` (1.2.1 in the image) where the result depends on today.
 - **Trial Balance:** expected values are written by hand from the documented contract, never produced by the code under test. Comparisons with the native Trial Balance are extra evidence, not a replacement.
-- **Browser:** neither the image nor the agent has Chrome or Chromium. Browser tours and screenshots are NOT RUN unless a browser becomes available. The user's manual browser checks are recorded separately, as the user's results.
+- **Browser:** the Odoo image has no browser, so Odoo's own browser tours do not run. Since Stage 06 the agent drives the host's Chrome headless through the DevTools protocol (`scripts/ui_smoke_check.py`). Other screens are NOT RUN unless such a check exists for them. The user's manual browser checks are recorded separately, as the user's results.
 - **Where results go:**
   - `docs/test_results.md` from Stage 08;
   - `docs/resilience.md` in Stage 05;
@@ -151,18 +151,20 @@ The checks TP-PM-01 to TP-PM-05 are automated in `addons/azk_odoo_partner_monito
 
 ### 4.1 Fixtures and hand-calculated expectations
 
-All fixtures use one company with currency EGP and a calendar fiscal year. They are built from real, balanced journal entries posted, left in draft or cancelled through Odoo's own methods.
+All fixtures use a fresh company whose currency is EGP, with Odoo's generic chart of accounts and a calendar fiscal year. They are built from real, balanced journal entries, posted, left in draft or cancelled through Odoo's own methods (`action_post`, then `button_cancel` for the cancelled entry). Each advanced fixture has its own company and test class, so the base numbers stay simple.
 
-**TB-BASE** (Stage 07's base fixture). Period 2026-01-01 to 2026-01-31.
+The expected numbers are constants in `addons/azk_dynamic_trial_balance/tests/common.py`, written by hand from [calculation_contract.md](calculation_contract.md). Each row reads Debit / Credit / Balance for Initial, Movement and End.
 
-- Posted 2025-12-31: Bank debit 1,000 / Equity credit 1,000.
+**TB-BASE** (Stage 07's base fixture). Period 2026-01-01 to 2026-01-31. All entries are in the Misc journal, except the revenue entry, which is in the Bank journal.
+
+- Posted 2025-12-31: Bank debit 1,000 / Equity (Capital) credit 1,000.
 - Posted 2026-01-10: Expense debit 300 / Bank credit 300.
-- Posted 2026-01-20: Bank debit 500 / Revenue credit 500.
+- Posted 2026-01-20 (Bank journal): Bank debit 500 / Revenue credit 500.
 - Draft 2026-01-25: Expense debit 200 / Bank credit 200.
-- Cancelled 2026-01-26: Expense debit 400 / Bank credit 400.
+- Cancelled 2026-01-26 (posted, then cancelled): Expense debit 400 / Bank credit 400.
 - Posted 2026-02-01: Expense debit 50 / Bank credit 50.
 
-Expected, posted only. Each group reads Debit / Credit / Balance:
+Expected, posted only:
 
 - Bank: Initial 1,000 / 0 / 1,000; Movement 500 / 300 / 200; End 1,200 / 0 / 1,200.
 - Expense: Initial 0 / 0 / 0; Movement 300 / 0 / 300; End 300 / 0 / 300.
@@ -178,32 +180,69 @@ Expected with Include Unposted Entries:
 - Total: Movement 1,000 / 1,000 / 0; End 1,500 / 1,500 / 0.
 - The cancelled and February entries never count.
 
+Expected with one journal (posted only). The journal filter also restricts the opening:
+
+- **Bank journal:**
+  - Bank: Initial 0 / 0 / 0, Movement 500 / 0 / 500, End 500 / 0 / 500;
+  - Revenue: Movement 0 / 500 / -500;
+  - Total: Initial 0 / 0, Movement 500 / 500, End 500 / 500.
+- **Misc journal:**
+  - Bank: Initial 1,000 / 0 / 1,000, Movement 0 / 300 / -300, End 700 / 0 / 700;
+  - Expense: 300 / 0 / 300;
+  - Equity: 0 / 1,000 / -1,000;
+  - Total: Initial 1,000 / 1,000, Movement 300 / 300, End 1,000 / 1,000.
+
 **TB-X** (cross-year): TB-BASE plus a posted entry on 2025-06-30, Current Assets debit 700 / Revenue credit 700.
 
 - January 2026, posted:
   - Revenue Initial 0 / 0 / 0, because income opens at the fiscal-year start.
-  - Current Year Earnings Initial 0 / 700 / -700, from the 2025 result.
+  - Current Year Earnings (999999) Initial 0 / 700 / -700, from the 2025 result.
   - Current Assets Initial 700 / 0 / 700.
   - Total Initial 1,700 / 1,700 / 0; End 2,200 / 2,200 / 0.
 - February 2026, posted:
-  - Bank Initial 1,200 / 0 / 1,200.
+  - Bank Initial 1,200 / 0 / 1,200; End 1,150 / 0 / 1,150.
   - Expense Initial 300 / 0 / 300 and Revenue Initial 0 / 500 / -500 (January of the current fiscal year).
   - Current Year Earnings Initial 0 / 700 / -700 (prior years only).
   - Movement: Expense 50 / 0 / 50 and Bank 0 / 50 / -50.
+  - Total Initial 2,200 / 2,200 / 0; End 2,200 / 2,200 / 0.
+- February 2026 with drafts: the January draft is in the opening.
+  - Bank: Initial 1,000, End 950.
+  - Expense: Initial 500, End 550.
 
-**TB-C** (currencies). January 2026, one account X with lines in two transaction currencies and balanced counterparts on another account. Rates: USD = 50 EGP, EUR = 55 EGP.
+**TB-Z** (zero activity). January 2026.
 
-- Lines on X:
-  - USD +100 (debit 5,000) and -40 (credit 2,000);
-  - EUR +70 (debit 3,850) and -20 (credit 1,100).
-- With Show Amount Currency:
-  - Row (X, USD): Movement 5,000 / 2,000 / 3,000, Amount Currency USD 60.00.
-  - Row (X, EUR): Movement 3,850 / 1,100 / 2,750, Amount Currency EUR 50.00.
-  - Group and Total rows: no amount currency.
-  - Per-currency totals: USD 60.00 and EUR 50.00, never 110.
-- Without the option: X Movement 8,850 / 3,100 / 5,750. Signed balances and gross movements reconcile between the two modes.
+- Entries:
+  - 2025-12-31: Bank debit 1,000 / Capital credit 1,000;
+  - 2026-01-05: Current Assets debit 250 / Bank credit 250;
+  - 2026-01-15: Bank debit 250 / Current Assets credit 250.
+- Current Assets: Initial 0 / 0 / 0; Movement 250 / 250 / 0; End 0 / 0 / 0. It stays visible with Skip Zero Balance.
+- Bank: Initial 1,000 / 0 / 1,000; Movement 250 / 250 / 0; End 1,000 / 0 / 1,000.
+- Prepaid Expenses (128000) has no journal items. It is hidden with Skip Zero Balance, and listed with zeros without it.
 
-**TB-A** (analytic). March 2026.
+**TB-C** (currencies). Rates: 1 USD = 50 EGP, 1 EUR = 55 EGP. Account X is Current Assets; every counterpart is on Bank, in EGP.
+
+- 2025-12-20: X debit 1,000 (USD 20) / Bank credit 1,000.
+- 2025-12-22: Bank debit 1,650 / X credit 1,650 (EUR -30).
+- 2026-01-05: X debit 5,000 (USD 100) / Bank credit 5,000.
+- 2026-01-12: Bank debit 2,000 / X credit 2,000 (USD -40).
+- 2026-01-18: X debit 3,850 (EUR 70) / Bank credit 3,850.
+- 2026-01-25: Bank debit 1,100 / X credit 1,100 (EUR -20).
+
+January 2026, with Show Amount Currency:
+
+- Row (X, USD): Initial 1,000 / 0 / 1,000; Movement 5,000 / 2,000 / 3,000; End 4,000 / 0 / 4,000; Amount Currency USD 60.00.
+- Row (X, EUR): Initial 0 / 1,650 / -1,650; Movement 3,850 / 1,100 / 2,750; End 1,100 / 0 / 1,100; Amount Currency EUR 50.00.
+- Row (Bank, EGP): Initial 650 / 0 / 650; Movement 3,100 / 8,850 / -5,750; End 0 / 5,100 / -5,100; Amount Currency EGP -5,750.00.
+- Total: Initial 1,650 / 1,650; Movement 11,950 / 11,950; End 5,100 / 5,100. Group and total rows have no amount currency.
+- Per-currency totals: USD 60.00, EUR 50.00 and EGP -5,750.00, never added together.
+
+Without the option:
+
+- X: Initial 0 / 650 / -650; Movement 8,850 / 3,100 / 5,750; End 5,100 / 0 / 5,100.
+- Total: Initial 650 / 650.
+- Signed balances and gross movements reconcile between the two modes. The netted Initial totals differ: 1,650 against 650 (D-49).
+
+**TB-A** (analytic). March 2026. Plans A (accounts A1, A2) and B (account B1).
 
 - Lines:
   - Expense debit 1,000 with distribution A1 60% / A2 40%, against Bank credit 1,000 without distribution;
@@ -213,42 +252,99 @@ Expected with Include Unposted Entries:
   - filter A2: Expense 1,000;
   - filter B1: Expense 200;
   - no filter: Expense 1,200 and Bank credit 1,200, each item once.
-- Under the rejected proportional alternative, A1 would give 800 (600 + 200). That number is documented, not implemented.
+- Under the rejected proportional alternative, A1 would give 800 (600 + 200), A2 400 and B1 200. Those numbers are documented, not implemented.
 
-**TB-H** (hierarchy):
+**TB-M** (two companies, both in EGP). January 2026.
 
-- Groups at five levels above a bank account ("1" > "10" > "101" > "1014" > "10140").
-- A group "4" holding an income and an expense account by code prefix.
-- Equity and Current Year Earnings ungrouped.
+- Company 1: 2026-01-10, Bank debit 300 / Capital credit 300.
+- Company 2: 2026-01-12, Bank debit 900 / Capital credit 900.
+- A report on company 1 shows only the 300, and one on company 2 only the 900.
+- A reader of company 1 only is refused company 2.
 
-Expected:
+**TB-R** (restricted access). January 2026. A test record rule hides the journal items of the "Restricted" journal (code RSTR) from one reader.
 
-- Each group row equals the sum of its descendant leaf rows; "(No Group)" holds the ungrouped accounts.
-- Only Parents with N = 1 shows "1", "4" and "(No Group)".
-- N = 3 adds "10" and "101".
-- Grand totals never change with the hierarchy options.
+- 2026-01-10: Expense debit 300 / Bank credit 300 (Misc).
+- 2026-01-15: Expense debit 70 / Bank credit 70 (Restricted).
+- The restricted reader sees Expense 300 and Bank credit 300; the accountant sees 370.
+
+**TB-H** (hierarchy).
+
+- **Groups:** "1" > "10" > "101" > "1014" > "10140" (levels 1 to 5), and "4" (level 1).
+- **Accounts:** Bank 101401 is under "10140", Current Assets 101000 under "101", and Product Sales 400000 and Cash Discount Loss 443000 under "4". Capital has no group.
+- **Entries:**
+  - 2025-12-31: Bank debit 1,000 / Capital credit 1,000;
+  - 2026-01-10: Current Assets debit 400 / Bank credit 400;
+  - 2026-01-20: Bank debit 500 / Product Sales credit 500;
+  - 2026-01-22: Cash Discount Loss debit 120 / Bank credit 120.
+- **Expected, January 2026:**
+  - "10140" and "1014" (= Bank): Initial 1,000 / 0; Movement 500 / 520; End 980 / 0.
+  - "101", "10" and "1": Initial 1,000 / 0; Movement 900 / 520; End 1,380 / 0.
+  - "4": Initial 0 / 0; Movement 120 / 500; End 120 / 500 (both sides).
+  - "(No Group)" (Capital): Initial 0 / 1,000; End 0 / 1,000.
+  - Total: Initial 1,000 / 1,000; Movement 1,020 / 1,020; End 1,500 / 1,500.
+- **Only Parents:** N = 1 shows "1", "4" and "(No Group)", and each level adds the next group down; N = 5 shows all six groups. Grand totals never change with the hierarchy options.
 
 ### 4.2 Checks
 
 | ID | Stage | Check | Expected result | Requirements |
 |---|---|---|---|---|
-| TP-TB-01 | 07 | Wizard validation | Missing or reversed dates, an unauthorized company, a journal or analytic account of another company, Only Parents without Hierarchy, a level outside 1-5, and blank or over-long prefixes are refused server-side; the Many2one fields stay single | T-02, T-03, T-07 to T-10, K-02 |
-| TP-TB-02 | 07, 08 | TB-BASE posted only | The numbers listed above, exactly | T-04, T-14, T-15 |
+| TP-TB-01 | 07 | Wizard validation | Missing or reversed dates, an unauthorized or inactive company, a journal or analytic account of another company, Only Parents without Hierarchy, a level without Only Parents or outside 1-5, Show Amount Currency with Only Parents, blank, over-long or non-code prefixes, unknown option keys and wrongly typed values are refused server-side; the Many2one fields stay single; wizards are private; the buttons validate, then say that the output is not available yet | T-02, T-03, T-07 to T-12, K-02 |
+| TP-TB-02 | 07, 08 | TB-BASE posted only | The numbers listed above, exactly. Stage 07: the standard Trial Balance gives them; Stage 08: our engine | T-04, T-14, T-15 |
 | TP-TB-03 | 07, 08 | TB-BASE with drafts | The numbers listed above; cancelled and February entries excluded | T-05 |
-| TP-TB-04 | 08 | TB-X cross-year | The numbers listed above, for January and for February | T-15, A-14 |
+| TP-TB-04 | 07, 08 | TB-X cross-year | The numbers listed above, for January, February and February with drafts | T-15, A-14 |
 | TP-TB-05 | 08 | Date boundaries | Items on Date From and Date To count; items on the day before or after don't; an empty period gives a valid empty report; a negative balance shows on the credit side | T-15 |
-| TP-TB-06 | 08 | Prefixes and journal | OR semantics over several prefixes; `_` and `%` in a prefix match literally; the journal filter also restricts the opening balance | T-08, T-09 |
-| TP-TB-07 | 08 | Skip Zero Balance | Equal debit and credit movement stays visible; an account with nothing is hidden only when the option is on; with it off, every non-deprecated matching account is listed | T-11, D-12 |
-| TP-TB-08 | 08 | TB-C currencies | The rows, columns and per-currency totals listed above; base amounts reconcile between modes | T-12, D-11 |
-| TP-TB-09 | 08 | TB-A analytic | The whole-item results listed above; composite keys count once; no filter never duplicates | T-10, D-07 |
-| TP-TB-10 | 08 | TB-H hierarchy | Levels 1-5, subtotals, "(No Group)", Only Parents for N = 1 to 5, no double counting in totals | T-06, T-07, D-13 |
-| TP-TB-11 | 08, 09 | Access | User B cannot read, preview or export user A's wizard; a company outside B's active companies, a forbidden journal or analytic id, and tampered options sent to the download route are refused; restricted journal items stay invisible | K-02 |
-| TP-TB-12 | 08 | Native parity | For TB-BASE, TB-X and TB-A with matched options (posted, drafts, January and February, analytic A1, bank journal), our Initial, Movement and End debit and credit per account and the totals equal the native Trial Balance's | A-14, A-15 |
+| TP-TB-06 | 07, 08 | Prefixes and journal | OR semantics over several prefixes; prefixes with "_", "%" or "\" are refused by validation (D-44), and the engine escapes wildcards anyway; the journal filter also restricts the opening balance (Stage 07: standard report, TB-BASE by journal) | T-08, T-09 |
+| TP-TB-07 | 07, 08 | Skip Zero Balance | Equal debit and credit movement stays visible (Stage 07: the standard report lists TB-Z's account); an account with nothing is hidden only when the option is on; with it off, every non-deprecated matching account is listed | T-11, D-12, D-48 |
+| TP-TB-08 | 07, 08 | TB-C currencies | The rows, columns and per-currency totals listed above; base amounts reconcile between modes (Stage 07: fixture amounts and the company-currency report) | T-12, D-11, D-49 |
+| TP-TB-09 | 07, 08 | TB-A analytic | The whole-item results listed above; composite keys count once; no filter never duplicates (Stage 07: the standard report) | T-10, D-07 |
+| TP-TB-10 | 07, 08 | TB-H hierarchy | Levels 1-5, subtotals, "(No Group)", Only Parents for N = 1 to 5, no double counting in totals (Stage 07: group rows and depths of the standard hierarchy) | T-06, T-07, D-13 |
+| TP-TB-11 | 07, 08, 09 | Access | User B cannot read, preview or export user A's wizard; a company outside B's companies or not active, a forbidden journal or analytic id, and tampered options are refused; restricted journal items stay invisible (Stage 07: wizard privacy, and TB-M and TB-R on the standard report) | K-02 |
+| TP-TB-12 | 07, 08 | Native parity | For TB-BASE, TB-X, TB-Z, TB-C, TB-A, TB-M, TB-R and TB-H with matched options, our Initial, Movement and End debit and credit per account and the totals equal the standard Trial Balance's. Stage 07 checks the standard report against the hand-calculated constants; Stage 08 checks our engine against the same constants | A-14, A-15 |
 | TP-TB-13 | 09 | Preview | Opens from the wizard with its options; changing the date or Draft Entries recalculates; the search bar filters lines; folding works; an empty result shows a clear message | T-13, T-16 |
 | TP-TB-14 | 09 | PDF (L5) | A real wkhtmltopdf PDF whose text contains the company name, "From ... to ...", the selected filters and the nine column titles; a multi-page sample repeats the header; inspected visually | T-14, T-17 |
 | TP-TB-15 | 09 | XLSX (L5) | A real workbook: numeric cells numeric, codes and names as text, no formulas from user text, hierarchy readable, metadata rows present, currencies separate; cell values equal the engine result | T-14, T-18 |
 | TP-TB-16 | 09 | Consistency | For the same options on an unchanged database, preview lines, PDF values and XLSX cells are identical | K-01 |
-| TP-TB-17 | 07+ | Demo data | Installs with the module: posted and draft entries, several currencies, analytic distributions, and an account-group chart deep enough for levels 1-5 | T-21 to T-23 |
+| TP-TB-17 | 08+ | Demo data | Installs with the module: posted and draft entries, several currencies, analytic distributions, and an account-group chart deep enough for levels 1-5 | T-21 to T-23 |
+
+### 4.3 Implemented in Stage 07 (2026-11-15)
+
+Addon `azk_dynamic_trial_balance` 18.0.1.1.0, folder `tests/`. Fixtures and hand-calculated constants are in `tests/common.py`. `native_trial_balance()` runs `account_reports.trial_balance_report` with exactly one active company and the same dates and options, and returns its numbers by line.
+
+- `test_install.py`, 2 tests (Stage 01): the addon is installed; XlsxWriter works.
+- `test_wizard.py`, `TestTrialBalanceWizard`, 16 tests (TP-TB-01, part of TP-TB-11):
+  - defaults and the always-true Posted Entries;
+  - plain, validated option values;
+  - single journal and analytic account;
+  - the PDF's help texts, word for word;
+  - date order;
+  - an authorized and active company;
+  - a journal or analytic account usable in the company;
+  - option combinations, and onchanges in a form;
+  - literal code prefixes;
+  - untrusted raw options, and no translation warnings;
+  - private wizards and prefixes;
+  - no access without an accounting group;
+  - the entry-point buttons;
+  - the menu.
+- `test_base_fixture.py`, `TestBaseFixture`, 6 tests (TP-TB-02, TP-TB-03, part of TP-TB-06):
+  - TB-BASE is real and balanced, with the right states and journals, and the cancelled entry went through posting;
+  - the fiscal year is the calendar year;
+  - the hand tables are consistent;
+  - the standard report is compared posted only, with drafts, and per journal.
+- `test_native_conventions.py`, `TestCrossYearConventions`, 5 tests (TP-TB-04): TB-X in January (fiscal-year start), February and February with drafts; the carry-forward has no journal entry behind it.
+- `test_advanced_fixtures.py`, 19 tests, one class per fixture:
+  - `TestZeroActivityFixture` (TB-Z);
+  - `TestCurrencyFixture` (TB-C: the rates, amounts per currency, reconciliation across groupings, the company-currency report);
+  - `TestAnalyticFixture` (TB-A: the distributions, and the standard report for no filter, A1, A2 and B1);
+  - `TestMultiCompanyFixture` (TB-M);
+  - `TestRestrictedAccessFixture` (TB-R: a record rule hides items from one reader, and the standard report respects it);
+  - `TestHierarchyFixture` (TB-H: the five-level chain, our level definition, group rows and Only Parents in the hand tables, and the standard hierarchy's group rows and depths).
+
+Results of `scripts/dev.sh test azk_dynamic_trial_balance`, each on a fresh `azk_ee24_test`:
+
+- Run 1: 1 failure and 2 errors of 47 tests. The three failures were all in the wizard tests: the company check read an inactive company's name, and a test expected a different menu path format. There were also 88 translation warnings. All fixture and standard-report comparisons passed.
+- Run 2: 0 failed, 0 errors of 48 tests.
+- Run 3, on the final code: 0 failed, 0 errors of 48 tests; 0 warning lines; exit code 0; 289 s.
 
 ## 5. Acceptance (Stage 11) and general checks
 

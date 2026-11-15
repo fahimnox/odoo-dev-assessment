@@ -212,7 +212,8 @@ Assistant message 37:
 
 ## Notes on accuracy
 
-- This log was assembled from the transcript just before its own commit. Progress messages written after that point, while committing, are not included. The final response below is included as prepared, and it was displayed unchanged.
+- This log was assembled from the transcript just before its own commit. Progress messages written after that point, while committing, are not included.
+- **Correction (Stage 07, 2026-11-15):** this log first held the final response as prepared before the commit and said it was displayed unchanged. That was wrong: after a context compaction, the agent displayed a reworded version (2026-11-10, 12:03 UTC). It adds the commit ID and rephrases several sentences; the results and statuses are the same. The section below now holds the displayed text, extracted verbatim from the session transcript.
 - Several progress notes the agent meant as messages were written inside its reasoning, so they were never displayed, or are missing from the transcript's text blocks. They are not reproduced here; their content is in the final response, the Stage 06 handoff and the mistakes table of [README.md](README.md).
 - Facts in the messages that were later corrected stay as written here; corrections are listed in [README.md](README.md) (mistakes table) and in the Stage 06 handoff.
 
@@ -241,64 +242,70 @@ Assistant message 37:
 
 ## Assistant final response (verbatim)
 
-Everything between the two rules below is the final visible response.
+Everything between the two rules below is the final visible response, as displayed (see the correction note above).
 
 ---
 
-Stage 06 is committed: the dashboard is now the Partner Monitor entry point. Stage 04 stays **PARTIAL**, so the dashboard shows demo data and the real sync state, which is "waiting for a page source".
+Stage 06 is committed (`3222285`). The dashboard is now the Partner Monitor entry point. Stage 04 stays **PARTIAL**, so the dashboard shows demo data and the real sync state, which is "waiting for a page source".
 
 **Where to find it**
 - **Menu path:** Partner Monitor > Dashboard. The app tile on the home screen opens it directly.
 - **Walkthrough** (details in the handoff):
-  1. Click **Gold** and **2025**: 9 partners in 6 countries match. The Top 5 is Epsilon 3, Zeta 2, then Alpha, Gamma and Iota with 1 each; Kappa is sixth by the name tie-break.
+  1. Click **Gold** and **2025**: 9 partners in 6 countries match. The Top 5 is Epsilon 3, Zeta 2, then Alpha, Gamma and Iota with 1 each. Kappa also has 1 but comes sixth, because ties are broken by country name.
   2. Click **Demo Country Epsilon**: its partner list opens with "1-3 / 3".
-  3. To check independently: Partner Monitor > Partners, with the filters Gold and Demo Data, Year First Seen 2025 and Country Epsilon: 3 records.
+  3. To check without the dashboard: Partner Monitor > Partners, with the filters Gold and Demo Data, Year First Seen 2025 and Country Epsilon: 3 records.
 
 **What was built**
-- **The client action:** a small OWL client action with shared Status, Year First Seen and Country filters. It sends only filter values.
-- **The server method:** `models/dashboard.py`.
-  - It checks the Reader group and drops invalid values; it never accepts a domain.
-  - It builds one domain and ranks countries with grouped ORM queries as the user. Ties go by country name, and countries with no match take no part.
-- **The four charts** are standard graph views defined in XML: Top 5 and Bottom 5 by status, and the project-size buckets of the same two groups. Each chart reads the server-built domain of its group.
-  - A small graph view (`js_class`) removes the toolbar and gives Gold, Silver and Ready fixed colors.
-  - The buckets are [0,5), [5,11), [11,25), [25,inf) and Unknown, and all five counts are listed.
-- **The sync state** shows the last run, the last successful sync and the waiting reason. Managers also see the queue and the Sync Now button, which only queues work.
-- **Data sources:** website data and demo data are shown one at a time, and demo data gets a banner.
-- **Other views:** pivots for partners, status history and references, and graphs for partners and status history.
-- **Demo data** now has 13 countries (12 active) and 50 partners, covering every status, years 2023 to 2026, each bucket boundary, unknown sizes and archived partners.
+- **Filters:** shared Status, Year First Seen and Country filters. The page sends only the filter values, never a database query.
+- **Ranking:** the server (`models/dashboard.py`) checks that the user is a Partner Monitor reader and drops invalid values. It builds one query and ranks countries as that user. Ties go by country name, and countries with no matching partner are left out.
+- **Four charts**, defined in XML: Top 5 and Bottom 5 countries by status, and the project-size distribution of those same two groups. Each chart reads exactly the query the server built for its group.
+  - The charts have no toolbar, and Gold, Silver and Ready keep the same colors in every chart.
+  - The size groups are below 5, 5 to below 11, 11 to below 25, 25 and above, and Unknown. All five counts are listed, zeros included.
+- **Sync state:** the last run, the last successful sync and the waiting reason. Managers also see the work queue and a Sync Now button, which only queues work.
+- **Website data and demo data** are shown one at a time, and demo data has a banner.
+- **Other views:** pivot views for partners, status history and references, and graph views for partners and status history.
+- **Demo data** now has 13 countries (12 active) and 50 partners. It covers every status, years 2023 to 2026, values on each size boundary, unknown sizes and archived partners.
 
 **Tests and checks (today)**
-- `scripts/dev.sh test azk_odoo_partner_monitor` on the final code: **PASS**, "0 failed, 0 error(s) of 129 tests" in a fresh `azk_ee24_test`, 0 warning lines, 8 min 27 s. That is 113 earlier tests plus 16 dashboard tests.
-  - Chart totals are verified by calling `web_read_group` exactly as each graph view does, and comparing it with a plain search under the same filters.
-  - The first run had 1 failure: the Dashboard menu was listed as visible to users without the Reader group. It was fixed.
-- **Fixture sync demonstration** on `azk_ee24_test`: PASS. The source was saved fixture pages, not live pages, and nothing was committed.
-  - Andorra synced: 2 partners, matched.
-  - BDR GROUP SLU promoted from Ready to Silver on day 2.
+- `scripts/dev.sh test azk_odoo_partner_monitor` on the final code: **PASS**, "0 failed, 0 error(s) of 129 tests", 0 warnings in the log. That is 113 earlier tests plus 16 new dashboard tests.
+  - Chart totals are checked by running the same query each chart runs and comparing it with a plain search under the same filters.
+  - The first run had 1 failure: the Dashboard menu counted as visible to users without the reader group. It now has its own group.
+- **Fixture sync demonstration:** PASS. It read saved copies of real pages, not the live site, and nothing was committed.
+  - Andorra synced: 2 partners, matching the site's count.
+  - BDR GROUP SLU went from Ready to Silver on day 2.
   - RoayaTec went from 3 of 135 references (flagged) to 2 of 2, with one reference removed on day 2.
-- `scripts/dev.sh update azk_odoo_partner_monitor` on `azk_ee24`: PASS, 0 warnings.
+- **Upgrade of the development database** (`scripts/dev.sh update azk_odoo_partner_monitor` on `azk_ee24`): PASS, 0 warnings.
 
 **Browser checks**
-- **Performed:** headless Chrome 157 from this machine, driven by `scripts/ui_smoke_check.py`.
-  - **Run 4, 7 of 7 PASS:** no asset error; the app opens on the dashboard with four charts; the charts use the dashboard graph view; the demo banner shows; Gold and 2025 are applied; Epsilon's list holds the 3 partners shown; no JavaScript error. Its code differed from the final code by one space character in the template.
+- **Performed:** headless Chrome from this machine, driven by `scripts/ui_smoke_check.py`.
+  - **Run 4, 7 of 7 PASS:**
+    - no loading error;
+    - the app opens on the dashboard with four charts, without the chart toolbar;
+    - the demo banner shows;
+    - Gold and 2025 are applied;
+    - Epsilon's list holds the 3 partners shown;
+    - no JavaScript error.
+
+    Its code differed from the final code by one space character.
   - **Run 2:** Sync Now queued Run 1, and the dashboard then showed it waiting for a page source.
   - **Screenshots:** in `docs/screenshots/`.
-- **BLOCKED:** a final browser run on the final code, because the host had slowed down (below).
-- **Your manual steps:** the country selector, a chart bar click, the reader role, the pivot and graph views, and Run 1's note. The steps are in the handoff.
+- **BLOCKED:** a last browser run on the final code, because the machine had slowed down (next section).
+- **Your manual steps:** the country selector, clicking a chart bar, the reader role, the pivot and graph views, and Run 1's note. The steps are in the handoff.
 
-**Disk event**
+**Disk problem during this stage**
 - Drive C: fell to 0.15 GB free.
-  - The largest recent writes were Windows' page file (12.4 GB) and Docker's virtual disk (17.6 GB).
-  - The others were a 1.84 GB backup of your other project and a CLI update.
-- **Effect:** Docker's VM stopped our two containers abruptly.
-- **What I did:** I restarted them with `scripts/dev.sh start`. PostgreSQL recovered automatically, and `azk_ee24` checked intact. Free space is now 3.6 GB.
-- **Please free disk space before Stage 07.**
+  - Windows' page file had grown to 12.4 GB, and Docker's virtual disk to 17.6 GB.
+  - A 1.84 GB backup of your other project and a Claude Code update also landed. I did not touch your project.
+- **Effect:** Docker stopped our two containers abruptly.
+- **What I did:** I restarted them with `scripts/dev.sh start`. The database recovered automatically and checked intact. Free space is now 3.6 GB.
+- **Please free disk space before Stage 07.** Test runs need several GB.
 
 **Open issues**
 - There is no live data until the page-download module exists (Stage 04).
-- The manual browser checks above are NOT RUN by the agent.
-- There are no JavaScript unit tests: Odoo's own browser tests need Chrome inside the Odoo image.
-- The original views specification is still missing (M-01).
-- Run 1's waiting note queued an email to the administrator. It cannot leave, because there is no mail server.
+- The manual browser checks above were not run by me.
+- There are no JavaScript unit tests: Odoo's own browser tests need Chrome inside the Odoo image, which it lacks.
+- The original views specification is still missing.
+- Run 1's waiting note queued an email to the administrator. It cannot be sent, because no mail server is configured.
 
 **Changed files**
 - **New:**
@@ -312,7 +319,6 @@ Stage 06 is committed: the dashboard is now the Partner Monitor entry point. Sta
   - the menus and the partner, history and reference views;
   - the demo data, the tests index and the manifest (18.0.1.4.0);
   - STATE, architecture (5.13), assumptions (D-37 to D-42), requirements matrix, test plan (3.4) and `ai/README.md`.
-- **Commit:** "Stage 06: Partner Monitor dashboard, views and demo data".
 
 **Comprehension questions**
 1. Why does the dashboard send filter values to the server instead of a domain, and what still protects the data if someone calls `web_read_group` with a domain of their own?

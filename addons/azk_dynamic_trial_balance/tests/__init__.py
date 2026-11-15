@@ -1,1 +1,5 @@
 from . import test_install
+from . import test_wizard
+from . import test_base_fixture
+from . import test_native_conventions
+from . import test_advanced_fixtures

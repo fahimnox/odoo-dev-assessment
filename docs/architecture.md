@@ -1,6 +1,6 @@
 # Architecture (Stage 02)
 
-_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. Stage 05 (2026-11-10) built the scheduled jobs and the worker; see section 5.12 and [resilience.md](resilience.md). Stage 06 (2026-11-10) built the dashboard and the remaining views; see section 5.13. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. Stage 05 (2026-11-10) built the scheduled jobs and the worker; see section 5.12 and [resilience.md](resilience.md). Stage 06 (2026-11-10) built the dashboard and the remaining views; see section 5.13. Stage 07 (2026-11-15) built the Trial Balance wizard, its option contract and its test fixtures, and wrote [calculation_contract.md](calculation_contract.md); see section 4.9. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
 
 ## 1. Target and sources used
 
@@ -133,7 +133,7 @@ Server-side validation (constraints plus engine checks):
 - Only Parents requires Hierarchy and Subtotals, and the level must be 1 to 5;
 - prefixes are trimmed, non-empty, at most 64 characters and de-duplicated.
 
-Prefixes are matched literally: `%`, `_` and `\` are escaped before the `=like` search, so `1_` never acts as a wildcard. Account codes are company-dependent in 18.0: `account.account.code` is computed from `code_store` and searched by `_search_code`, using the root company of `env.company`. So the engine always runs with `with_company(company)`.
+Prefixes are matched literally: `%`, `_` and `\` are escaped before the `=like` search, so `1_` never acts as a wildcard. (Stage 07 went further, D-44: prefixes may contain only the characters of account codes, so such prefixes are refused with a message, and the engine's escaping is a second safeguard.) Account codes are company-dependent in 18.0: `account.account.code` is computed from `code_store` and searched by `_search_code`, using the root company of `env.company`. So the engine always runs with `with_company(company)`.
 
 ### 4.3 Flow and the normalized filter contract
 
@@ -274,6 +274,28 @@ Observed (Initial D/C, period D/C, End D/C):
   - The Total row equals R1's totals.
 
 The Stage 07 base fixture expects Bank 1,000 / +500 / -300 = 1,200 (posted) and 1,000 (with drafts). R1 and R2 show the native report computing the same values with the same options. Stage 07 still keeps hand-calculated expectations, so no test only compares our code with the native code.
+
+### 4.9 As built in Stage 07 (2026-11-15): wizard, option contract and fixtures
+
+- **Manifest:** `azk_dynamic_trial_balance` 18.0.1.1.0 now depends on `account_reports` (V-05), which in this build brings `accountant` and `account_accountant` (V-08).
+- **Wizard** `azk_dynamic_trial_balance.wizard` (`models/trial_balance_wizard.py`): the fields of section 4.2, with the PDF's help texts word for word.
+  - Show Amount Currency adds one sentence on its dates (D-11).
+  - `posted_entries` is a read-only field that defaults to true, and a constraint refuses false. The calculation never reads it.
+  - Onchanges keep the hierarchy options consistent, and constraints refuse invalid combinations (D-43, D-46).
+- **Prefix tags** `azk_dynamic_trial_balance.account.prefix` (`models/account_prefix.py`): a transient model shown as tags. Each prefix is trimmed and checked when created (D-44).
+- **One option contract** (`models/report_options.py`):
+  - `normalize_options(env, raw)` turns the wizard (or, later, client-sent options) into plain values.
+  - It refuses unknown keys, wrong types, a company that is not authorized or not active (`check_company`, D-45), a journal or analytic account unusable in the company (searched as the user with the model's `_check_company_domain`), invalid combinations and non-code prefixes.
+  - The wizard's constraints call the same functions.
+- **Security:** read, write, create and unlink for `account.group_account_readonly` (the native Trial Balance's group) on both transient models, plus global record rules `create_uid = user`, so wizards and prefixes are private.
+- **UI:** a form dialog with a notice that the outputs are not connected yet, and the menu Accounting > Reporting > Audit Reports > Dynamic Trial Balance.
+- **Entry points:** the Preview, PDF and XLSX buttons validate the options with `_get_report_options()`, then raise a clear "not available yet" message (D-47). Stage 09 connects them.
+- **Calculation rules:** [calculation_contract.md](calculation_contract.md). The engine is Stage 08.
+- **Tests and fixtures:** `tests/common.py` builds the fixtures of [test_plan.md](test_plan.md) 4.1 from real entries and holds the hand-calculated constants. `native_trial_balance()` runs the standard report with one active company and matched options. The test classes:
+  - `TestTrialBalanceWizard`;
+  - `TestBaseFixture`;
+  - `TestCrossYearConventions`;
+  - one class per advanced fixture: `TestZeroActivityFixture`, `TestCurrencyFixture`, `TestAnalyticFixture`, `TestMultiCompanyFixture`, `TestRestrictedAccessFixture`, `TestHierarchyFixture`.
 
 ## 5. Exercise 1: Odoo Partner Monitor
 
