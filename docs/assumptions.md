@@ -41,7 +41,7 @@ These are referenced by the PDF but were **not supplied**. They have not been re
 
 ## Ambiguities and design decisions
 
-D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, D-18 to D-22 in Stage 03, D-23 to D-29 in Stage 04, D-30 to D-36 in Stage 05, D-37 to D-42 in Stage 06, and D-43 to D-49 in Stage 07.
+D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, D-18 to D-22 in Stage 03, D-23 to D-29 in Stage 04, D-30 to D-36 in Stage 05, D-37 to D-42 in Stage 06, D-43 to D-49 in Stage 07, and D-50 to D-53 in Stage 08.
 
 | ID | PDF p. | Ambiguity | Decision |
 |---|---|---|---|
@@ -94,6 +94,10 @@ D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 
 | D-47 | 7 | The Preview, PDF and XLSX buttons before the outputs exist (Stage 07) | They are entry points: each validates the options as the server will, then says that the output is not available yet. The form shows a notice saying the same. They are connected in Stage 09; until then T-13, T-16, T-17 and T-18 are not done |
 | D-48 | 7 | Exactly when Skip Zero Balance hides a row (Stage 07; refines D-12) | When the opening balance, the gross movement debit, the gross movement credit and the ending balance are all zero (currency-aware), and with currency rows also the row's amount-currency movement. Equal debit and credit movement is activity and stays visible. With a hierarchy, a group row is shown when at least one row under it is shown |
 | D-49 | 7 | Totals with currency rows (Stage 07; detail of D-04 and D-11) | Netting happens per row. So with currency rows the netted Initial and End debit and credit totals can be larger than without them, while signed balances and gross movements are the same. Example TB-C: the opening is 1,000 debit (USD row) and 1,650 credit (EUR row), but 650 credit for the account; the balance is -650 either way |
+| D-50 | 7 | Who may run the calculation (Stage 08) | Users with the accounting read-only group (`account.group_account_readonly`), as for the standard Trial Balance. The engine checks it itself, because a billing user can read some journal items (invoices) and would get a partial ledger that looks complete. Every query then runs as the user, with all record rules |
+| D-51 | 7 | Accounts without journal items when Show Amount Currency is on and Skip Zero Balance is off (Stage 08; detail of D-12) | One row in the account's own currency if it has one, otherwise in the company currency, with an amount currency of 0. So every listed account still has exactly one row |
+| D-52 | 7 | The carry-forward when the earnings row is not in the report, or does not exist (Stage 08; detail of D-15) | With prefixes that exclude the Current Year Earnings account, the carry-forward is neither computed nor shown (`metadata.carry_forward` is None). If the company has no such account, a non-zero carry-forward is reported as the warning `no_earnings_account`, and no row is invented |
+| D-53 | 7 | Where the standard report framework is used (Stage 08; detail of A-13) | The engine is a plain service. Its arithmetic uses the ORM and the same model helpers as the standard report (`compute_fiscalyear_dates`, the `include_initial_balance` search, the analytic `in` operator, `_check_company_domain`), not the `account_reports` handler. The handler and report record that render its result in the standard report UI and exporters are built in Stage 09, so rendering stays out of the arithmetic |
 
 ## Version and edition notes
 
@@ -112,7 +116,7 @@ These are recorded rather than silently changing scope. Details are in [architec
 
 ## Open clarifications for the team lead
 
-We continue under the documented defaults until answered. Only unresolved points are listed; none blocks Stage 08.
+We continue under the documented defaults until answered. Only unresolved points are listed; none blocks Stage 09.
 
 | ID | Question | Status |
 |---|---|---|

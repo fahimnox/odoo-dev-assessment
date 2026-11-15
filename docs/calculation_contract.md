@@ -1,6 +1,6 @@
 # Trial Balance calculation contract
 
-_Written in Stage 07 (2026-11-15), before the calculation engine (Stage 08). It fixes the arithmetic that the Preview, PDF and XLSX will all use: each output renders one engine result and computes no numbers of its own (K-01). Requirement IDs (T-xx) refer to [requirements_matrix.md](requirements_matrix.md), decisions (A-xx, D-xx, Q-xx) to [assumptions.md](assumptions.md), and fixtures (TB-xx) to [test_plan.md](test_plan.md) 4.1 and `addons/azk_dynamic_trial_balance/tests/common.py`._
+_Written in Stage 07 (2026-11-15), before the calculation engine; Stage 08 (2026-11-15) implemented it in `models/trial_balance_engine.py` (section 15). It fixes the arithmetic that the Preview, PDF and XLSX will all use: each output renders one engine result and computes no numbers of its own (K-01). Requirement IDs (T-xx) refer to [requirements_matrix.md](requirements_matrix.md), decisions (A-xx, D-xx, Q-xx) to [assumptions.md](assumptions.md), and fixtures (TB-xx) to [test_plan.md](test_plan.md) 4.1 and `addons/azk_dynamic_trial_balance/tests/common.py`._
 
 ## 1. Sources
 
@@ -283,3 +283,54 @@ February credit of 50 (after Date To).
 - period comparisons.
 
 Stage 08 tests them against the hand-calculated constants.
+
+## 15. As implemented in Stage 08
+
+The engine is `azk_dynamic_trial_balance.engine` (an AbstractModel service, `models/trial_balance_engine.py`). Its one entry point, `compute(options)`:
+
+1. requires the accounting read-only group (`account.group_account_readonly`), as the standard Trial Balance's menu does (D-50);
+2. validates the raw options with `normalize_options` (section 3);
+3. switches to the report company (`with_company`), so account codes and groups are read in it;
+4. runs the calculation as the calling user.
+
+**Steps, in `_compute`:**
+
+- `_accounts_in_scope`: the company's accounts whose code matches a prefix (`like_prefix_pattern`), or all of them.
+- `_scope_domain`: the item scope of section 4.
+- `_add_movement`, `_add_opening` and `_add_carry_forward`: three grouped `_read_group` queries on `account.move.line`, for the movement, the opening and the carry-forward. They are grouped by account, or by account and currency.
+- `_add_accounts_without_items`: without Skip Zero Balance, the accounts with no items.
+- `_leaf_rows` and `_amounts`: the nine numbers per row.
+- `_is_zero_row`: the Skip Zero Balance test.
+- `_hierarchy`: group rows, levels, display order and Only Parents.
+- `_sum_amounts` and `_currency_totals`: the totals.
+
+The number of queries does not depend on the number of accounts (measured in `test_query_count_does_not_grow_with_accounts`).
+
+**Result** (plain values, ready to be passed as JSON):
+
+- `filters`: the normalized options, plus `company_name`, `journal_name` and `analytic_account_name`.
+- `leaf_rows`: one row per shown account, or per account and transaction currency, in code order. Each row has:
+  - `id`, `type` ("account"), `level`, `parent_id`;
+  - `account_id`, `account_code`, `account_name`, `group_id`;
+  - `currency_id`, `currency_name`, `currency_symbol` and `amount_currency` (only with Show Amount Currency, otherwise None);
+  - the nine numbers: `initial_debit`, `initial_credit`, `initial_balance`, `debit`, `credit`, `balance`, `ending_debit`, `ending_credit`, `ending_balance`.
+- `hierarchy_rows`: the group rows in display order. Each has `type` "group", `group_id` (None for "(No Group)"), `group_code`, `group_name`, `level`, `parent_id` and the nine numbers, with no amount currency.
+- `lines`: the rows to display, in order.
+  - Without a hierarchy, the leaf rows.
+  - With Hierarchy and Subtotals, each group row followed by its child groups and accounts in code order, with "(No Group)" last.
+  - With Hierarchy Only Parents, the group rows of the chosen level or higher only.
+- `totals`: the nine numbers summed over `leaf_rows`, never over group rows.
+- `currency_totals`: with Show Amount Currency, one entry per transaction currency. Each has the amount-currency total and the base-currency movement debit, credit and balance of its rows.
+- `warnings`: each with a `code` and a `message`.
+  - `no_earnings_account`: earlier years' result cannot be shown.
+  - `no_account_groups`: a hierarchy was asked for, but no account of the report has a group.
+- `metadata`:
+  - the company and its currency, the dates and the fiscal-year start;
+  - `earnings_account_id` and `carry_forward`: None when the earnings row is outside the prefixes;
+  - `balanced` (Debit equals Credit in each column group), and `leaf_count`.
+
+**Details that the rules above left open, decided in Stage 08:**
+
+- With Show Amount Currency, an account without items is listed (Skip Zero Balance off) in the account's own currency, or in the company currency, with an amount currency of 0 (D-51).
+- A leaf row's level is its group's level plus 1, or 2 under "(No Group)". Without a hierarchy, every row is level 1.
+- The carry-forward is computed only when the earnings account is in the report. Without an earnings account, a non-zero carry-forward produces the warning `no_earnings_account` (D-52).

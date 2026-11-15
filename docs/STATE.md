@@ -1,9 +1,25 @@
 # Project state
 
-_Last updated: 2026-11-15, end of Stage 07. Stage 04 is still PARTIAL._
+_Last updated: 2026-11-15, end of Stage 08. Stage 04 is still PARTIAL._
 
 ## Current position
 
+- **Stage 08: DONE (2026-11-15).** `azk_dynamic_trial_balance` 18.0.1.2.0, on top of the Stage 07 commit `cabfb75`.
+  - **Implemented:**
+    - the calculation engine `azk_dynamic_trial_balance.engine` (`models/trial_balance_engine.py`), whose `compute(options)` returns one normalized result: filters, display lines, leaf and hierarchy rows, totals, per-currency totals, warnings and metadata;
+    - the engine checks the accounting read-only group (D-50) and validates every option again;
+    - three grouped `_read_group` queries as the calling user (movement, opening, carry-forward), so record rules apply, with no `sudo()` and no SQL;
+    - the wizard's `_compute_report()`.
+    The Preview, PDF and XLSX buttons are still entry points (Stage 09). Design: [architecture.md](architecture.md) 4.10, [calculation_contract.md](calculation_contract.md) 15; decisions D-50 to D-53. Results: [test_results.md](test_results.md). Handoff: [handoffs/stage_08_en.md](handoffs/stage_08_en.md).
+  - **Evidence (2026-11-15):**
+    - `scripts/dev.sh test azk_dynamic_trial_balance` on the final code: PASS. "0 failed, 0 error(s) of 85 tests" (48 from Stage 07, 37 new), 0 warning lines, exit code 0, 326 s. Runs 1 and 2 also passed (84 and 85 tests).
+    - The engine equals the hand-calculated constants of every fixture, and the standard Trial Balance wherever both have the option. The exact scope is in [test_results.md](test_results.md).
+    - Query count: 15 to 16 per report after warm-up, whether 4 or 24 accounts have amounts.
+    - The standard report on `azk_ee24`'s own data (`scripts/tb_engine_vs_native.py`, admin, rolled back): 6 of 6 cases match.
+    - `scripts/dev.sh update azk_dynamic_trial_balance` on `azk_ee24`: PASS, 0 warnings.
+    - Headless Chrome check of the wizard: PASS, 8 of 8, after restarting the web server.
+  - **Docker restart:** both containers stopped at 06:20:26 UTC, between Stage 07 and Stage 08. The web server exited with 255 and the database with 0. Docker's engine now reports version 29.9.2 (29.4.0 in Stage 01), so Docker Desktop was most likely updated. `scripts/dev.sh start` brought the web server back.
+  - **Disk:** 47 to 48 GB free on C: during the stage, stable during all three runs.
 - **Stage 07: DONE (2026-11-15).** `azk_dynamic_trial_balance` 18.0.1.1.0 now depends on `account_reports`.
   - **Before the stage:** the Stage 06 dashboard smoke check was rerun at commit `3222285` on `azk_ee24`: PASS, 7 of 7 (committed separately as `597e0e8`).
   - **Implemented:**
@@ -107,7 +123,7 @@ _Last updated: 2026-11-15, end of Stage 07. Stage 04 is still PARTIAL._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** Stage 08 (Trial Balance calculation engine), when the user requests it. It implements [calculation_contract.md](calculation_contract.md) and is tested against the same hand-calculated constants (`tests/common.py`). A real Partner Monitor sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
+- **Next step:** Stage 09 (Preview, PDF and XLSX from the same engine result), when the user requests it. The Trial Balance demo data (T-21 to T-23) is still to be added. A real Partner Monitor sync still needs Stage 04's deferred page-download module: implement `worker._get_page_source()` with it, then run the bounded live check described in the Stage 05 handoff.
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. On port 8071 the agent ran headless Chrome (installed on this machine) through the DevTools protocol in Stage 06: the Partner Monitor dashboard check passed 7 of 7 (`scripts/ui_smoke_check.py`). Other screens of the environment were not checked in a browser; the manual steps are in the Stage 06 handoff.
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
@@ -115,7 +131,7 @@ _Last updated: 2026-11-15, end of Stage 07. Stage 04 is still PARTIAL._
   - its scheduled jobs and worker, tested offline (Stage 05);
   - its dashboard, pivots and graphs (Stage 06).
   - Not yet: the page download (deferred).
-  - The Trial Balance wizard, its validation and the calculation contract (Stage 07). Not yet: the calculation engine (Stage 08) and the Preview, PDF and XLSX outputs (Stage 09).
+  - The Trial Balance wizard, its validation and the calculation contract (Stage 07), and the calculation engine (Stage 08). Not yet: the Preview, PDF and XLSX outputs (Stage 09) and the Trial Balance demo data.
 - **Target:** Odoo Enterprise (confirmed, A-08); major version 18.0 (provisional, A-09).
 - **Tests run on 2026-11-03:**
   - Enterprise: `scripts/dev.sh test`, 4 tests, 0 failed, 0 errors.
@@ -144,7 +160,7 @@ _Last updated: 2026-11-15, end of Stage 07. Stage 04 is still PARTIAL._
 | 05 | Partner resilience | DONE for the worker (2026-11-10): jobs, worker, retries, validation and notes; tests and the restart check pass offline; live sync NOT RUN (needs Stage 04's page-download module) |
 | 06 | Partner dashboard | DONE (2026-11-10): dashboard entry point, shared filters, four charts, sync state; 129 tests pass; browser check 7 of 7; rerun on the final code on 2026-11-15: 7 of 7 |
 | 07 | Trial Balance wizard and calculation contract | DONE (2026-11-15): wizard, option contract, calculation contract and fixtures; 48 tests pass; the standard Trial Balance matches the hand-calculated numbers; browser check of the wizard 8 of 8; outputs are entry points only |
-| 08 | Trial Balance calculation engine | NOT STARTED |
+| 08 | Trial Balance calculation engine | DONE (2026-11-15): engine with one normalized result; 85 tests pass; equal to the hand-calculated constants and to the standard Trial Balance where both apply; constant query count |
 | 09 | Trial Balance outputs (Preview, PDF, XLSX) | NOT STARTED |
 | 10 | Engineering review | NOT STARTED |
 | 11 | Clean acceptance | NOT STARTED |
@@ -218,6 +234,11 @@ _Last updated: 2026-11-15, end of Stage 07. Stage 04 is still PARTIAL._
   - D-48: Skip Zero Balance hides a row only when its opening, gross movement debit and credit, and ending are all zero;
   - D-49: with currency rows, netting happens per row, so netted totals can differ while balances reconcile;
   - V-08: `account_reports` brings `accountant` and `account_accountant`, whose fiscal-year override the contract follows.
+- **Stage 08 decisions** ([assumptions.md](assumptions.md)):
+  - D-50: the engine requires the accounting read-only group, like the standard Trial Balance;
+  - D-51: with currency rows, an account without items is listed in its own currency or the company currency;
+  - D-52: the carry-forward is computed only when the earnings row is in the report; without an earnings account, a warning;
+  - D-53: the engine is a plain service on the ORM; the `account_reports` handler that renders it is Stage 09.
 
 ## Corrections applied
 
@@ -255,6 +276,6 @@ Inspected in Stage 01 and rechecked in Stage 01B; details in [environment.md](en
 
 - Windows 11 Pro 10.0.26200, Intel Core i7-8650U (4 cores, 8 threads), 15.9 GB RAM. Drive C: had 18.0 GB free before Stage 01, 10.2 GB after it, 7.9 GB at the start of Stage 01B (after the archive had been extracted) and 2.0 GB at its end. The files and databases created in Stage 01B account for about 0.65 GB. The rest is not attributed: Docker's virtual disk (shared with the other running project, size at the start of the stage unknown) grew during the install and test runs, and other Windows activity may also contribute.
 - The agent works through Git Bash (installed per user under `%LOCALAPPDATA%\Programs\Git`) and PowerShell. In PowerShell, `bash` starts WSL, not Git Bash.
-- Docker Desktop 29.4.0 with Compose v5.1.1 (WSL2 backend). Another project (ots-local) uses 127.0.0.1 ports 5433, 8000 and 9000; ports 8069 and 8070 were free. On this host Docker Desktop creates missing bind-mount folders even with `create_host_path: false`.
+- Docker Desktop 29.4.0 with Compose v5.1.1 (WSL2 backend). On 2026-11-15 the engine reported version 29.9.2, after a restart that stopped all containers at 06:20 UTC. Another project (ots-local) uses 127.0.0.1 ports 5433, 8000 and 9000; ports 8069 and 8070 were free. On this host Docker Desktop creates missing bind-mount folders even with `create_host_path: false`.
 - A host PostgreSQL 18 service listens on port 5432; this project does not use it.
 - Host `python` 3.12.0, `git` 2.53.0.windows.2 and `pdftotext` are available. wkhtmltopdf is not installed on the host; the Odoo image provides it.

@@ -346,6 +346,30 @@ Results of `scripts/dev.sh test azk_dynamic_trial_balance`, each on a fresh `azk
 - Run 2: 0 failed, 0 errors of 48 tests.
 - Run 3, on the final code: 0 failed, 0 errors of 48 tests; 0 warning lines; exit code 0; 289 s.
 
+### 4.4 Implemented in Stage 08 (2026-11-15)
+
+The engine tests sit next to the Stage 07 tests of each fixture, so the standard report and our engine are checked against the same hand-calculated constants on the same data. New files:
+
+- `test_engine_boundaries.py`, `TestEngineBoundaries`, 8 tests: fixture TB-D (dates, reversal, cancelled, draft, overdraft, empty period, rounding).
+- `test_engine_access.py`, `TestEngineAccess`, 5 tests: who may run the engine, tampered options, the wizard path, query count.
+
+New engine tests in the Stage 07 classes:
+
+- `TestBaseFixture`: 7;
+- `TestCrossYearConventions`: 2;
+- `TestZeroActivityFixture`: 2;
+- `TestCurrencyFixture`: 3;
+- `TestAnalyticFixture`: 2;
+- `TestMultiCompanyFixture`: 3;
+- `TestRestrictedAccessFixture`: 2;
+- `TestHierarchyFixture`: 3.
+
+Total: 85 tests (48 from Stage 07). Commands, results, the scope of the standard-report comparisons and the query counts are in [test_results.md](test_results.md). Status of the checks of 4.2 after Stage 08:
+
+- **PASS:** TP-TB-02 to TP-TB-10 and TP-TB-12.
+- **PASS for the calculation, open for the exports (Stage 09):** TP-TB-11.
+- **Stage 09:** TP-TB-13 to TP-TB-17.
+
 ## 5. Acceptance (Stage 11) and general checks
 
 | ID | Check | Expected result | Requirements |

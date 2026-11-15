@@ -209,14 +209,24 @@ class TrialBalanceWizard(models.TransientModel):
             "show_amount_currency": self.show_amount_currency,
         })
 
+    def _compute_report(self):
+        """Return the calculated report for this wizard's options.
+
+        The engine validates the options again with the caller's access and
+        computes as the caller, so the result never holds journal items the
+        user may not read. The outputs of Stage 09 render this result.
+        """
+        self.ensure_one()
+        return self.env["azk_dynamic_trial_balance.engine"].compute(self._get_report_options())
+
     def _output_not_available(self, output):
-        # Entry point only: the options are validated, but the calculation
-        # (Stage 08) and the outputs (Stage 09) are not built yet. Saying so
-        # is better than a button that seems to work.
+        # Entry point only: the options are validated, and the calculation
+        # exists (_compute_report), but the outputs (Stage 09) are not built
+        # yet. Saying so is better than a button that seems to work.
         self._get_report_options()
         raise UserError(_(
             "%(output)s is not available yet. Your options are valid, but the "
-            "report calculation and its outputs are still being built.",
+            "report outputs are still being built.",
             output=output,
         ))
 

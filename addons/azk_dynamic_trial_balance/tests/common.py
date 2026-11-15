@@ -253,6 +253,44 @@ TB_H_ONLY_PARENTS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# TB-D: date boundaries, reversal, cancelled, draft, negative balance (Stage 08).
+# Report period 2026-01-01 to 2026-01-31.
+#   2025-12-31 posted     Bank debit 100 / Capital credit 100        day before
+#   2026-01-01 posted     Bank debit 10 / Revenue credit 10          first day
+#   2026-01-10 posted     Expense debit 30 / Bank credit 30          reversed by:
+#   2026-01-12 posted     Bank debit 30 / Expense credit 30          (_reverse_moves)
+#   2026-01-15 cancelled  Expense debit 70 / Bank credit 70
+#   2026-01-20 posted     Expense debit 200 / Bank credit 200        overdraws Bank
+#   2026-01-25 draft      Expense debit 5 / Bank credit 5
+#   2026-01-31 posted     Expense debit 20 / Bank credit 20          last day
+#   2026-02-01 posted     Expense debit 40 / Bank credit 40          day after
+# Bank: 100 + (10 + 30) - (30 + 200 + 20) = -110, a credit balance. The
+# reversal adds 30 to both sides of Bank and Expense; the net is unchanged.
+# ---------------------------------------------------------------------------
+TB_D_JANUARY = {
+    "bank": (100, 0, 100, 40, 250, -210, 0, 110, -110),
+    "capital": (0, 100, -100, 0, 0, 0, 0, 100, -100),
+    "revenue": (0, 0, 0, 0, 10, -10, 0, 10, -10),
+    "expense": (0, 0, 0, 250, 30, 220, 220, 0, 220),
+    "total": (100, 100, 0, 290, 290, 0, 220, 220, 0),
+}
+TB_D_JANUARY_WITH_DRAFTS = {
+    "bank": (100, 0, 100, 40, 255, -215, 0, 115, -115),
+    "capital": (0, 100, -100, 0, 0, 0, 0, 100, -100),
+    "revenue": (0, 0, 0, 0, 10, -10, 0, 10, -10),
+    "expense": (0, 0, 0, 255, 30, 225, 225, 0, 225),
+    "total": (100, 100, 0, 295, 295, 0, 225, 225, 0),
+}
+
+# The order of the nine numbers in the engine's rows and totals.
+AMOUNT_KEYS = (
+    "initial_debit", "initial_credit", "initial_balance",
+    "debit", "credit", "balance",
+    "ending_debit", "ending_credit", "ending_balance",
+)
+
+
 def debit_credit_pairs(row):
     """The six debit/credit numbers of a nine-number row."""
     return (row[0], row[1], row[3], row[4], row[6], row[7])
@@ -348,6 +386,84 @@ class TrialBalanceCase(AccountTestInvoicingCommon):
             "february": cls._entry("2026-02-01", [(a["expense"], 50, 0), (a["bank"], 0, 50)],
                                    ref="TB-BASE February expense"),
         }
+
+    @classmethod
+    def _build_tb_d(cls):
+        a = cls.accounts
+        cls._entry("2025-12-31", [(a["bank"], 100, 0), (a["capital"], 0, 100)], ref="TB-D day before")
+        cls._entry("2026-01-01", [(a["bank"], 10, 0), (a["revenue"], 0, 10)], ref="TB-D first day")
+        reversed_move = cls._entry("2026-01-10", [(a["expense"], 30, 0), (a["bank"], 0, 30)],
+                                   ref="TB-D reversed")
+        # Odoo's own reversal (what the Reverse button's wizard calls): a
+        # copy with every amount negated, posted on its own date.
+        cls.reversal = reversed_move._reverse_moves([{"date": "2026-01-12", "ref": "TB-D reversal"}])
+        cls.reversal.action_post()
+        cls._entry("2026-01-15", [(a["expense"], 70, 0), (a["bank"], 0, 70)], state="cancel",
+                   ref="TB-D cancelled")
+        cls._entry("2026-01-20", [(a["expense"], 200, 0), (a["bank"], 0, 200)], ref="TB-D overdraft")
+        cls._entry("2026-01-25", [(a["expense"], 5, 0), (a["bank"], 0, 5)], state="draft",
+                   ref="TB-D draft")
+        cls._entry("2026-01-31", [(a["expense"], 20, 0), (a["bank"], 0, 20)], ref="TB-D last day")
+        cls._entry("2026-02-01", [(a["expense"], 40, 0), (a["bank"], 0, 40)], ref="TB-D day after")
+
+    # ------------------------------------------------------------------
+    # Our engine (models/trial_balance_engine.py)
+    # ------------------------------------------------------------------
+    def engine_report(self, date_from, date_to, company=None, user=None, **options):
+        """Run our engine as ``user`` (default: the test user) on one active company."""
+        company = company or self.company
+        Engine = self.env["azk_dynamic_trial_balance.engine"]
+        if user:
+            Engine = Engine.with_user(user)
+        Engine = Engine.with_context(allowed_company_ids=[company.id])
+        return Engine.compute({
+            "date_from": date_from, "date_to": date_to, "company_id": company.id, **options,
+        })
+
+    def engine_rows(self, result, accounts=None, lines=False):
+        """The result's rows keyed like the expectation tables, plus "total".
+
+        Account rows are keyed by short account name (or code), and by
+        (name, currency) with Show Amount Currency; group rows by their
+        prefix, or "(No Group)". Values are the nine numbers. By default
+        the leaf rows are used; ``lines=True`` uses the displayed lines.
+        """
+        names = {account.id: name for name, account in (accounts or self.accounts).items()}
+        by_currency = result["filters"]["show_amount_currency"]
+        rows = {}
+        for row in (result["lines"] if lines else result["leaf_rows"]):
+            if row["type"] == "account":
+                key = names.get(row["account_id"], row["account_code"])
+                if by_currency:
+                    key = (key, row["currency_name"])
+            else:
+                key = row["group_code"] or "(No Group)"
+            self.assertNotIn(key, rows, f"row {key} appears twice")
+            rows[key] = tuple(row[name] for name in AMOUNT_KEYS)
+        rows["total"] = tuple(result["totals"][name] for name in AMOUNT_KEYS)
+        return rows
+
+    def assertRowsEqual(self, rows, expected):
+        """Exactly the expected rows, each with exactly its nine numbers."""
+        self.assertEqual(set(rows), set(expected))
+        for key, values in expected.items():
+            with self.subTest(row=key):
+                self.assertEqual(rows[key], tuple(float(value) for value in values))
+
+    def assertEngineMatchesNative(self, result, native, accounts=None):
+        """Our account lines and totals equal the standard report's, debit and credit.
+
+        Both reports list the same accounts (ours with Skip Zero Balance)
+        and give each the same six debit and credit numbers. Balances are
+        not compared: the standard report has none.
+        """
+        ours = self.engine_rows(result, accounts)
+        theirs = {key: values for key, values in native.items()
+                  if not key.startswith(("group ", "_")) and key != "(No Group)"}
+        self.assertEqual(set(ours), set(theirs))
+        for key, values in theirs.items():
+            with self.subTest(line=key):
+                self.assertEqual(debit_credit_pairs(ours[key]), values)
 
     # ------------------------------------------------------------------
     # Odoo's standard Trial Balance (account_reports), used as a reference

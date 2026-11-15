@@ -10,7 +10,7 @@ from .common import (
 
 @tagged("post_install", "-at_install")
 class TestCrossYearConventions(TrialBalanceCase):
-    """TB-X: the fiscal-year rules of the standard Trial Balance.
+    """TB-X: the fiscal-year rules, in the standard Trial Balance and in our engine.
 
     TB-BASE plus prior-year revenue (2025-06-30, Current Assets 700 /
     Revenue 700). The hand-calculated tables in tests/common.py follow the
@@ -66,3 +66,40 @@ class TestCrossYearConventions(TrialBalanceCase):
             ("account_id", "=", self.accounts["earnings"].id),
         ])
         self.assertFalse(lines)
+
+    # ------------------------------------------------------------------
+    # Our engine (Stage 08)
+    # ------------------------------------------------------------------
+    def test_engine_january_february_and_drafts(self):
+        cases = [
+            ("2026-01-01", "2026-01-31", False, TB_X_JANUARY),
+            ("2026-02-01", "2026-02-28", False, TB_X_FEBRUARY),
+            ("2026-02-01", "2026-02-28", True, TB_X_FEBRUARY_WITH_DRAFTS),
+        ]
+        for date_from, date_to, draft, expected in cases:
+            with self.subTest(period=date_from, drafts=draft):
+                result = self.engine_report(date_from, date_to, include_unposted=draft,
+                                            skip_zero_balance=True)
+                self.assertRowsEqual(self.engine_rows(result), expected)
+                # Both periods are in the fiscal year that starts on 1 January.
+                self.assertEqual(result["metadata"]["fiscal_year_start"], "2026-01-01")
+                # The 2025 revenue (700 credit) is carried to Current Year Earnings.
+                self.assertEqual(result["metadata"]["carry_forward"], -700.0)
+                self.assertEqual(result["metadata"]["earnings_account_id"], self.accounts["earnings"].id)
+                native = self.native_trial_balance(date_from, date_to, draft=draft)
+                self.assertEngineMatchesNative(result, native)
+
+    def test_engine_carry_forward_follows_the_earnings_row(self):
+        # Prefix "999": only Current Year Earnings, with the whole carry-
+        # forward, although Revenue (400000) does not match the prefix (D-15).
+        earnings = TB_X_JANUARY["earnings"]
+        result = self.engine_report("2026-01-01", "2026-01-31", account_prefixes=["999"],
+                                    skip_zero_balance=True)
+        self.assertRowsEqual(self.engine_rows(result), {"earnings": earnings, "total": earnings})
+        # Prefix "4": Revenue only; the earnings row, and so the carry-
+        # forward, are outside the report.
+        result = self.engine_report("2026-01-01", "2026-01-31", account_prefixes=["4"],
+                                    skip_zero_balance=True)
+        revenue = TB_X_JANUARY["revenue"]
+        self.assertRowsEqual(self.engine_rows(result), {"revenue": revenue, "total": revenue})
+        self.assertIsNone(result["metadata"]["carry_forward"])

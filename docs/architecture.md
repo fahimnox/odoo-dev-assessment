@@ -1,6 +1,6 @@
 # Architecture (Stage 02)
 
-_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. Stage 05 (2026-11-10) built the scheduled jobs and the worker; see section 5.12 and [resilience.md](resilience.md). Stage 06 (2026-11-10) built the dashboard and the remaining views; see section 5.13. Stage 07 (2026-11-15) built the Trial Balance wizard, its option contract and its test fixtures, and wrote [calculation_contract.md](calculation_contract.md); see section 4.9. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. Stage 05 (2026-11-10) built the scheduled jobs and the worker; see section 5.12 and [resilience.md](resilience.md). Stage 06 (2026-11-10) built the dashboard and the remaining views; see section 5.13. Stage 07 (2026-11-15) built the Trial Balance wizard, its option contract and its test fixtures, and wrote [calculation_contract.md](calculation_contract.md); see section 4.9. Stage 08 (2026-11-15) built the calculation engine; see section 4.10. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
 
 ## 1. Target and sources used
 
@@ -296,6 +296,19 @@ The Stage 07 base fixture expects Bank 1,000 / +500 / -300 = 1,200 (posted) and 
   - `TestBaseFixture`;
   - `TestCrossYearConventions`;
   - one class per advanced fixture: `TestZeroActivityFixture`, `TestCurrencyFixture`, `TestAnalyticFixture`, `TestMultiCompanyFixture`, `TestRestrictedAccessFixture`, `TestHierarchyFixture`.
+
+### 4.10 As built in Stage 08 (2026-11-15): the calculation engine
+
+- **Service:** `azk_dynamic_trial_balance.engine` (`models/trial_balance_engine.py`), an AbstractModel with one entry point, `compute(options)`. It returns the normalized result described in [calculation_contract.md](calculation_contract.md) 15:
+  - filters, leaf rows, hierarchy rows and display lines;
+  - base-currency totals and per-currency totals;
+  - warnings and metadata.
+- **Validation on every call:** `compute` checks the accounting read-only group (D-50), then validates the raw options again with `normalize_options`. So the wizard, and the Stage 09 handler that will pass client-sent options, both go through the same checks.
+- **Arithmetic as the user:** three grouped `_read_group` queries on `account.move.line` (movement, opening, carry-forward) plus one account search, all as the calling user. `_read_group` checks access rights and applies every record rule. There is no `sudo()` and no SQL, and the number of queries does not depend on the number of accounts.
+- **Company context:** the engine runs `with_company(report company)`, because account codes (`code_store`) and account groups are company-dependent.
+- **Hierarchy:** built in Python from `account.account.group_id` and `account.group.parent_id`, so it can apply the level limit, list "(No Group)" and keep currencies apart. The display order, levels and group sums match the standard hierarchy on TB-H.
+- **Wizard:** `TrialBalanceWizard._compute_report()` returns the engine result for the wizard's options, with the caller's access. The Preview, PDF and XLSX buttons still only validate (D-47); Stage 09 builds the handler and report record that render the result (D-53).
+- **Not used from `account_reports` yet:** the report framework itself. The engine reuses the ORM and the same model helpers as the standard report; parity is tested, not inherited (architecture 4.1).
 
 ## 5. Exercise 1: Odoo Partner Monitor
 
