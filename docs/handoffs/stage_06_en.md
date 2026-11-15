@@ -48,7 +48,13 @@ The test `TestDashboardDemoData.test_walkthrough_gold_2025` checks these numbers
 - **Problems these runs found, fixed before run 4:**
   - the first screenshot showed squashed charts, a repeated toolbar, and status colors that changed between charts;
   - a later run showed a module-loading error that the first version of the check had missed: the custom graph view must sit in Odoo's lazy view bundle.
-- **The final browser run is BLOCKED.** After the disk-full event (below), the host answered a page in 24 s, with 2 GB of RAM free. The check timed out while loading the login page.
+- **The final browser run was BLOCKED on 2026-11-10.** After the disk-full event (below), the host answered a page in 24 s, with 2 GB of RAM free. The check timed out while loading the login page.
+- **Rerun on 2026-11-15, on the final code: 7 of 7 PASS.** Run by the agent before Stage 07, at commit `3222285` with a clean working tree, against `azk_ee24` on port 8071. Drive C: had 54 GB free.
+  - The containers had stopped three days earlier, so `scripts/dev.sh start` started them first; the login page answered after about 35 s.
+  - The check ran without `--sync`, so it changed no data.
+  - The same seven checks as run 4 passed, with the same numbers: 47 active partners in 12 countries without filters, and 9 partners in 6 countries with Gold and 2025 (Epsilon 3, Zeta 2, then Alpha, Gamma and Iota with 1 each). Epsilon's list showed "1-3 / 3".
+  - The agent viewed the Gold and 2025 screenshot. The layout, the status colors and the overlap note were correct.
+  - The screenshots and the full output were saved outside the repository (`<kit-root>/runtime/logs/`). The committed screenshots are unchanged.
 
 **Manual checks for you (NOT RUN by the agent):**
 

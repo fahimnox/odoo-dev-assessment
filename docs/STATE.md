@@ -18,7 +18,7 @@ _Last updated: 2026-11-10, end of Stage 06. Stage 04 is still PARTIAL._
     - `scripts/dev.sh test azk_odoo_partner_monitor` on the final code: PASS. "0 failed, 0 error(s) of 129 tests" in a fresh `azk_ee24_test`: 113 earlier tests plus 16 dashboard tests. 0 warning lines, exit code 0, 8 min 27 s; the host was slow, as an earlier run took 3 min 31 s. The first run found one failure (the dashboard menu without its own group), fixed before the later runs.
     - Fixture sync demonstration (`scripts/fixture_sync_demo.py`, `azk_ee24_test`, saved fixture pages, nothing committed): PASS. One country sync, a promotion and a reference removal, printed before and after.
     - `scripts/dev.sh update azk_odoo_partner_monitor` on `azk_ee24`: PASS, 0 warnings.
-    - Headless Chrome (`scripts/ui_smoke_check.py`) on `azk_ee24`: run 4 PASS, 7 of 7. The code differed from the final code only by one space character in the template. An earlier run (run 2) with `--sync` PASSED Sync Now and the waiting state. Screenshots: [screenshots/](screenshots/). The final browser run is BLOCKED: after the disk-full event below, the host answered a page in 24 s (2 GB of RAM free).
+    - Headless Chrome (`scripts/ui_smoke_check.py`) on `azk_ee24`: run 4 PASS, 7 of 7. The code differed from the final code only by one space character in the template. An earlier run (run 2) with `--sync` PASSED Sync Now and the waiting state. Screenshots: [screenshots/](screenshots/). The final browser run was BLOCKED on 2026-11-10: after the disk-full event below, the host answered a page in 24 s (2 GB of RAM free). Rerun on 2026-11-15 at commit `3222285` (the final code, clean tree): PASS, 7 of 7, with the same numbers ([handoffs/stage_06_en.md](handoffs/stage_06_en.md)).
   - **Disk event, 2026-11-10 at about 11:35 UTC:**
     - drive C: fell to 0.15 GB free;
     - the largest recent writes were Windows' page file (12.4 GB), Docker's virtual disk (17.6 GB, growing), a 1.84 GB backup of another project, and a CLI update;
@@ -121,7 +121,7 @@ _Last updated: 2026-11-10, end of Stage 06. Stage 04 is still PARTIAL._
 | 03 | Partner Monitor models, permissions, basic UI | DONE (2026-11-08): 53 tests pass; installs and upgrades without warnings |
 | 04 | Partner scraping | PARTIAL (2026-11-08): parsers, ingestion and 38 offline tests pass; the page-download module and a live run through it are missing |
 | 05 | Partner resilience | DONE for the worker (2026-11-10): jobs, worker, retries, validation and notes; tests and the restart check pass offline; live sync NOT RUN (needs Stage 04's page-download module) |
-| 06 | Partner dashboard | DONE (2026-11-10): dashboard entry point, shared filters, four charts, sync state; 129 tests pass; browser check 7 of 7 (final browser run BLOCKED by the host's state) |
+| 06 | Partner dashboard | DONE (2026-11-10): dashboard entry point, shared filters, four charts, sync state; 129 tests pass; browser check 7 of 7; rerun on the final code on 2026-11-15: 7 of 7 |
 | 07 | Trial Balance wizard and calculation contract | NOT STARTED |
 | 08 | Trial Balance calculation engine | NOT STARTED |
 | 09 | Trial Balance outputs (Preview, PDF, XLSX) | NOT STARTED |
