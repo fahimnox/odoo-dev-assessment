@@ -1,14 +1,38 @@
 # Development environment
 
-Set up and verified in Stage 01 on 2026-11-01 (Community). Extended in Stage 01B on 2026-11-03 with an Enterprise service, which is now the target edition; see [enterprise_transition.md](enterprise_transition.md) for the source, the pairing decision and the native Trial Balance. The verification results of both stages are at the end of this file.
+Set up and verified in Stage 01 on 2026-11-01 (Community). Extended in Stage 01B on 2026-11-03 with an Enterprise service, and on 2026-11-05 with the matched Enterprise pair, which is the target; see [enterprise_transition.md](enterprise_transition.md) for the source, the pairing decision and the native Trial Balance. The verification results are at the end of this file; the clean-checkout acceptance of Stage 11 is in [acceptance_results.md](acceptance_results.md).
+
+## Quick start (clean checkout)
+
+Checked in Stage 11 from an export of the repository with no `.env`, in a new Compose project with empty volumes ([acceptance_results.md](acceptance_results.md)).
+
+What you need, outside this repository:
+
+- Docker with Compose v2 (Docker Desktop on Windows), and bash (Git Bash on Windows).
+- The Odoo 18.0 Community source of `odoo/odoo` commit `4e5027c159a9d9a8dd006618486c8e54cb1eb453`: the folder that contains `odoo/` and `addons/`, for example extracted from https://github.com/odoo/odoo/archive/4e5027c159a9d9a8dd006618486c8e54cb1eb453.tar.gz. Translations are not needed.
+- The Odoo 18.0 Enterprise addons of the same build, `18.0+e.20241208`: the folder that directly contains `web_enterprise/` and `account_reports/`. They are proprietary and are not part of this repository.
+
+Steps, from the repository root:
+
+1. `scripts/dev.sh setup`. The first run writes `.env` (ignored by Git) with random database passwords and `ODOO_EDITION=enterprise-20241208`, then stops with "needs ENTERPRISE_ADDONS in .env".
+2. In `.env`, set `ENTERPRISE_ADDONS` and `COMMUNITY_SOURCE_20241208` to the two folders (absolute paths, or relative to the repository root). Both can also be given on the first run instead: `ENTERPRISE_ADDONS=... COMMUNITY_SOURCE_20241208=... scripts/dev.sh setup` writes them into the new `.env`.
+3. `scripts/dev.sh setup` again. It pulls the two pinned images, starts PostgreSQL and creates the database `azk_ee24` with `web_enterprise`, `accountant` and both addons, with their demo data.
+4. `scripts/dev.sh start`, then open http://127.0.0.1:8071/web/login with login `admin` and password `admin` (the server listens on 127.0.0.1 only).
+5. `scripts/dev.sh test` runs the tests of both addons in a fresh `azk_ee24_test`; `scripts/dev.sh test azk_odoo_partner_monitor` runs one addon's.
+
+Good to know:
+
+- No manual database step is needed. Demo data is loaded at install. Without demo data: `scripts/dev.sh clean-install azk_odoo_partner_monitor,azk_dynamic_trial_balance --without-demo` (database `azk_ee24_clean`).
+- The Partner Monitor reads the live website only when a user clicks Sync Now, or on its daily schedule from 02:00 (UTC) on the day after the install. To stop all website requests, tick Settings > Partner Monitor > Pause Website Downloads.
+- If `setup` stops part-way, for example on a wrong folder, fix the cause and run `scripts/dev.sh setup` again: it installs the missing modules and never drops the database.
+- If port 8071 is taken, set `ODOO_EE_20241208_HTTP_PORT` in `.env`; the server uses the same port inside its container. A second copy next to an existing one also needs its own Compose project name, for example `COMPOSE_PROJECT_NAME=azk-copy scripts/dev.sh setup`, so that it gets its own containers and volumes.
 
 ## Editions
 
-- **Enterprise (target):** service `odoo-ee`, http://127.0.0.1:8070, databases `azk_ent` (development, demo data), `azk_ent_test` and `azk_ent_clean`. It runs the image's Community server with a private Enterprise addons folder on the addons path, which is how the official documentation describes running Enterprise.
-- **Community (Stage 01 baseline):** service `odoo`, http://127.0.0.1:8069, databases `azk_dev`, `azk_test` and `azk_clean`. Unchanged since Stage 01; its results are baseline evidence, not Enterprise acceptance.
-- **Enterprise, matched pair (`enterprise-20241208`, Stage 01B follow-up of 2026-11-05):** service `odoo-ee-20241208`, http://127.0.0.1:8071, databases `azk_ee24` (development, demo data), `azk_ee24_test` and `azk_ee24_clean`. It runs the official Community source `odoo/odoo@4e5027c1`, mounted read-only over the image's own Odoo package, with the Enterprise addons of the same build 18.0+e.20241208. The image still provides Python, its libraries and wkhtmltopdf. Sources: `COMMUNITY_SOURCE_20241208`, `ENTERPRISE_ADDONS` and `ENTERPRISE_EXTRA_20241208` in `.env`.
-- The `enterprise` edition above (the Stage 01B pair) is blocked by a vendor test failure and kept only so that `azk_ent` stays usable with the core that created it.
-- `scripts/dev.sh` works on one edition at a time, chosen by `ODOO_EDITION` (environment or `.env`; default `community`). In this workspace `.env` sets `enterprise-20241208` (the matched pair) since 2026-11-05; before that it set `enterprise`. Example: `ODOO_EDITION=community scripts/dev.sh test`.
+- **Enterprise, matched pair (`enterprise-20241208`, the target; Stage 01B follow-up of 2026-11-05):** service `odoo-ee-20241208`, http://127.0.0.1:8071, databases `azk_ee24` (development, demo data), `azk_ee24_test` and `azk_ee24_clean`. It runs the official Community source `odoo/odoo@4e5027c1`, mounted read-only over the image's own Odoo package, with the Enterprise addons of the same build 18.0+e.20241208. The image still provides Python, its libraries and wkhtmltopdf. Sources: `COMMUNITY_SOURCE_20241208` and `ENTERPRISE_ADDONS` in `.env`.
+- **Enterprise, Stage 01B pair (`enterprise`, blocked):** service `odoo-ee`, http://127.0.0.1:8070, databases `azk_ent` (development, demo data), `azk_ent_test` and `azk_ent_clean`. It runs the image's 2026 Community server with the same private Enterprise addons folder on the addons path. A vendor test fails on this pair, so it is kept only so that `azk_ent` stays usable with the core that created it.
+- **Community (Stage 01 baseline):** service `odoo`, http://127.0.0.1:8069, databases `azk_dev`, `azk_test` and `azk_clean`. Its results are baseline evidence, not Enterprise acceptance. The Trial Balance addon depends on the Enterprise module `account_reports`, so this edition installs and tests the Partner Monitor only (since Stage 11).
+- `scripts/dev.sh` works on one edition at a time, chosen by `ODOO_EDITION` (environment or `.env`). The default is `enterprise-20241208` since Stage 11; it was `community` before, which made a first `setup` in a fresh checkout fail on the Trial Balance addon. In this workspace `.env` sets `enterprise-20241208` since 2026-11-05; before that it set `enterprise`. Example: `ODOO_EDITION=community scripts/dev.sh test`.
 
 ## Route and why
 
@@ -98,7 +122,7 @@ Matched-pair service `odoo-ee-20241208` (since 2026-11-05), also sharing the `db
 
 ## Configuration and secrets
 
-- `.env` (ignored by Git) holds `POSTGRES_PASSWORD`, `ODOO_DB_PASSWORD` and `ODOO_HTTP_PORT`, and since Stage 01B `ODOO_EDITION`, `ENTERPRISE_ADDONS` (path of the Enterprise addons folder; relative paths are resolved from `solution/`) and `ODOO_EE_HTTP_PORT`. `scripts/dev.sh setup` creates it with random 48-character hex passwords. `.env.example` is the committed template.
+- `.env` (ignored by Git) holds `POSTGRES_PASSWORD`, `ODOO_DB_PASSWORD` and `ODOO_HTTP_PORT`; since Stage 01B `ODOO_EDITION`, `ENTERPRISE_ADDONS` (path of the Enterprise addons folder) and `ODOO_EE_HTTP_PORT`; since 2026-11-05 `COMMUNITY_SOURCE_20241208` and `ODOO_EE_20241208_HTTP_PORT`. Relative paths are resolved from the repository root. `scripts/dev.sh setup` creates it with random 48-character hex passwords. `.env.example` is the committed template.
 - `config/odoo.conf` and `config/odoo-enterprise.conf` (committed) contain no secrets: `addons_path`, `data_dir`, `list_db = False` and `log_level`.
 - The Enterprise source is proprietary. It is mounted read-only from outside the repository and is never committed, copied into `addons/` or quoted in documentation.
 - The database connection comes from the `PG*` variables in `compose.yaml`. The image entrypoint turns them into `--db_host`, `--db_port`, `--db_user` and `--db_password` arguments, so the password is visible in the process list inside the container. That is acceptable for local development.
@@ -107,7 +131,7 @@ Matched-pair service `odoo-ee-20241208` (since 2026-11-05), also sharing the `db
   - `odoo`: `LOGIN CREATEDB NOSUPERUSER NOCREATEROLE`, created by `docker/db/init/10-create-odoo-role.sh` when the data volume is first initialized. Odoo uses only this role.
 - Local-only access: Odoo is published on 127.0.0.1 only, and PostgreSQL is not published at all.
 - The database manager is disabled (`list_db = False`). `check_db_management_enabled()` in `odoo/service/db.py` then refuses database listing, creation, backup and deletion over HTTP and RPC. The master password (`admin_passwd`) is left at Odoo's default because no database operation accepts it in this configuration; set a real one before ever enabling the database manager.
-- The web server serves only `azk_dev` (`--database=azk_dev --db-filter=^azk_dev$` in `compose.yaml`).
+- Each web server serves only its edition's development database: `azk_dev`, `azk_ent` or `azk_ee24` (for example `--database=azk_ee24 --db-filter=^azk_ee24$` in `compose.yaml`).
 - Databases created from the command line get Odoo's default administrator login `admin` with password `admin`. This is acceptable only because the server listens on loopback.
 
 ## Databases
@@ -124,11 +148,12 @@ Matched-pair service `odoo-ee-20241208` (since 2026-11-05), also sharing the `db
 
 ## Commands
 
-Run these from `solution/` in Git Bash. Each command acts on the edition chosen by `ODOO_EDITION` (see [Editions](#editions)) and prints it first, for example `edition: enterprise (service odoo-ee, database azk_ent)`. In Enterprise mode, read "azk_dev/azk_test/azk_clean" below as "azk_ent/azk_ent_test/azk_ent_clean" and port 8069 as 8070.
+Run these from the repository root in Git Bash. Each command acts on the edition chosen by `ODOO_EDITION` (see [Editions](#editions)) and prints it first, for example `edition: enterprise-20241208 (service odoo-ee-20241208, database azk_ee24)`. The comments below use the Community names of Stage 01: for the default edition read "azk_dev/azk_test/azk_clean" as "azk_ee24/azk_ee24_test/azk_ee24_clean" and port 8069 as 8071.
 
 ```text
-scripts/dev.sh setup                     # first run: .env, images, PostgreSQL, the dev DB with both addons
-                                         # (enterprise: azk_ent with web_enterprise and accountant as well)
+scripts/dev.sh setup                     # first run: .env, images, PostgreSQL, the dev DB with demo data
+                                         # (enterprise editions: web_enterprise, accountant and both addons;
+                                         # community: the Partner Monitor); see the quick start
 scripts/dev.sh start                     # web server at http://127.0.0.1:8069/web/login (enterprise: 8070)
 scripts/dev.sh stop
 scripts/dev.sh restart
@@ -138,16 +163,16 @@ scripts/dev.sh install ADDONS [DB]       # comma-separated; DB defaults to azk_d
 scripts/dev.sh update ADDONS [DB]        # restarts the web server afterwards if it runs
 scripts/dev.sh shell [DB]                # interactive, or pipe Python code into it
 scripts/dev.sh psql [DB]
-scripts/dev.sh test                      # both addons, in a fresh azk_test
+scripts/dev.sh test                      # both addons (community: the Partner Monitor), in a fresh azk_test
 scripts/dev.sh test azk_dynamic_trial_balance
 scripts/dev.sh test azk_odoo_partner_monitor /azk_odoo_partner_monitor:TestModuleInstalled.test_module_is_installed
-scripts/dev.sh clean-install             # both addons, in a fresh azk_clean
+scripts/dev.sh clean-install             # both addons (community: the Partner Monitor), in a fresh azk_clean
 scripts/dev.sh clean-install azk_odoo_partner_monitor
 scripts/dev.sh clean-install azk_odoo_partner_monitor,azk_dynamic_trial_balance --without-demo   # Stage 10: no demo data
 scripts/dev.sh reset-db azk_test
 scripts/dev.sh source                    # copy the pinned Odoo source to ../runtime/odoo18
 scripts/dev.sh test account_reports /account_reports:TestTrialBalanceReport   # enterprise: native TB tests
-ODOO_EDITION=community scripts/dev.sh test                                    # Community baseline
+ODOO_EDITION=community scripts/dev.sh test                                    # Community baseline (Partner Monitor only)
 ```
 
 - Test selection uses Odoo's `--test-tags` syntax, `[-][tag][/module][:class][.method]` (from the option help in `odoo/tools/config.py`). The second argument of `test` is passed as is.
@@ -184,7 +209,9 @@ ODOO_EDITION=community scripts/dev.sh test                                    # 
 - `scripts/dev.sh source` reports "Cannot create symlink" for a few font files on Windows. This is expected.
 - "ODOO_EDITION=enterprise needs ENTERPRISE_ADDONS" or "has no web_enterprise module": set `ENTERPRISE_ADDONS` in `.env` to the Enterprise addons folder (the one that directly contains `web_enterprise/`). `scripts/dev.sh` checks this before every Enterprise command. Raw `docker compose` commands do not: on this host Docker Desktop silently creates a missing bind-mount folder (despite `create_host_path: false`) and starts Odoo without the Enterprise addons. Use `scripts/dev.sh`, and delete any empty folder created that way.
 - "'<db>' belongs to the <edition> edition, not <edition>": the command targeted another edition's database. Database prefixes decide the owner: `azk_ent*` belongs to `enterprise`, `azk_ee24*` to `enterprise-20241208`, everything else to `community`. Switch `ODOO_EDITION` instead of forcing it. This also guarantees that no older core ever opens `azk_ent`.
-- "COMMUNITY_SOURCE_20241208 (...) has no odoo/addons/base/__manifest__.py" (or the same for `ENTERPRISE_EXTRA_20241208`): a source folder of the matched pair is missing or incomplete. See [enterprise_transition.md](enterprise_transition.md) for how it was fetched and pinned.
+- "COMMUNITY_SOURCE_20241208 (...) has no odoo/addons/base/__manifest__.py": a source folder of the matched pair is missing or incomplete. See [enterprise_transition.md](enterprise_transition.md) for how it was fetched and pinned.
+- "You try to install module "azk_dynamic_trial_balance" that depends on module "account_reports"": the command ran on the Community edition, which has no Enterprise addons. Before Stage 11 this was what a first `scripts/dev.sh setup` did in a fresh checkout. Use the default edition `enterprise-20241208` (quick start above).
+- `setup` stopped part-way: fix the cause and run `scripts/dev.sh setup` again. When the development database exists but not every module is installed, it installs the missing ones; it never drops that database.
 - Enterprise PDF without styling, with "wkhtmltopdf: Exit with code 1 due to network error: ConnectionRefusedError" in the log: wkhtmltopdf runs inside the container and downloads the CSS from `report.url` or else `web.base.url`, which a browser login sets to the host URL. That is why `odoo-ee` listens on the same port inside and outside the container. If you change `ODOO_EE_HTTP_PORT`, recreate the service (`docker compose up -d odoo-ee`, or `stop` then `start`). The Community service has the same constraint with `ODOO_HTTP_PORT`: its container port is fixed at 8069.
 - Low disk space: Docker Desktop keeps all images, containers and volumes in one virtual disk (`%LOCALAPPDATA%\Docker\wsl\disk\docker_data.vhdx`, 14.6 GB on 2026-11-03). It grows with every write, including test runs and PostgreSQL WAL, and does not shrink by itself. Pruning inside Docker frees space for reuse but returns none to Windows. Keep several GB free on C: before long test runs: a full disk can damage the PostgreSQL cluster that holds every assessment database. On 2026-11-03 C: had 2.0 GB free, so the full vendor `account_reports` suite was stopped. On 2026-11-04 C: had 2.5 GB, then 1.5 to 1.7 GB free while the agent was only reading files, so the matched-pair setup was not started. Large items on C: then were `pagefile.sys` (10.9 GB, system-managed; it usually shrinks after a restart), `hiberfil.sys` (6.8 GB) and Docker's disk (14.6 GB, holding 12 GB). Drive D: had 8.5 GB free.
 - Registration or expiration banner in the Enterprise web client: expected for an unregistered trial database. Registering needs the employer's subscription code; don't edit the `database.*` parameters to hide it.

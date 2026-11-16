@@ -22,14 +22,18 @@ env_file_value() {
 }
 
 # Edition, set in .env (ODOO_EDITION) or per command:
-#   community            Stage 01 baseline (2026 Community core)
+#   enterprise-20241208  the target and the default: official Community 4e5027c1
+#                        with the Enterprise addons of the same 2024-12-08 build
 #   enterprise           Stage 01B pair: 2026 core with 2024 Enterprise addons
 #                        (blocked by a vendor test failure; kept for azk_ent)
-#   enterprise-20241208  matched pair: official Community 4e5027c1 with the
-#                        Enterprise addons of the same 2024-12-08 build
+#   community            Stage 01 baseline (2026 Community core). The Trial
+#                        Balance addon needs Enterprise (account_reports), so
+#                        this edition installs and tests the Partner Monitor only.
 # Example: ODOO_EDITION=community scripts/dev.sh test
+# Before Stage 11 the default was community, so a first "setup" in a fresh
+# checkout tried to install the Trial Balance addon without Enterprise.
 EDITION="${ODOO_EDITION:-$(env_file_value ODOO_EDITION)}"
-EDITION="${EDITION:-community}"
+EDITION="${EDITION:-enterprise-20241208}"
 ENTERPRISE_ADDONS="${ENTERPRISE_ADDONS:-$(env_file_value ENTERPRISE_ADDONS)}"
 COMMUNITY_SOURCE_20241208="${COMMUNITY_SOURCE_20241208:-$(env_file_value COMMUNITY_SOURCE_20241208)}"
 
@@ -40,13 +44,16 @@ case "$EDITION" in
         TEST_DB="azk_test"        # disposable: recreated by "test"
         CLEAN_DB="azk_clean"      # disposable: recreated by "clean-install"
         PORT_KEY="ODOO_HTTP_PORT"; PORT_DEFAULT=8069
-        SETUP_MODULES="$ADDONS_ALL" ;;
+        # azk_dynamic_trial_balance depends on the Enterprise module account_reports.
+        DEFAULT_ADDONS="azk_odoo_partner_monitor"
+        SETUP_MODULES="$DEFAULT_ADDONS" ;;
     enterprise)
         SERVICE="odoo-ee"
         DEV_DB="azk_ent"
         TEST_DB="azk_ent_test"
         CLEAN_DB="azk_ent_clean"
         PORT_KEY="ODOO_EE_HTTP_PORT"; PORT_DEFAULT=8070
+        DEFAULT_ADDONS="$ADDONS_ALL"
         # web_enterprise: the Enterprise web client. accountant: the Accounting
         # app, which brings account_accountant and, by auto-install, account_reports.
         SETUP_MODULES="web_enterprise,accountant,$ADDONS_ALL" ;;
@@ -56,6 +63,7 @@ case "$EDITION" in
         TEST_DB="azk_ee24_test"
         CLEAN_DB="azk_ee24_clean"
         PORT_KEY="ODOO_EE_20241208_HTTP_PORT"; PORT_DEFAULT=8071
+        DEFAULT_ADDONS="$ADDONS_ALL"
         SETUP_MODULES="web_enterprise,accountant,$ADDONS_ALL" ;;
     *) die "ODOO_EDITION must be community, enterprise or enterprise-20241208, not '$EDITION'" ;;
 esac
@@ -70,18 +78,21 @@ usage() {
     cat <<'EOF'
 Usage: scripts/dev.sh COMMAND [ARGS]
 
-The edition comes from ODOO_EDITION (environment or .env), default community:
-  community            service odoo, databases azk_dev/azk_test/azk_clean, port 8069
-  enterprise           service odoo-ee, databases azk_ent/azk_ent_test/azk_ent_clean,
-                       port 8070, needs ENTERPRISE_ADDONS (Stage 01B pair, blocked)
+The edition comes from ODOO_EDITION (environment or .env), default enterprise-20241208:
   enterprise-20241208  service odoo-ee-20241208, databases azk_ee24/azk_ee24_test/
                        azk_ee24_clean, port 8071, needs COMMUNITY_SOURCE_20241208
-                       and ENTERPRISE_ADDONS (matched pair)
+                       and ENTERPRISE_ADDONS (matched pair, the target)
+  enterprise           service odoo-ee, databases azk_ent/azk_ent_test/azk_ent_clean,
+                       port 8070, needs ENTERPRISE_ADDONS (Stage 01B pair, blocked)
+  community            service odoo, databases azk_dev/azk_test/azk_clean, port 8069
+                       (baseline; Partner Monitor only, the Trial Balance needs Enterprise)
 Example: ODOO_EDITION=community scripts/dev.sh test
 
   setup                     create .env (random passwords) if missing, pull images,
-                            start PostgreSQL and create the development database
-                            (enterprise: with web_enterprise and accountant)
+                            start PostgreSQL and create the development database with
+                            demo data (enterprise: web_enterprise, accountant and both
+                            addons); run it again after an interrupted setup to
+                            install what is missing
   start | stop | restart    start/stop the web server of the edition
   status                    show container status
   logs                      follow the web server log
@@ -90,11 +101,12 @@ Example: ODOO_EDITION=community scripts/dev.sh test
   shell [DB]                Odoo shell on DB (default: dev DB); reads piped code if
                             stdin is not a terminal
   psql [DB]                 psql as the odoo role on DB (default: dev DB)
-  test [ADDONS] [TAGS]      recreate the test DB, install ADDONS (default: both addons)
-                            and run their tests; TAGS defaults to /addon1,/addon2
+  test [ADDONS] [TAGS]      recreate the test DB, install ADDONS (default: both addons,
+                            community: the Partner Monitor) and run their tests;
+                            TAGS defaults to /addon1,/addon2
   clean-install [ADDONS] [--without-demo]
-                            recreate the clean DB and install ADDONS (default: both),
-                            with demo data unless --without-demo is given
+                            recreate the clean DB and install ADDONS (default: as for
+                            test), with demo data unless --without-demo is given
   reset-db DB               drop a disposable database (test or clean DB of the
                             edition) and its filestore
   source                    copy the Odoo Community source from the pinned image to
@@ -109,17 +121,18 @@ tty_flag() { if [[ -t 0 && -t 1 ]]; then echo ""; else echo "-T"; fi; }
 
 random_secret() { head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 
+# Folders given in the environment of this first run are kept in the new .env.
 ensure_env() {
     [[ -f .env ]] && return
-    echo "Creating .env with random local passwords (ignored by Git)."
+    echo "Creating .env with random local passwords and ODOO_EDITION=$EDITION (ignored by Git)."
     {
         echo "POSTGRES_PASSWORD=$(random_secret)"
         echo "ODOO_DB_PASSWORD=$(random_secret)"
         echo "ODOO_HTTP_PORT=8069"
-        echo "ODOO_EDITION=community"
-        echo "ENTERPRISE_ADDONS="
+        echo "ODOO_EDITION=$EDITION"
+        echo "ENTERPRISE_ADDONS=$ENTERPRISE_ADDONS"
         echo "ODOO_EE_HTTP_PORT=8070"
-        echo "COMMUNITY_SOURCE_20241208="
+        echo "COMMUNITY_SOURCE_20241208=$COMMUNITY_SOURCE_20241208"
         echo "ODOO_EE_20241208_HTTP_PORT=8071"
     } > .env
 }
@@ -134,7 +147,7 @@ resolve_path() {
 # Require a configured folder (by .env key) that contains the given marker file.
 require_source() {
     local key="$1" value="$2" marker="$3"
-    [[ -n "$value" ]] || die "ODOO_EDITION=$EDITION needs $key in .env (see .env.example)"
+    [[ -n "$value" ]] || die "ODOO_EDITION=$EDITION needs $key in .env (see .env.example and the quick start in docs/environment.md)"
     [[ -f "$(resolve_path "$value")/$marker" ]] || die "$key ($value) has no $marker"
 }
 
@@ -179,6 +192,16 @@ db_exists() {
 
 server_running() { [[ -n "$(compose ps --status running --quiet "$SERVICE")" ]]; }
 
+# How many of the comma-separated MODULES are installed in DB (0 while the
+# database has no module table yet, for example after an interrupted setup).
+installed_count() {
+    local db="$1" modules="$2" count
+    count="$(compose exec -T db psql --username=odoo --dbname="$db" --tuples-only --no-align \
+        --command="SELECT count(*) FROM ir_module_module WHERE state = 'installed'
+                   AND name = ANY(string_to_array('$modules', ','))" 2>/dev/null)" || count=0
+    echo "${count:-0}"
+}
+
 # Run a one-off Odoo process on DB in a temporary container.
 odoo_run() {
     local db="$1"; shift
@@ -201,17 +224,25 @@ cmd_setup() {
     check_enterprise_addons
     compose pull --quiet
     db_up
-    if db_exists "$DEV_DB"; then
-        echo "$DEV_DB already exists; leaving it unchanged."
-    else
+    local wanted
+    wanted="$(tr ',' '\n' <<< "$SETUP_MODULES" | grep -c .)"
+    if ! db_exists "$DEV_DB"; then
         echo "Creating $DEV_DB with $SETUP_MODULES (demo data included)."
+        odoo_run "$DEV_DB" --init="$SETUP_MODULES" --stop-after-init
+    elif [[ "$(installed_count "$DEV_DB" "$SETUP_MODULES")" == "$wanted" ]]; then
+        echo "$DEV_DB already exists with $SETUP_MODULES; leaving it unchanged."
+    else
+        # An earlier setup stopped part-way (for example on a missing source
+        # folder). Installing is idempotent: installed modules are kept as they
+        # are, and the database is never dropped.
+        echo "$DEV_DB exists, but not all of $SETUP_MODULES is installed; installing the missing modules."
         odoo_run "$DEV_DB" --init="$SETUP_MODULES" --stop-after-init
     fi
     echo "Done. Start the server with: scripts/dev.sh start"
 }
 
 cmd_test() {
-    local addons="${1:-$ADDONS_ALL}" tags="${2:-}" log rc summary
+    local addons="${1:-$DEFAULT_ADDONS}" tags="${2:-}" log rc summary
     [[ -n "$tags" ]] || tags="/${addons//,/,/}"
     reset_db "$TEST_DB"
     log="$(mktemp)"
@@ -248,6 +279,9 @@ main() {
     case "$cmd" in
         help|-h|--help|status|stop|source) ;;
         *) echo "edition: $EDITION (service $SERVICE, database $DEV_DB)" >&2
+           # A first setup writes .env before the check, so that a missing
+           # source folder is reported with a file that can be edited.
+           if [[ "$cmd" == setup ]]; then ensure_env; fi
            check_enterprise_addons ;;
     esac
     case "$cmd" in
@@ -280,7 +314,7 @@ main() {
             compose exec $(tty_flag) db psql --username=odoo --dbname="$db" ;;
         test) cmd_test "$@" ;;
         clean-install)
-            local addons="${1:-$ADDONS_ALL}" demo=()
+            local addons="${1:-$DEFAULT_ADDONS}" demo=()
             if [[ "${2:-}" == "--without-demo" ]]; then demo=(--without-demo=all)
             elif [[ -n "${2:-}" ]]; then die "clean-install: unknown option '$2'"
             fi
