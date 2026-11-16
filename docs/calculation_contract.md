@@ -1,6 +1,19 @@
 # Trial Balance calculation contract
 
-_Written in Stage 07 (2026-11-15), before the calculation engine; Stage 08 (2026-11-15) implemented it in `models/trial_balance_engine.py` (section 15). It fixes the arithmetic that the Preview, PDF and XLSX will all use: each output renders one engine result and computes no numbers of its own (K-01). Requirement IDs (T-xx) refer to [requirements_matrix.md](requirements_matrix.md), decisions (A-xx, D-xx, Q-xx) to [assumptions.md](assumptions.md), and fixtures (TB-xx) to [test_plan.md](test_plan.md) 4.1 and `addons/azk_dynamic_trial_balance/tests/common.py`._
+_Written in Stage 07 (2026-11-15), before the calculation engine; Stage 08 (2026-11-15) implemented it in `models/trial_balance_engine.py` (section 15); Stage 09 connected the outputs (section 16); Stage 10 added fiscal years and branches; Stage 12 (2026-11-16) added the summary below. It fixes the arithmetic that the Preview, PDF and XLSX all use: each output renders one engine result and computes no numbers of its own (K-01). Requirement IDs (T-xx) refer to [requirements_matrix.md](requirements_matrix.md), decisions (A-xx, D-xx, Q-xx) to [assumptions.md](assumptions.md), and fixtures (TB-xx) to [test_plan.md](test_plan.md) 4.1 and `addons/azk_dynamic_trial_balance/tests/common.py`._
+
+## 0. Summary for reviewers (final, Stage 12)
+
+- **Convention** (section 5): for each account, Ending = Opening + Movement. Movement Debit and Credit are gross totals of the period, both dates included. Initial and End Debit and Credit show the net side of the signed balance; every column group also has a signed Balance (debit minus credit). These are the conventions of the standard Enterprise Trial Balance (A-14), observed in the Stage 02 probe on the matched pair (architecture 4.8) and read in its code by name (section 1).
+- **Scope** (section 4): exactly one company, active in the company switcher (D-16, D-45); posted entries always; drafts only with Include Unposted Entries; cancelled entries never; one journal and one analytic account at most (D-02). Account prefixes choose the rows shown, not the journal items, so that the carry-forward still sees every income and expense account (D-15).
+- **Across fiscal years** (section 5): balance-sheet accounts open with all earlier history; income and expense accounts open from the start of the fiscal year that contains Date From; earlier years' income and expense appear on the Current Year Earnings row (the carry-forward). No journal entry is created. The fiscal year comes from the same `compute_fiscalyear_dates` as the standard report, so custom fiscal years apply to both.
+- **Currencies** (section 8): with Show Amount Currency, one row per account and transaction currency; the Amount Currency column is the period movement in that currency; one total per currency; different currencies are never added together. Netting per row can make the netted Initial and End totals larger than without currency rows, while balances and movements stay equal (D-49).
+- **Analytic accounts** (section 9): whole-item selection, as in the standard report: a journal item counts at its full amount, once, when its distribution contains the selected account. Proportional allocation by percentage is a documented alternative, not implemented (A-15, D-07, question Q-03).
+- **Hierarchy** (section 10): Odoo's account groups with subtotals and "(No Group)"; Hierarchy Only Parents shows the group rows down to the chosen level 1 to 5. Totals never change with the hierarchy options.
+- **Zero filtering** (section 7): Skip Zero Balance hides a row only when its opening balance, movement debit, movement credit and ending balance are all zero, so an account with equal debits and credits in the period stays visible (D-12, D-48).
+- **The worked example** (section 14): Bank in January 2026 ends at 1,000 + 500 - 300 = **1,200 with posted entries only**, and at **1,000 with the draft payment of 200 included**; the cancelled 400 and the February 50 never count. The same numbers come out of the demo company in the preview, the PDF and the XLSX (Stages 09 and 11).
+- **Evidence of agreement with the standard report** (section 14): on hand-calculated fixtures, for the listed options only; on real data, `scripts/tb_engine_vs_native.py` compares 6 option sets on Odoo's own demo accounting data (Stage 08 and again in Stage 11, 6 of 6 equal).
+- **Intended differences** (section 13): Balance columns, one company, single journal and analytic account, literal code prefixes, Skip Zero Balance, currency rows, the level limit, and the hierarchy off by default. Where the standard report has no equivalent option, our numbers are tested against hand calculations only. **We do not claim complete parity with the standard Trial Balance.**
 
 ## 1. Sources
 
@@ -92,7 +105,7 @@ The tests compare the standard report with our hand calculation in both cases: T
 - For a complete company ledger (no prefix, journal or analytic filter), that sum is 0, because every entry is balanced.
 - The only adjustment between the ledger and the report is the carry-forward. Closing entries that a company really posts are ordinary journal items and count like any other.
 
-**Fiscal years:** the engine calls the same `compute_fiscalyear_dates` as the standard report, so a custom fiscal year (`account.fiscal.year`) moves S for both. Only the calendar year was compared (Stage 07).
+**Fiscal years:** the engine calls the same `compute_fiscalyear_dates` as the standard report, so a custom fiscal year (`account.fiscal.year`) moves S for both. Stage 07 compared the calendar year. Stage 10 added TB-F: a fiscal year from 1 July to 30 June, set up once through the company's fiscal-year end and once through an `account.fiscal.year` record, with entries on both sides of each boundary; June 2026, July 2026 and 15 June to 15 July 2026 equal the hand-calculated numbers and the standard report (`tests/test_fiscal_years_and_branches.py`).
 
 ## 6. Columns, display and rounding
 
@@ -272,7 +285,7 @@ February credit of 50 (after Date To).
 | TB-R | January, as a restricted reader and as the accountant | All lines and totals: the record rule is applied |
 | TB-H | January with the hierarchy | Account lines, group lines, "(No Group)", group depths and totals |
 
-**Not compared** (there is no standard equivalent, or it was not checked):
+**Not compared in Stage 07** (there is no standard equivalent, or it was not checked then):
 
 - currency rows and the Amount Currency column;
 - Skip Zero Balance and the listing of accounts without amounts;
@@ -283,6 +296,12 @@ February credit of 50 (after Date To).
 - period comparisons.
 
 Stage 08 tests them against the hand-calculated constants.
+
+**Compared in later stages:**
+
+- **Stage 08:** our engine against the same constants and against the standard report for every case of the table above (85 tests); and, on the development database's own data, `scripts/tb_engine_vs_native.py`: 6 option sets (this month posted and with drafts, the fiscal year to date posted and with drafts, the previous fiscal year, the sales journal), all equal. Rerun in Stage 11 on a fresh database: 6 of 6.
+- **Stage 10:** TB-F (custom fiscal years, above) equal to the hand calculation and the standard report; TB-B (branches): each report covers exactly its company and equals the standard report run for that company alone, while the standard report adds up active branches and ours does not (D-16); a branch-only user gets the full branch report.
+- **Still not compared, because the standard report has no such option:** currency rows, Skip Zero Balance, Hierarchy Only Parents with the level limit, and literal prefixes. Period comparisons are not offered by our report.
 
 ## 15. As implemented in Stage 08
 

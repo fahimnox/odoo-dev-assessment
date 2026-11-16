@@ -2,7 +2,7 @@
 
 The assessment recommends GenAI and asks for a log of the prompts used and the resulting outputs. This folder holds that log, one file per stage.
 
-- **Tool / model:** Claude Code (Anthropic's terminal agent), Opus 5.5 (`claude-opus-5-5`), as reported by the session environment.
+- **Tool / model:** Claude Code (Anthropic's terminal agent), Opus 5.5 (`claude-opus-5-5`), as reported by the session environment. Each log states the identity of its own session; every log so far reports this model.
 - **Workflow:** the work follows a staged prompt kit kept outside this repository. Each user prompt names one stage file. The stage file's text is reproduced in the log because it is the instruction the agent actually received.
 
 ## How the logs are produced
@@ -12,6 +12,7 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 - Tool calls and their raw outputs are not reproduced. Where they matter, they are summarized in a section labeled **Summary**.
 - Hidden reasoning, system instructions and unrelated terminal history are never collected.
 - The raw local session transcript is not committed because it contains system and tool content.
+- **Not transcripts:** the handoffs in [../handoffs/](../handoffs/), including the English summary of Stage 00 written during R0, and every section labeled **Summary** are summaries written by the agent. The kit's prompt files are reproduced only where a user prompt referenced them.
 
 ## Language change (correction R0, 2026-11-01)
 
@@ -25,7 +26,9 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 
 | Log | Redaction |
 |---|---|
-| All logs | Absolute local paths are replaced with `<kit-root>` |
+| All logs | Absolute local paths are replaced with `<kit-root>` (the assessment kit folder), `<home>` (a Windows user profile) or `<scratchpad>` (the CLI's temporary folder) |
+| [stage_11.md](stage_11.md), [stage_12.md](stage_12.md) | Random passwords (the Stage 11 acceptance users, the Stage 12 throwaway database) never appear: they passed through environment variables in tool calls, which are not reproduced |
+| [stage_00.md](stage_00.md), [stage_01.md](stage_01.md) | Not redacted: the Git identity's work email address appears as written. Whether to redact it before publication is the candidate's decision ([release_checklist.md](../release_checklist.md) section 4) |
 | [stage_01b.md](stage_01b.md) | Names of earlier customer projects found in the company-supplied archive, and the Windows user profile of its old virtual environment, are not reproduced (described generically). No credential or subscription value was ever printed |
 
 ## Index
@@ -47,6 +50,7 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | [stage_09.md](stage_09.md) | 09 | The Trial Balance Preview, PDF and XLSX through the standard report framework from one engine call per request, the installable demo data, 102 tests (outputs against the engine, access and tampering, demo data), a headless-browser and download-route check (20 of 20), and a first test run stopped by the CLI for low memory |
 | [stage_10.md](stage_10.md) | 10 | The engineering review of both addons ([review_findings.md](../review_findings.md)): the missing page download built and checked live through the worker (Stage 04 completed), six defects found and fixed (four of them by the live check and by new tests), custom fiscal years, branches and the analytic selector tested, standard reports shown unchanged, and a benchmark |
 | [stage_11.md](stage_11.md) | 11 | Clean acceptance from `git archive` exports in a separate Compose project. The first documented command failed in a fresh checkout and was fixed (default edition, a repeatable setup, a quick start). Then: installs alone and together, with and without demo data; an upgrade from Stage 09; 261 tests; the restart check; browser checks; a kept live sample with simulated outages and notifications; access over HTTP. It opens with the messages between Stages 10 and 11 |
+| [stage_12.md](stage_12.md) | 12 | Submission documentation: the README, the demo script and the release checklist; the design documents brought to the final implementation; the final requirement matrix; the volume-reuse consequence checked on a throwaway project; link, command, ASCII and publication checks over the files and the Git history; the local release tag `submission-rc1` |
 
 ## Mistakes found and corrected
 
@@ -118,3 +122,6 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | 11 | The first state report read a country field that does not exist (`first_seen_on`) | A traceback in its first run | Removed from the fingerprint; the report was rerun |
 | 11 | A compound shell command was refused by the CLI's safety check, which could not parse it (it contained no removal) | The tool's refusal | The same steps ran from a script file |
 | 11 | A draft of STATE.md gave the size of the acceptance volumes without measuring it | Self-review before the commit | Measured with `docker system df -v`: 297 MB and 21 MB |
+| 12 | The first run of the volume-reuse check exported nothing: its script gave Git a POSIX path while Git Bash path conversion was off | The script's own errors ("cannot change to ...", "does not look like a tar archive"); no container or volume had been created | Windows path and an export check; the rerun produced the result in [../test_results.md](../test_results.md) |
+| 12 | A draft of the README said that every accounting role has the read-only accounting group, gave a wrong menu path for System Parameters, and said that every helper command prints its edition | Checking each README claim against the pinned source (`account_security.xml`, `base_menus.xml`) and `scripts/dev.sh` (`main`) before the commit | Corrected: billing-only users lack the group; Settings > Technical > Parameters > System Parameters; "most commands" |
+| 12 | The first draft of the matrix's status summary gave per-family counts (61 of 62, 63 of 64) before the counting script had printed its result (75 of 76, 49 of 50) | Reading the script's output next to the draft | Corrected before the commit; the totals (147 of 152) were right |

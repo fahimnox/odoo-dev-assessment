@@ -2,6 +2,41 @@
 
 Exact commands and results, newest stage first. Every result is PASS, FAIL, BLOCKED or NOT RUN. The commands run from `solution/` in Git Bash on the target edition `enterprise-20241208`: service `odoo-ee-20241208`, port 8071, the matched pair of [enterprise_transition.md](enterprise_transition.md). Full command logs are private, in `<kit-root>/runtime/logs/`. Earlier stages record their results in [STATE.md](STATE.md) and their handoffs.
 
+## Final summary (release checkpoint, 2026-11-16)
+
+- **Code:** `azk_odoo_partner_monitor` 18.0.1.5.0 and `azk_dynamic_trial_balance` 18.0.1.3.0, unchanged since Stage 10 (`e54214b`) apart from a fixtures README (documentation) in Stage 12. The checkpoint is the Stage 12 commit, tag `submission-rc1`.
+- **Environment:** Odoo Community `odoo/odoo@4e5027c1` with the Enterprise addons of build 18.0+e.20241208, in the pinned `odoo:18.0` image, PostgreSQL 16.15; Docker Desktop 29.9.2 on Windows 11 Pro.
+- **Executed test methods: 261 of 261 PASS** (147 Partner Monitor in 13 files, 114 Trial Balance in 12 files), Stage 11, one fresh database installed from a clean export: "0 failed, 0 error(s) of 261 tests", no skipped test, no warning. Odoo's per-module statistics lines say 177 and 150 because they also count each test class's `setUpClass` and `tearDownClass` (15 and 18 classes).
+- **PASS:**
+  - installation from a clean checkout: the quick start, each addon alone then updated, both without demo data, an upgrade from Stage 09 with equal data fingerprints (Stage 11);
+  - the restart check, 12 of 12 (Stages 05, 10 and 11);
+  - headless-browser checks by the agent: dashboard 7 of 7, wizard 7 of 7, preview and downloads 20 of 20, Partner Monitor demonstration 7 of 7 (Stage 11), analytic filter 6 of 6 (Stage 10);
+  - access over HTTP, 24 of 24 (Stage 11);
+  - the engine against the standard Trial Balance on Odoo's demo data, 6 of 6 (Stages 08 and 11); the standard `account_reports` Trial Balance and annotation-export tests with our addon installed, 11 of 11 (Stage 10);
+  - bounded live samples through the worker (Stages 10 and 11);
+  - the Stage 12 documentation checks (below).
+- **FAIL, then fixed and rerun:** every failure is recorded with its fix: review findings RF-02 to RF-07 ([review_findings.md](review_findings.md)), acceptance findings AC-01 to AC-06 ([acceptance_results.md](acceptance_results.md)), and earlier runs in the sections below and in [ai/README.md](ai/README.md).
+- **NOT RUN:** the candidate's own manual check (TP-G-05); a full live crawl (on purpose); the Partner Monitor tests on the Community baseline (optional, TP-G-03); multi-process Odoo workers; other hosts.
+- **BLOCKED:** nothing in the target edition. The earlier Stage 01B pair stays blocked by a standard test and is kept only for history ([environment.md](environment.md)).
+- **Screenshots and exports actually produced and committed:** [screenshots/](screenshots/) (Stages 06, 07, 09 and 10) and [samples/](samples/) (Stage 09). The Stage 11 screenshots were looked at but kept privately with the logs.
+
+## Stage 12 (2026-11-16): documentation and release checkpoint
+
+No application check was rerun: no addon code, configuration or setup script changed. Stage 12 changed documentation, the Partner Monitor fixtures README and one comment in `scripts/fixture_sync_demo.py`.
+
+- **Reusing a project's volumes with a new `.env`** (README section 6): a throwaway Compose project `azk-s12-envcheck`, database service only, from an export of the Stage 11 commit, with random passwords that were never printed; removed afterwards (0 containers, volumes and networks left). Observed:
+  - the second `docker compose up` recreated the container (`Recreate`, a new container id) and kept the volume, created at 16:48:41 UTC, with the marker database `marker_s12`;
+  - a network login as `odoo` with the new password: `FATAL: password authentication failed for user "odoo"`; with the old password: accepted;
+  - a login through the container's local socket without a password: accepted.
+  The other Compose projects' containers and volumes were unchanged.
+- **Project name precedence:** `docker compose config` printed `name: azk-odoo-assessment` without an override, and the overriding name with an exported `COMPOSE_PROJECT_NAME`, with a `COMPOSE_PROJECT_NAME=` line in `.env`, and with `-p`: PASS (nothing was created).
+- **Demo state:** read-only SQL on the stopped Stage 11 acceptance database (its database container started and stopped again): three runs (1 done, 2 done, 3 running and waiting), 5 simulated errors on each of runs 1 and 2, three notes with their recipients and delivery status, 2 website partners and 50 demo partners, the settings and the four jobs. It matches [acceptance_results.md](acceptance_results.md), and [demo_script.md](demo_script.md) uses it.
+- **Expected numbers of the demo:** the committed samples `samples/stage09_trial_balance_amount_currency.xlsx` (posted only: Bank 1,000.00 + 500.00 - 300.00 = 1,200.00; totals 12,750.00 and 7,300.00 for the period and the end) and `samples/stage09_trial_balance.xlsx` (with drafts: Bank 1,000.00; totals 1,700.00, 13,450.00 and 7,800.00), read with openpyxl; the dashboard numbers come from `test_demo_data_ranking` and `test_walkthrough_gold_2025`.
+- **Links and anchors:** every relative link and `#anchor` in the repository's Markdown files, with GitHub's heading rules: PASS (the counts are in the Stage 12 handoff).
+- **Commands and paths:** every `scripts/dev.sh` command and every repository path named in the README, the demo script and the updated design documents exists: PASS. `scripts/dev.sh help` and `scripts/dev.sh status` ran as documented.
+- **ASCII:** the new and updated documents contain ASCII only: PASS.
+- **Publication review:** see [release_checklist.md](release_checklist.md) section 3: PASS, with one decision for the candidate (the Git identity's email address).
+
 ## Stage 11 (2026-11-16): clean acceptance
 
 The full record, with every command, count and log name, is [acceptance_results.md](acceptance_results.md). All of it ran from `git archive` exports outside the repository, in a separate Compose project with empty volumes (port 8073). The addon code is that of Stage 10 (`e54214b`); Stage 11 changed only `scripts/dev.sh`, `.env.example`, documentation and acceptance scripts.

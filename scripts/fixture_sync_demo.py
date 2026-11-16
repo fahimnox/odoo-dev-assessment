@@ -3,7 +3,9 @@
 #
 # SOURCE: the saved live-derived fixture pages in tests/fixtures (read from
 # odoo.com on 2026-11-08) and variants made in code from them. No live page is
-# read: the page-download module is deferred (Stage 04 PARTIAL).
+# read: the script replaces the page source with the fixtures on purpose (the
+# page download exists since Stage 10, see scripts/pm_live_check.py). Last run
+# in Stage 06 (2026-11-10), on that stage's code.
 #
 # Run it piped into "odoo shell" on the disposable test database, for example:
 #   docker compose run --rm -T odoo-ee-20241208 odoo shell --database=azk_ee24_test \

@@ -1,6 +1,91 @@
-# Architecture (Stage 02)
+# Architecture
 
-_Written 2026-11-05 in Stage 02 as the agreed design. Stage 03 (2026-11-08) built the Partner Monitor models, access rules and basic views; section 5.10 records what was built and what changed. Stage 04 (2026-11-08, partial) built the parsers and the ingestion; see section 5.11. Stage 05 (2026-11-10) built the scheduled jobs and the worker; see section 5.12 and [resilience.md](resilience.md). Stage 06 (2026-11-10) built the dashboard and the remaining views; see section 5.13. Stage 07 (2026-11-15) built the Trial Balance wizard, its option contract and its test fixtures, and wrote [calculation_contract.md](calculation_contract.md); see section 4.9. Stage 08 (2026-11-15) built the calculation engine; see section 4.10. The rest is not implemented yet. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+_How to read this file. **Section 0** describes the final implementation, as of the Stage 12 release checkpoint (2026-11-16). Sections 1 to 6 are the design agreed in Stage 02 (2026-11-05), kept as the design record; each later stage added a dated "as built" section that records what was built and what changed: 5.10 (Stage 03, models and access), 5.11 (Stage 04, parsers and ingestion), 5.12 (Stage 05, jobs and worker, with [resilience.md](resilience.md)), 5.13 (Stage 06, dashboard), 4.9 (Stage 07, wizard and option contract, with [calculation_contract.md](calculation_contract.md)), 4.10 (Stage 08, engine), 4.11 (Stage 09, outputs), 4.12 and 5.14 (Stage 10, review fixes and the page download). Where the Stage 02 plan and the build differ, section 0 and the as-built sections apply. Requirement IDs (P-xx, T-xx, G-xx, K-xx) refer to [requirements_matrix.md](requirements_matrix.md), assumption IDs (A-xx, D-xx, M-xx, Q-xx) to [assumptions.md](assumptions.md), and test IDs (TP-xx) to [test_plan.md](test_plan.md)._
+
+## 0. The final implementation (Stage 12 overview)
+
+Both addons live in `addons/`; paths below are relative to each addon. Nothing in Odoo or in the Enterprise addons is modified; the Trial Balance uses the Enterprise report framework through its public extension points (a report record and a custom handler).
+
+### 0.1 Exercise 1: `azk_odoo_partner_monitor` (depends on `mail` only)
+
+```text
+  scheduled jobs (data/ir_cron.xml), run as the superuser, all calling models/worker.py
+    Daily Discovery (daily, 02:00 UTC)  --> sync.run + country_list unit ---------+
+    Country Validation (every 6 h)      --> country_partners units (flagged) -----+
+    Reference Validation (every 6 h)    --> partner_details units (flagged,       +--> work.item queue
+                                            or read more than 7 days ago)         |    (one pending unit
+    Sync Now / Retry (managers, checked) --> sync.run / work.item, wake the worker+     per kind and target)
+    Sync Worker (every 10 min, or woken)  <------------------------------------------+
+      worker._cron_process_queue: one bounded batch (20 units / 60 s) per scheduler call
+        _claim_next   FOR NO KEY UPDATE SKIP LOCKED, one unit at a time
+        _run_unit     savepoint per unit:
+            services/reader.py    robots rules (services/urls.py), follows the pager
+              -> fetch: services/http_client.py (requests; None while downloads are paused)
+              -> services/parsers.py (BeautifulSoup, pure functions over HTML)
+              -> models/ingest.py -> country._record_observation,
+                                     partner._record_observation, partner._sync_references
+        failures      sync.error row + counted try + log line, after the rollback
+        sync_run._finalize   done / partial / failed; _notify_failure: one chatter note
+      the scheduler commits after each call: the only durability point
+
+  UI: menu Partner Monitor -> Dashboard (client action, static/src/dashboard/)
+        -> models/dashboard.py get_dashboard_data (reader check, filter values only,
+           grouped queries as the user) -> four XML graph views (views/dashboard_views.xml)
+      list, form, search, pivot and graph views; Settings (pause, failure recipient)
+```
+
+Models and their relations:
+
+```text
+  country (source_key) 1 ---- n partner (source_id) 1 ---- n status.history
+                                                    1 ---- n reference (one active per key)
+  sync.run 1 ---- n work.item (kind: country_list | country_partners | partner_details,
+                               target: country_id or partner_id)
+  sync.run 1 ---- n sync.error n ---- 1 work.item; sync.error -> country, partner
+```
+
+- **Identity and idempotency:** the website's own ids (`source_key`, `source_id`) are unique in the database and never rewritten; history rows are append-only; partial unique indexes allow one `initial` history row per partner, one active reference per key and one pending work item per target.
+- **Removals:** only from a complete, validated snapshot of the scope (a country's listing, a partner's reference list, the country list); a failed or incomplete read stores nothing for that scope and sets the re-scrape flag.
+- **Security:** Reader and Manager groups with read-only access rules; four manager actions with an explicit group check and a narrow `sudo()`; Settings for system administrators; no record rules, because the data is public and shared by all companies (A-21).
+- **The commit story, retries, overlap and notifications:** [resilience.md](resilience.md).
+
+### 0.2 Exercise 2: `azk_dynamic_trial_balance` (depends on `account_reports`)
+
+```text
+  wizard (models/trial_balance_wizard.py; private to its creator by a record rule)
+     |  Preview / PDF / XLSX
+     v
+  options, validated by models/report_options.py normalize_options (also on every later request)
+     v
+  our account.report record (data/trial_balance_report.xml)
+  + our custom handler (models/trial_balance_report_handler.py)
+       _custom_options_initializer   validates options['azk_tb'] on every request
+       _dynamic_lines_generator      calls the engine ONCE per request
+     v
+  engine (models/trial_balance_engine.py) compute(options):
+       accounting read-only group check, normalize_options again, with_company(report company),
+       three grouped _read_group queries on account.move.line as the user
+       (movement, opening, carry-forward) -> one normalized result
+     v
+  standard account_reports UI (Preview; our filter bar static/src/components/trial_balance/)
+  standard export_to_pdf (+ our templates in data/pdf_export_templates.xml)
+  standard export_to_xlsx (+ our sheet writer in models/account_report.py)
+```
+
+- **One result for every output (K-01):** the preview, the PDF and the XLSX all render `account.report._get_lines()`, which our handler fills from one engine call; no output computes an amount.
+- **Access:** no `sudo()` and no SQL in the Trial Balance; every query runs as the user, so access rules and record rules apply; the options are validated again on every request, including the download route.
+- **Demo data:** `models/demo_data.py`, called from `demo/trial_balance_demo.xml` at install only.
+- **The arithmetic:** [calculation_contract.md](calculation_contract.md).
+
+### 0.3 Where the build differs from the Stage 02 plan
+
+- The sync engine is a separate service, `models/worker.py`, with `models/ingest.py`; section 2 drew it on the work-item and run models. `services/reader.py` sits between the download and the parsers.
+- Claims take one unit at a time, so work queued by a unit can run in the same batch (5.12, RF-03).
+- The daily discovery never closes an older run; it adds nothing while a country list is still queued ([resilience.md](resilience.md) section 2).
+- No conditional requests and no detail fingerprint: the site sends no `ETag` or `Last-Modified`; a hash of each listing card decides when a partner's page is read again (5.12).
+- The page download was deferred in Stage 04 and built in Stage 10 (5.14), with a switch to pause it (D-64).
+- The default failure recipient is the administrator, because install hooks run as the superuser (5.7, D-19).
+- The Trial Balance engine is a plain service on the ORM (D-53); our report record and handler connect it to the standard framework (D-54). The fallback to a custom QWeb or xlsxwriter report (4.7) was not needed.
 
 ## 1. Target and sources used
 
@@ -460,7 +545,7 @@ Design:
 - **Recipient:** the configured user is stored as `ir.config_parameter` `azk_odoo_partner_monitor.notify_user_id` and set in Settings, which is restricted to system administrators.
 - **Default (changed in Stage 03, D-19):** the administrator, `base.user_admin`, set by the `noupdate` data record `config_notify_user`. The planned post-init hook cannot know who installed the module: in this release, `load_modules` builds its environment with `SUPERUSER_ID` and passes it to every hook (`odoo/modules/loading.py`), whether the install starts from the Apps screen or the command line. If the setting points to a missing, archived or non-internal user, the run falls back to the administrator and logs a warning.
 - **When a run ends `partial` or `failed`**, the worker posts one internal note on the run's chatter (`message_post` with `partner_ids` = the recipient's partner). It lists the counts, the failed scopes and the scheduled recovery.
-- **Delivery:** Odoo delivers the note according to the recipient's own `notification_type` (`res.users`, mail module): Inbox for "Handle in Odoo", an email for "Handle by Emails". In a fresh database of this build, `admin` has `email`; only `__system__` has `inbox` (checked in `azk_ee24_clean`). So the note is always visible in the run's chatter. The demo instructions tell the reviewer to switch the recipient to "Handle in Odoo" to see it in the Discuss Inbox. We do not override user preferences (D-08).
+- **Delivery:** Odoo delivers the note according to the recipient's own `notification_type` (`res.users`, mail module): Inbox for "Handle in Odoo", an email for "Handle by Emails". In a fresh database of this build, `admin` has `email`; only `__system__` has `inbox` (checked in `azk_ee24_clean`). So the note is always visible in the run's chatter. The demo instructions tell the reviewer to switch the recipient to "Handle in Odoo" to see it in the Discuss Inbox, or to configure an outgoing mail server ([README](../README.md#failure-notifications-chatter-inbox-and-email) section 7; observation O-01 of Stage 11, D-69). We do not override user preferences (D-08).
 - **Once per run:** `notified_at` prevents a second note. Tests use Odoo's mail mocks and assert the `mail.notification` rows, so no real email is sent.
 
 ### 5.8 Dashboard (P-24 to P-27)
@@ -571,7 +656,7 @@ The sync engine follows section 5.6. Details, commit story and evidence are in [
 ```
 
 - **Engine:** `models/worker.py` (AbstractModel `azk_odoo_partner_monitor.worker`). The units are the three work-item kinds of section 5.2. The country unit queues the pages of partners never read; the validation jobs queue flagged and stale targets.
-- **Page source:** `worker._get_page_source()` is the integration point of the deferred page-download module. It returns None today, so the worker attempts nothing and marks the runs as waiting (D-33).
+- **Page source:** `worker._get_page_source()` is the integration point of the page-download module. In Stage 05 it returned None, so the worker attempted nothing and marked the runs as waiting (D-33). Since Stage 10 it returns the page download client, or None while downloads are paused (5.14, D-64).
 - **Changes from section 5.6:**
   - claims are taken one at a time, so units queued earlier in the same batch can run in it;
   - a REPEATABLE READ serialization failure on a claim ends the batch (D-35);
@@ -653,4 +738,4 @@ From the menu to the numbers:
 - In 18.0 an account can be shared by several companies (`account.account.company_ids`), and its code is company-dependent. Prefix matching therefore always runs in the report company's context.
 - `account_reports` is an Enterprise module (OEEL-1). `azk_dynamic_trial_balance` must declare it, and it only installs where the Enterprise addons are present. Its own license (A-06, Q-06) is a decision for the user or team lead.
 - The cron progress API (`_notify_progress`, `ir.cron.progress`) and the 10-callback loop are specific to this release line; they were read in the pinned 18.0 source. If the required major version changes (Q-04), section 5.6 must be checked again.
-- The live partners site is a newer, customized deployment. Section 5.1 is our working model until Stage 04 verifies it.
+- The live partners site is a newer, customized deployment. Section 5.1 was the working model; Stages 04, 10 and 11 checked it live on bounded samples ([live_site_notes.md](live_site_notes.md)).

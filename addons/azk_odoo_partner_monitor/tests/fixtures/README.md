@@ -1,6 +1,6 @@
 # Test fixtures
 
-All seven files here are **live-derived**: trimmed copies of public pages of https://www.odoo.com read on 2026-11-08 (UTC). There is no synthetic fixture yet; the planned ones were deferred in Stage 04 (see `docs/handoffs/stage_04_en.md`). Tests derive a few variants in code from these files (for example a badge renamed to an unknown status); those variants are marked in the tests.
+All seven files here are **live-derived**: trimmed copies of public pages of https://www.odoo.com read on 2026-11-08 (UTC). Tests derive a few variants in code from these files (for example a badge renamed to an unknown status); those variants are marked in the tests. The synthetic cases planned in Stage 04 (login page, rate limit, cut-off and unusable pages) were written in Stage 10 as answers built in code, not as files: see `tests/test_http_client.py`.
 
 ## How they were made
 

@@ -2,6 +2,8 @@
 
 _2026-11-16 (times in UTC). Clean-checkout acceptance of the submission, run by the AI agent on this machine. The user's own browser check is still pending; see "UI steps"._
 
+_Update, Stage 12 (2026-11-16): the README now exists, and the requirement rows marked "Stage 12" below have their final status in [requirements_matrix.md](requirements_matrix.md). Stage 12 also checked the consequence of reusing a project's volumes with a new `.env` on a throwaway project ([test_results.md](test_results.md)). This record is otherwise unchanged._
+
 ## Verdict
 
 - **Installation:** both addons install from a clean export of the repository, following the documented quick start and their declared dependencies, on the pinned Enterprise runtime: alone, together, with and without demo data. Every install and update log has 0 WARNING, ERROR or CRITICAL lines.

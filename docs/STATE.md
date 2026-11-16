@@ -1,8 +1,14 @@
 # Project state
 
-_Last updated: 2026-11-16, end of Stage 11. Stage 04 is DONE since Stage 10._
+_Last updated: 2026-11-16, end of Stage 12 (local release checkpoint `submission-rc1`). Stage 04 is DONE since Stage 10._
 
 ## Current position
+
+- **Stage 12: DONE (2026-11-16).** Submission documentation and a local release checkpoint (the Stage 12 commit, annotated tag `submission-rc1`, not pushed). No addon code or setup file changed.
+  - **New:** [README.md](../README.md) (scope, the Enterprise target with the unconfirmed version 18.0, the pins, prerequisites, the verified quick start, commands, isolated copies and volume reuse, configuration with mail delivery of the failure notes, features, resilience, testing with 261 = 147 + 114, demo, assumptions and limitations, status, evidence, AI use, license), [demo_script.md](demo_script.md) (about 7 minutes, data labels, expected numbers, a failure-and-recovery story, an offline fallback) and [release_checklist.md](release_checklist.md) (the publication review, the candidate's decisions, the pending work).
+  - **Updated to the final implementation:** [architecture.md](architecture.md) (a new section 0; the stale "not implemented yet" intro removed), [resilience.md](resilience.md) (a map, notification delivery, partial-snapshot safety, Stage 11 results), [calculation_contract.md](calculation_contract.md) (a reviewer summary; fiscal years and branches compared in Stage 10), the final [requirements_matrix.md](requirements_matrix.md) (147 of 152 rows DONE; P-17.3 and T-19 IN PROGRESS; G-01 NOT STARTED), [test_results.md](test_results.md) (a final summary), [test_plan.md](test_plan.md), [assumptions.md](assumptions.md) (D-69 documented, D-70), the fixtures README and one script comment.
+  - **Checked in this stage:** reusing a project's volumes with a new `.env` (a throwaway project: the container was recreated, the volume kept, the new password refused); the project-name precedence; the demo state of the acceptance database (read-only); links, anchors, commands, paths and ASCII; a publication review of the files and of the 24 commits (no secret, local path or vendor code; the Git identity's email address is a decision for the candidate).
+  - **Not rerun:** the application checks, because nothing they test changed. The test count and every result stay those of Stage 11.
 
 - **Stage 11: DONE (2026-11-16).** Clean-checkout acceptance: [acceptance_results.md](acceptance_results.md). The addon code is unchanged since Stage 10 (`e54214b`).
   - **Found and fixed (packaging and documentation):**
@@ -184,7 +190,7 @@ _Last updated: 2026-11-16, end of Stage 11. Stage 04 is DONE since Stage 10._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** Stage 12 (submission documentation: the README), when the user requests it. Stage 11's results: [acceptance_results.md](acceptance_results.md).
+- **Next step:** Stage 13 (code walkthrough), when the user requests it. Before publication (Stage 15), the candidate's decisions in [release_checklist.md](release_checklist.md) section 4.
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. On port 8071 the agent ran headless Chrome (installed on this machine) through the DevTools protocol in Stage 06: the Partner Monitor dashboard check passed 7 of 7 (`scripts/ui_smoke_check.py`). Other screens of the environment were not checked in a browser; the manual steps are in the Stage 06 handoff.
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
@@ -225,7 +231,7 @@ _Last updated: 2026-11-16, end of Stage 11. Stage 04 is DONE since Stage 10._
 | 09 | Trial Balance outputs (Preview, PDF, XLSX) | DONE (2026-11-15): Preview, PDF and XLSX from one engine call per request; demo data; 102 tests pass; browser and download-route check 20 of 20; upgrades duplicate no demo record |
 | 10 | Engineering review | DONE (2026-11-15): review findings with evidence; the page download and a live check; fiscal years, branches and analytics tested; 147 Partner Monitor and 114 Trial Balance tests pass, the vendor's 11 tests pass with our addon, and the live, analytic, restart and no-demo checks pass |
 | 11 | Clean acceptance | DONE (2026-11-16): from clean exports in a separate Compose project, both addons install alone and together, with and without demo data, and upgrade from Stage 09 keeping all data; 261 of 261 tests; restart 12 of 12; browser checks 7, 7, 20 and 7 of the same; access 24 of 24; the first setup command fixed (AC-01, AC-02) |
-| 12 | Submission documentation | NOT STARTED |
+| 12 | Submission documentation | DONE (2026-11-16): README, demo script, release checklist, final requirement matrix (147 of 152 rows DONE), design documents brought to the final implementation, publication review; local tag `submission-rc1` |
 | 13 | Code walkthrough | NOT STARTED |
 | 14 | Mock interview | NOT STARTED |
 | 15 | Publish | NOT STARTED |
@@ -304,6 +310,11 @@ _Last updated: 2026-11-16, end of Stage 11. Stage 04 is DONE since Stage 10._
   - D-64: website downloads run by default and can be paused in Settings; paused on `azk_ee24`;
   - D-65: the page download's bounds, headers (gzip only) and failure kinds;
   - D-66: users with a branch but not its root company are supported (accounts searched with an explicit order).
+- **Stage 11 and 12 decisions** ([assumptions.md](assumptions.md)):
+  - D-67: the default edition is the target; a repeated setup installs what is missing;
+  - D-68: the acceptance ran in a separate Compose project;
+  - D-69: failure notes follow the recipient's preference; the README explains mail delivery;
+  - D-70: no license file until Q-06 is answered.
 - **Stage 09 decisions** ([assumptions.md](assumptions.md)):
   - D-54: our report record and custom handler in the standard framework; competing standard filters off; per-currency totals as lines;
   - D-55: our PDF company block, options block and grouped column header;
@@ -332,7 +343,8 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - **Analytic Accounting is off on `azk_ee24`:** so the wizard's Analytic Accounts field and the preview's analytic dropdown are hidden there (D-62). To try them, enable Accounting > Configuration > Settings > Analytic Accounting. Stage 10 tried them in a browser on a disposable database with the setting on (review finding RF-15).
 - **Website downloads are paused on `azk_ee24`** (D-64): its run 1 (2026-11-10) waits with that reason. Untick Settings > Partner Monitor > Pause Website Downloads only to start a real, full sync from this machine (about 330 listing pages and, the first time, about 4,500 partner pages, at one request per 3 s or more).
 - **Memory:** in Stage 09 the CLI stopped a background test run when the machine was critically low on memory. Close unused applications before long runs; the browser checks need about 0.5 GB more.
-- **Failure notes and mail (README, Stage 12):** with Odoo's default "Handle by Emails" and no outgoing mail server, a failure note stays on the run's chatter and its email fails (O-01, D-69). The README must say to configure a mail server or set the recipient to "Handle in Odoo".
+- **Failure notes and mail:** with Odoo's default "Handle by Emails" and no outgoing mail server, a failure note stays on the run's chatter and its email fails (O-01, D-69). Documented in README section 7 (Stage 12): configure a mail server, or set the recipient to "Handle in Odoo".
+- **Before publication (Stage 15), the candidate's decisions** ([release_checklist.md](release_checklist.md) section 4): the Git identity's email address (in all commits and four documents), the license file (Q-06, D-70), the manual check (TP-G-05, T-19), whether to ask Q-02 to Q-06 first, and the tag.
 - **Acceptance project (Stage 11):** the Compose project `azk-stage11-acc` is stopped, and its volumes are kept for inspection (297 MB of PostgreSQL data and 21 MB of filestore, measured with `docker system df -v`). Delete it with `docker compose -p azk-stage11-acc down --volumes` from its export folder, when no longer needed (the user's decision).
 - **Browser check of the Trial Balance (user, recommended):** the walkthrough is in [handoffs/stage_09_en.md](handoffs/stage_09_en.md).
 - **Browser check of the Partner Monitor UI (user, recommended):** the agent's headless check covered the dashboard (Stage 06). Still for the user, in a normal browser: the country selector, a click on a chart bar, the reader role, the pivot and graph views, a partner form and Settings > Partner Monitor (steps in the Stage 06 handoff).

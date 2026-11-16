@@ -1,12 +1,24 @@
 # Resilience of the Partner Monitor sync
 
-_Written 2026-11-10 in Stage 05. Code: `models/worker.py` (the engine), `models/work_item.py`, `models/sync_run.py`, `models/ingest.py`, `models/country.py`, `models/partner.py` and `data/ir_cron.xml`, all in `addons/azk_odoo_partner_monitor/`. Tests: `tests/test_worker.py` and `tests/test_worker_concurrency.py`. Restart check: `scripts/restart_check.sh` with `scripts/restart_check.py`._
+_Written 2026-11-10 in Stage 05; updated through Stage 12 (2026-11-16), so it describes the final implementation. Code: `models/worker.py` (the engine), `models/work_item.py`, `models/sync_run.py`, `models/ingest.py`, `models/country.py`, `models/partner.py`, `services/http_client.py` and `data/ir_cron.xml`, all in `addons/azk_odoo_partner_monitor/`. Tests: `tests/test_worker.py`, `tests/test_worker_concurrency.py` and `tests/test_http_client.py`. Restart check: `scripts/restart_check.sh` with `scripts/restart_check.py`._
 
-## 1. Status
+## 1. Status and map
 
-- The scheduled jobs, the worker and the failure handling are built and tested with the saved live-derived pages.
-- Stage 10 (2026-11-15) added the page download (`services/http_client.py`, architecture 5.14) and ran one bounded live check through the worker on the disposable database ([live_site_notes.md](live_site_notes.md)). A system administrator can pause the downloads (section 11).
-- Observed results are in section 12 (Stage 05) and section 15 (Stage 10); limits are in section 13.
+- **Final state:** the scheduled jobs, the worker, the page download, the retries, the validation jobs and the failure notes are built and tested offline with saved live-derived pages; the crash-and-restart check passes (Stages 05, 10 and 11); bounded live samples ran through the worker in Stages 10 and 11 ([live_site_notes.md](live_site_notes.md)); the Stage 11 acceptance demonstrated a simulated outage, the notes and the recovery by a manager's Retry (section 17). A full crawl of the website has never been run (D-64).
+- **Where each topic is:**
+  - daily scheduling and the separate validation jobs: section 2;
+  - the work units: section 3;
+  - commit boundaries, savepoints and what a crash loses: section 4;
+  - overlap control and abandoned claims: section 5;
+  - checkpoint, replay and idempotency: sections 4 and 6;
+  - retry limits and backoff: section 7;
+  - validation bookkeeping: section 8;
+  - the incremental-fetch strategy and its limits: section 9;
+  - failure notification, with chatter, inbox and email delivery: section 10;
+  - when no request may be sent (pause, rate limits): section 11;
+  - partial-snapshot safety: section 16;
+  - limits and open checks: section 13.
+- Observed results: section 12 (Stage 05), section 15 (Stage 10) and section 17 (Stage 11).
 
 ## 2. The jobs
 
@@ -104,6 +116,11 @@ scheduler (ir.cron._run_job)        worker._cron_process_queue (one call = one b
 - When a run ends `partial` (some units failed) or `failed` (no unit succeeded), `sync_run._finalize` posts one internal note on the run's chatter for the configured user (D-08). It holds the counts, the failed scopes with their last error, the retry policy and the recovery actions. `notified_at` prevents a second note, also after a manager's retry.
 - A run that waits for a page source gets one "waiting" note (section 11).
 - Tests use Odoo's mail mocks and an Inbox user, so no email leaves the test.
+- **Three different things** (`sync_run._post_note`: `message_post` with the note subtype and the recipient's partner in `partner_ids`):
+  - **the chatter message:** always stored on the run, visible to everyone who may read the run;
+  - **the inbox notification:** when the recipient's preference (`res.users.notification_type`) is "Handle in Odoo", the note also appears in that user's Discuss inbox;
+  - **the email:** with "Handle by Emails", Odoo's default (the administrator included), Odoo sends the note by email through an outgoing mail server instead. Without a mail server, the email fails, its notification status becomes "exception", and nothing reaches the inbox.
+- **Observed in Stage 11 (O-01, D-69):** run 1's note for the administrator stayed on the chatter, and its email failed, because the local setup has no mail server; run 2's note for a recipient with "Handle in Odoo" reached that user's inbox. So a deployment needs an outgoing mail server, or "Handle in Odoo" for the recipient ([README](../README.md#failure-notifications-chatter-inbox-and-email) section 7). The module does not change user preferences.
 
 ## 11. When no request may be sent
 
@@ -183,11 +200,13 @@ While it was blocked:
 
 ## 13. Limits and open checks
 
-- **Live runs so far.** One bounded check (Stage 10): the country list, Andorra and one partner page. A full sync has not been run from this machine on purpose (D-64).
+- **Live runs so far.** Bounded samples only: the Stage 10 live check (the country list, Andorra and one partner page, rolled back) and the Stage 11 acceptance sample (the same pages, kept, plus two recovery reads). A full sync has not been run from this machine, on purpose (D-64). Its duration is estimated, not measured: about 330 listing pages and, the first time, about 4,500 partner pages, at one request every 3 s or more.
+- **No conditional requests.** The site offers none (section 9), so every listing page is read in full each day.
 - **Unit duration.** The time budget is checked between units. One country unit reads up to 60 listing pages (`reader.MAX_LISTING_PAGES`), each bounded by the client's timeouts and spaced by at least 3 s. The largest country of 2026-11-08, the United States, needs 14 pages: at least 42 s, about 50 s with transfers (review finding RF-12). In multi-process mode the scheduler kills a call that exceeds `limit_time_real_cron` (or `limit_time_real`, 120 s by default). A unit that always runs longer would be replayed until the scheduler counts 3 time-outs and marks the job failed. Page-level checkpoints are the next step if live timings show it is needed.
 - **Error rows of a crashed batch** are rolled back with it; the server log keeps the lines written before the crash.
 - **Parallel workers** on the same partner can deadlock; the unit fails and is retried (section 5).
-- **Delivery** of the note follows the recipient's preference (D-08): with "Handle by Emails", Odoo queues an email.
+- **Delivery** of the note follows the recipient's preference (D-08): with "Handle by Emails", Odoo sends an email, which needs an outgoing mail server (section 10).
+- **Multi-process mode** (Odoo workers with time limits) was not tested; every check ran the scheduler in the default threaded mode or in one-off processes.
 
 ## 14. Problems found during the stage
 
@@ -199,3 +218,25 @@ While it was blocked:
 - **The page download** (architecture 5.14, D-65): bounded timeouts, size, spacing and retries; redirects checked before they are followed; HTTP errors, login pages and rate limits raise, so they become failed units that store and delete nothing (`TestWorkerWithHttpClient`).
 - **Work queued by a unit** is due at its batch's moment (`_enqueue(now=...)`), so the country units of the country list and the partner pages of a listing can run in the same batch and count as remaining; before, the scheduler could stop its loop and wait for the next interval (review finding RF-03).
 - **Restart check rerun on the Stage 10 code:** PASS, 12 of 12 (`scripts/restart_check.sh`, 16:33 to 16:35 UTC, on `azk_ee24_test` right after the final Partner Monitor run). The worker's container was killed with SIGKILL during its second batch, at 16:34:28 UTC (exit status 137). After the restart in a new container, only the interrupted batch's units ran again (Anguilla's listing and RoayaTec's page), then DEVONEERS' page. There was no duplicate history row, reference or note, no email was queued, and no unit was left pending. The worker still uses the saved pages there (`FixtureSite`), so the check never reaches the website.
+
+## 16. Partial-snapshot safety (K-04)
+
+A failed or incomplete read never counts as "the data is gone". Removals and deactivations happen only after a complete, validated snapshot of exactly that scope.
+
+- **A country's listing** is complete only when every page from 1 to the last was read in order, every card was in scope and readable, nothing was listed twice, and the number of distinct partners equals the count the page itself shows (D-28). A complete snapshot archives the partners the country no longer lists. An incomplete one archives nothing and sets `to_reprocess_partners`.
+- **The country list** is complete only when the per-country counts add up to the "All Countries" total. A complete list deactivates the countries it no longer shows and archives their partners (P-23, D-36); an incomplete one deactivates nothing. Demo countries are never touched.
+- **A partner's reference list** is complete only when its size equals the expected count. A complete list closes the references that disappeared (`is_active = False`, `removed_on`); an incomplete one only adds new references, closes none, and sets `to_reprocess_references`.
+- **The no-partners notice** of an empty country counts as a valid empty result only when a complete country list, read by the same unit, confirms it (D-27, D-36). Otherwise nothing is archived.
+- **A failed download** (HTTP error, login page, rate limit, timeout, cut-off or oversized page) raises an error in the page source, so the unit fails and stores nothing for its scope. A page is never treated as empty because it could not be read.
+- **Tests:** `test_failed_or_partial_reads_delete_nothing`, `test_unconfirmed_empty_notice_keeps_the_data`, `test_valid_empty_country_is_confirmed_by_the_country_list`, `test_country_mismatch_then_recovery` and `test_reference_mismatch_then_recovery` (`tests/test_worker.py`), and `test_a_login_page_fails_the_unit_and_keeps_the_data` (`tests/test_http_client.py`).
+
+## 17. Stage 11 acceptance (2026-11-16)
+
+From a clean export of the repository, in a separate Compose project ([acceptance_results.md](acceptance_results.md)):
+
+- **Restart check** (`scripts/restart_check.sh`): PASS, 12 of 12. The worker container was killed with SIGKILL inside batch 2 at 14:40:29 UTC (exit status 137); after the restart only the uncommitted units ran again; no duplicate history row, reference or note.
+- **A SIMULATED outage and its recovery**, on a kept LIVE sample (Andorra and its 2 partners, read on 2026-11-16):
+  - run 1: the remaining partner page failed 5 times on a simulated clock, 15 to 120 minutes apart, with 5 error rows; the run ended "Partial: 3 units done, 1 failed" and posted one note; a manager's Retry read the page live with 1 request, and the run ended done without a second note;
+  - run 2: Mark for Re-scrape on BDR GROUP SLU, then the reference-validation job queued it; the outage failed it 5 times; the run ended "Failed: 0 units done, 1 failed"; its note reached the configured recipient's inbox ("Handle in Odoo"); BDR GROUP SLU kept its 17 references and its history; the manager's Retry recovered it (1 live request, "17 of 17 references, matched, 0 added, 0 removed").
+- **Paused downloads:** a manager's Sync Now queued run 3, which waits with the reason "website downloads are paused"; no request was sent.
+- **Notifications:** see section 10 for why run 1's note, addressed to the administrator ("Handle by Emails"), reached no inbox.

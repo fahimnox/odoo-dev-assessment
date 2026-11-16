@@ -443,6 +443,11 @@ Stage 11 results (2026-11-16, [acceptance_results.md](acceptance_results.md)):
 - TP-G-04: the README does not exist yet (Stage 12). The quick start in [environment.md](environment.md), followed literally from a clean export, PASSED after fixing AC-01.
 - TP-G-05: NOT RUN (the user's own check).
 
+Stage 12 results (2026-11-16):
+
+- TP-G-04: the [README](../README.md) installs with exactly the quick start that Stage 11 followed literally from a clean export (PASS then). Stage 12 checked its commands, file paths, links and anchors against the repository (PASS, [test_results.md](test_results.md)); the full installation was not repeated, because no code or setup file changed.
+- TP-G-05: NOT RUN. The steps are in [demo_script.md](demo_script.md); the result belongs in README section 10.
+
 ## 6. Commands
 
 Run in `solution/` with Git Bash (see [environment.md](environment.md)):
