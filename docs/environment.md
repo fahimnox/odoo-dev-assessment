@@ -217,6 +217,18 @@ ODOO_EDITION=community scripts/dev.sh test                                    # 
 - Registration or expiration banner in the Enterprise web client: expected for an unregistered trial database. Registering needs the employer's subscription code; don't edit the `database.*` parameters to hide it.
 - `release.version` shows `18.0+e-20261015`: added by `web_enterprise` at import time; the Enterprise addons are still the 2024-12-08 build (see [Pinned versions](#pinned-versions)).
 
+## Verification results (2026-11-16, clean checkout, Stage 11)
+
+Details: [acceptance_results.md](acceptance_results.md).
+
+- From an export of `e54214b` with no `.env`, the first documented command, `scripts/dev.sh setup`, wrote a Community `.env` and failed with exit code 255 on the Trial Balance's `account_reports` dependency (AC-01). It left a database with only Odoo's module table (AC-02). Both were fixed in `a203291` and `3b92f98`.
+- From an export of `3b92f98`, in a new Compose project with empty volumes:
+  - quick-start step 1 wrote `.env` and asked for the two folders;
+  - step 3 created `azk_ee24` with 92 modules in 8 min 44 s, with 0 warnings;
+  - the Partner Monitor alone took 2 min 16 s (34 modules), the Trial Balance alone 4 min 20 s (91 modules), and both without demo data 6 min 17 s (79 modules);
+  - `scripts/dev.sh test` ran 261 tests in 11 min 37 s, 0 failed.
+- Docker Desktop engine 29.9.2, Compose v5.6.1 (v5.1.1 in Stage 01). The lowest free RAM sampled on the host was 0.48 GB, during the full setup.
+
 ## Verification results (2026-11-05, matched pair)
 
 All on fresh databases, final configuration. Details and log names are in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).

@@ -17,7 +17,18 @@
 # A hard budget of 8 HTTP requests (redirects and retries included) and the
 # client's spacing of at least 3 s apply. It prints the requests, the units,
 # the stored rows and the timings, and finally ROLLS BACK: nothing is kept.
+#
+# Stage 11 acceptance option: keep the sample in another disposable database,
+# for the demonstration (environment variables, so docker compose run -e):
+#   PM_LIVE_KEEP=1                commit instead of rolling back;
+#   PM_LIVE_DB_CREATED_AFTER=DATE allow a database other than azk_ee24_test if
+#                                 it was created on or after DATE (YYYY-MM-DD).
+#                                 The acceptance database has the same name as
+#                                 the development database (azk_ee24) in another
+#                                 Compose project, so the name cannot be the guard.
+import os
 import re
+import sys
 import time
 from unittest.mock import patch
 from urllib.parse import urlsplit
@@ -27,7 +38,13 @@ import requests
 from odoo.addons.azk_odoo_partner_monitor.models.worker import BATCH_SIZE_PARAM, PartnerMonitorWorker
 from odoo.addons.azk_odoo_partner_monitor.services import http_client, urls
 
-assert env.cr.dbname == "azk_ee24_test", f"refusing to run on {env.cr.dbname}: azk_ee24_test only"
+KEEP = os.environ.get("PM_LIVE_KEEP") == "1"
+if env.cr.dbname != "azk_ee24_test":
+    created_after = os.environ.get("PM_LIVE_DB_CREATED_AFTER", "")
+    created_on = str(env.ref("base.user_root").create_date.date())
+    if not created_after or created_on < created_after:
+        sys.exit(f"refusing to run on {env.cr.dbname} (created on {created_on}): azk_ee24_test only, "
+                 "or a database created on or after PM_LIVE_DB_CREATED_AFTER")
 MAX_REQUESTS = 8
 LOG_PREFIX = "PM_LIVE"
 
@@ -110,6 +127,7 @@ time.sleep(http_client.MIN_INTERVAL)
 # 2-4. Two worker batches through the cron entry point.
 run = env["azk_odoo_partner_monitor.sync.run"]._queue_full_sync("manual")
 out("queued", run.display_name, "units", WorkItem.search_count([("run_id", "=", run.id)]))
+previous_batch_size = ICP.get_param(BATCH_SIZE_PARAM)
 with patch.object(PartnerMonitorWorker, "_get_page_source", lambda worker: client):
     ICP.set_param(BATCH_SIZE_PARAM, "1")
     started = time.monotonic()
@@ -127,6 +145,9 @@ with patch.object(PartnerMonitorWorker, "_get_page_source", lambda worker: clien
     second = Worker._cron_process_queue()
     out(f"batch 2: {time.monotonic() - started:.2f} s, processed {second['processed']}, "
         f"done {second['done']}, failed {second['failed']}, remaining {second['remaining']}")
+# The batch sizes above are for this check only: put the setting back, so that
+# a kept sample (PM_LIVE_KEEP=1) leaves no tuning behind (found in Stage 11).
+ICP.set_param(BATCH_SIZE_PARAM, previous_batch_size or False)
 
 for entry in client.log:
     out(f"request {entry['status']} {entry['bytes']:>7} bytes {entry['seconds']:>6.2f} s {entry['url']} "
@@ -145,5 +166,9 @@ for partner in Partner.search([("country_id", "=", andorra.id)], order="source_i
         f"history {len(partner.status_history_ids)} url {partner.partner_url}")
 errors = env["azk_odoo_partner_monitor.sync.error"].search([("run_id", "=", run.id)])
 out("error rows:", len(errors), [f"{error.error_class}: {error.message}" for error in errors])
-env.cr.rollback()
-out("rolled back; units left in the database for this run:", WorkItem.search_count([("run_id", "=", run.id)]))
+if KEEP:
+    env.cr.commit()
+    out("committed (PM_LIVE_KEEP=1): the sample is kept in", env.cr.dbname, "as run", run.id)
+else:
+    env.cr.rollback()
+    out("rolled back; units left in the database for this run:", WorkItem.search_count([("run_id", "=", run.id)]))

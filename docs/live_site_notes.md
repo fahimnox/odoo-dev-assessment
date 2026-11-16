@@ -106,3 +106,19 @@ A hard budget of 8 HTTP requests applies, and everything is rolled back at the e
   - No error row. Rolled back: no unit of the run left.
 
 Requests to www.odoo.com on 2026-11-15: 23 requests between 15:14 and 16:33 UTC: the four live check runs (1, 4, 5 and 5 requests, robots.txt included), 7 single diagnostic requests to robots.txt (RF-02), and 1 request that saved BDR GROUP SLU's page for offline analysis.
+
+## Stage 11: the acceptance demonstration (2026-11-16)
+
+The disposable acceptance database (separate Compose project, see [acceptance_results.md](acceptance_results.md)). This time the sample was kept, for the demonstration in the browser. Requests to www.odoo.com, all allowed by the robots.txt rules for every crawler:
+
+- **14:54:48 to about 14:55:00 UTC:** `scripts/pm_live_check.py` with `PM_LIVE_KEEP=1`, 5 requests:
+  - robots.txt: HTTP 200, 1,627 bytes, 56 rules, the same disallowed query keys as on 2026-11-15;
+  - the country list: HTTP 200, 381,630 bytes, 2.14 s, 170 countries, a complete list;
+  - `/partners/country/1`: HTTP 301 to `/partners/country/andorra-1`, 0.10 s;
+  - Andorra: HTTP 200, 322,042 bytes, 0.49 s, 2 of 2 partners, matched;
+  - BDR GROUP SLU: HTTP 200, 87,050 bytes, 0.32 s, 17 of 17 references, matched.
+  The three page sizes equal those of 2026-11-15; the contents were not compared.
+- **About 14:56:24 UTC:** recovery after a simulated outage. Process Control Technology Andorra: HTTP 200, 76,042 bytes, 0.81 s, 3 of 3 references, matched.
+- **About 15:03:03 UTC:** recovery after a second simulated outage. BDR GROUP SLU: HTTP 200, 87,050 bytes, 0.77 s, 17 of 17 references, matched, 0 added, 0 removed.
+
+In all, 7 requests. No error, login page or rate limit was met. Downloads are paused in that database afterwards.

@@ -2,6 +2,27 @@
 
 Exact commands and results, newest stage first. Every result is PASS, FAIL, BLOCKED or NOT RUN. The commands run from `solution/` in Git Bash on the target edition `enterprise-20241208`: service `odoo-ee-20241208`, port 8071, the matched pair of [enterprise_transition.md](enterprise_transition.md). Full command logs are private, in `<kit-root>/runtime/logs/`. Earlier stages record their results in [STATE.md](STATE.md) and their handoffs.
 
+## Stage 11 (2026-11-16): clean acceptance
+
+The full record, with every command, count and log name, is [acceptance_results.md](acceptance_results.md). All of it ran from `git archive` exports outside the repository, in a separate Compose project with empty volumes (port 8073). The addon code is that of Stage 10 (`e54214b`); Stage 11 changed only `scripts/dev.sh`, `.env.example`, documentation and acceptance scripts.
+
+- **FAIL, then fixed:** the first documented command in a fresh checkout. In the export of `e54214b`, `scripts/dev.sh setup` exited with 255 (AC-01).
+- **PASS after the fix** (export of `3b92f98`):
+  - quick start steps 1 to 3;
+  - demo data at install;
+  - each addon alone, then updated (TP-G-01);
+  - both addons without demo data;
+  - the upgrade from Stage 09 with equal fingerprints.
+- **PASS:** `scripts/dev.sh test`, "0 failed, 0 error(s) of 261 tests": 147 Partner Monitor and 114 Trial Balance, as in Stage 10. No skipped test, warning or import error.
+- **PASS:** `scripts/restart_check.sh`, 12 of 12.
+- **PASS:** the browser checks on the fresh database: dashboard 7 of 7, Trial Balance wizard 7 of 7, preview and downloads 20 of 20, the Partner Monitor demonstration 7 of 7 (on run 3; runs 1 and 2 failed on harness timing, AC-06).
+- **PASS:** `scripts/tb_engine_vs_native.py`, 6 of 6. `scripts/acceptance_access_check.py`, 24 of 24.
+- **PASS:** the Partner Monitor demonstration: a bounded LIVE sample (7 requests in all), a SIMULATED outage, notes and recovery. The first notification went to the default recipient because the demo script's settings phase lacked a commit (AC-05, fixed and rerun).
+- **NOT RUN:**
+  - the user's manual browser check (TP-G-05);
+  - a full live crawl (on purpose);
+  - the Partner Monitor tests on the Community baseline (TP-G-03, optional; only its install with demo data ran).
+
 ## Stage 10 (2026-11-15): engineering review
 
 Code: `azk_odoo_partner_monitor` 18.0.1.5.0 and `azk_dynamic_trial_balance` 18.0.1.3.0 (Python changes only), on top of Stage 09 commit `564b71b`. Findings and their verification: [review_findings.md](review_findings.md). The heavy checks ran one at a time, with free RAM sampled (about 1.9 to 2.6 GB free); C: had 40 to 41 GB free.

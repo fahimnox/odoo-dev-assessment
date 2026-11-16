@@ -435,6 +435,14 @@ Status after Stage 10: TP-TB-01 to TP-TB-17 PASS, including the analytic dropdow
 | TP-G-04 | README instructions followed literally from a fresh clone | The documented commands work as written | G-02 to G-05, T-19, T-20 |
 | TP-G-05 | Manual demo script (user) | Dashboard, sync status, TB preview, PDF and XLSX checked in a browser; recorded as the user's results | G-11 |
 
+Stage 11 results (2026-11-16, [acceptance_results.md](acceptance_results.md)):
+
+- TP-G-01: PASS, each addon alone and then updated, 0 warnings.
+- TP-G-02: PASS, 261 of 261 tests (147 and 114).
+- TP-G-03: partly run. The Partner Monitor installed with its demo data on the Community edition while checking AC-02; its tests were not run there.
+- TP-G-04: the README does not exist yet (Stage 12). The quick start in [environment.md](environment.md), followed literally from a clean export, PASSED after fixing AC-01.
+- TP-G-05: NOT RUN (the user's own check).
+
 ## 6. Commands
 
 Run in `solution/` with Git Bash (see [environment.md](environment.md)):

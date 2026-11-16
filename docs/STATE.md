@@ -1,8 +1,33 @@
 # Project state
 
-_Last updated: 2026-11-15, end of Stage 10. Stage 04 is DONE since Stage 10._
+_Last updated: 2026-11-16, end of Stage 11. Stage 04 is DONE since Stage 10._
 
 ## Current position
+
+- **Stage 11: DONE (2026-11-16).** Clean-checkout acceptance: [acceptance_results.md](acceptance_results.md). The addon code is unchanged since Stage 10 (`e54214b`).
+  - **Found and fixed (packaging and documentation):**
+    - AC-01: the first documented command, `scripts/dev.sh setup`, failed in a fresh checkout, because the default edition was Community. The default is now `enterprise-20241208`, `setup` writes `.env` first and asks for the two source folders, and `environment.md` has a quick start (D-67);
+    - AC-02: a rerun of `setup` now installs what an interrupted first install left out, `base` included, without dropping the database;
+    - AC-03: stale lines in `environment.md`.
+  - **Evidence (2026-11-16)**, from `git archive` exports outside the repository, in a separate Compose project with empty volumes on port 8073 (D-68):
+    - installs:
+      - the quick start;
+      - demo data at install (13 countries and 50 partners; the Trial Balance demo company with 16 entries);
+      - the Partner Monitor alone (34 modules) and the Trial Balance alone (91 modules), each then updated;
+      - both without demo data;
+      - all with 0 warnings;
+    - an upgrade from the Stage 09 release: the state reports before and after differ only in the Partner Monitor's version;
+    - `scripts/dev.sh test`: 261 of 261 (147 and 114, the Stage 10 baseline), with no skipped or uncollected test;
+    - the restart check, 12 of 12;
+    - browser checks on the fresh database: dashboard 7 of 7, wizard 7 of 7, preview and downloads 20 of 20 (Bank 1,200.00 and 1,000.00);
+    - the standard Trial Balance, 6 of 6;
+    - the Partner Monitor demonstration: a kept LIVE sample (7 requests to www.odoo.com in all), two SIMULATED outages, notes to the default and then to the configured recipient, recovery by a manager's Retry; in the browser 7 of 7;
+    - access over HTTP for four non-admin users and an anonymous one, 24 of 24.
+  - **Observation O-01 (for the README, D-69):** with the default "Handle by Emails" and no mail server, a failure note reaches the run's chatter but not the recipient's inbox.
+  - **Environment after the stage:**
+    - The development stack runs again on port 8071. Its eight databases were not changed; only a few read-only SQL queries were made on `azk_ee24` at the start.
+    - The acceptance project `azk-stage11-acc` is stopped, and its volumes are kept. Downloads are paused there, and its run 3 waits.
+    - The exports are under `<kit-root>/runtime/acceptance/`.
 
 - **Stage 10: DONE (2026-11-15).** Engineering review of both addons: [review_findings.md](review_findings.md) (findings RF-01 to RF-15, with severity, evidence, fix and verification). `azk_odoo_partner_monitor` 18.0.1.5.0; `azk_dynamic_trial_balance` still 18.0.1.3.0 (Python changes only).
   - **Partner Monitor, Stage 04 completed:**
@@ -159,7 +184,7 @@ _Last updated: 2026-11-15, end of Stage 10. Stage 04 is DONE since Stage 10._
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** Stage 11 (clean acceptance), when the user requests it. Stage 10's results: [review_findings.md](review_findings.md).
+- **Next step:** Stage 12 (submission documentation: the README), when the user requests it. Stage 11's results: [acceptance_results.md](acceptance_results.md).
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. On port 8071 the agent ran headless Chrome (installed on this machine) through the DevTools protocol in Stage 06: the Partner Monitor dashboard check passed 7 of 7 (`scripts/ui_smoke_check.py`). Other screens of the environment were not checked in a browser; the manual steps are in the Stage 06 handoff.
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
@@ -199,7 +224,7 @@ _Last updated: 2026-11-15, end of Stage 10. Stage 04 is DONE since Stage 10._
 | 08 | Trial Balance calculation engine | DONE (2026-11-15): engine with one normalized result; 85 tests pass; equal to the hand-calculated constants and to the standard Trial Balance where both apply; constant query count |
 | 09 | Trial Balance outputs (Preview, PDF, XLSX) | DONE (2026-11-15): Preview, PDF and XLSX from one engine call per request; demo data; 102 tests pass; browser and download-route check 20 of 20; upgrades duplicate no demo record |
 | 10 | Engineering review | DONE (2026-11-15): review findings with evidence; the page download and a live check; fiscal years, branches and analytics tested; 147 Partner Monitor and 114 Trial Balance tests pass, the vendor's 11 tests pass with our addon, and the live, analytic, restart and no-demo checks pass |
-| 11 | Clean acceptance | NOT STARTED |
+| 11 | Clean acceptance | DONE (2026-11-16): from clean exports in a separate Compose project, both addons install alone and together, with and without demo data, and upgrade from Stage 09 keeping all data; 261 of 261 tests; restart 12 of 12; browser checks 7, 7, 20 and 7 of the same; access 24 of 24; the first setup command fixed (AC-01, AC-02) |
 | 12 | Submission documentation | NOT STARTED |
 | 13 | Code walkthrough | NOT STARTED |
 | 14 | Mock interview | NOT STARTED |
@@ -307,6 +332,8 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - **Analytic Accounting is off on `azk_ee24`:** so the wizard's Analytic Accounts field and the preview's analytic dropdown are hidden there (D-62). To try them, enable Accounting > Configuration > Settings > Analytic Accounting. Stage 10 tried them in a browser on a disposable database with the setting on (review finding RF-15).
 - **Website downloads are paused on `azk_ee24`** (D-64): its run 1 (2026-11-10) waits with that reason. Untick Settings > Partner Monitor > Pause Website Downloads only to start a real, full sync from this machine (about 330 listing pages and, the first time, about 4,500 partner pages, at one request per 3 s or more).
 - **Memory:** in Stage 09 the CLI stopped a background test run when the machine was critically low on memory. Close unused applications before long runs; the browser checks need about 0.5 GB more.
+- **Failure notes and mail (README, Stage 12):** with Odoo's default "Handle by Emails" and no outgoing mail server, a failure note stays on the run's chatter and its email fails (O-01, D-69). The README must say to configure a mail server or set the recipient to "Handle in Odoo".
+- **Acceptance project (Stage 11):** the Compose project `azk-stage11-acc` is stopped, and its volumes are kept for inspection (297 MB of PostgreSQL data and 21 MB of filestore, measured with `docker system df -v`). Delete it with `docker compose -p azk-stage11-acc down --volumes` from its export folder, when no longer needed (the user's decision).
 - **Browser check of the Trial Balance (user, recommended):** the walkthrough is in [handoffs/stage_09_en.md](handoffs/stage_09_en.md).
 - **Browser check of the Partner Monitor UI (user, recommended):** the agent's headless check covered the dashboard (Stage 06). Still for the user, in a normal browser: the country selector, a click on a chart bar, the reader role, the pivot and graph views, a partner form and Settings > Partner Monitor (steps in the Stage 06 handoff).
 - **Compatibility blocker:** resolved on 2026-11-05 for the matched pair (all eight `TestTrialBalanceReport` tests pass). The Stage 01B pair still fails `test_trial_balance_comparisons` and stays blocked; it is kept only for `azk_ent`.
