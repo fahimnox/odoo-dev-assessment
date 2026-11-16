@@ -232,11 +232,15 @@ cmd_setup() {
     elif [[ "$(installed_count "$DEV_DB" "$SETUP_MODULES")" == "$wanted" ]]; then
         echo "$DEV_DB already exists with $SETUP_MODULES; leaving it unchanged."
     else
-        # An earlier setup stopped part-way (for example on a missing source
-        # folder). Installing is idempotent: installed modules are kept as they
-        # are, and the database is never dropped.
-        echo "$DEV_DB exists, but not all of $SETUP_MODULES is installed; installing the missing modules."
-        odoo_run "$DEV_DB" --init="$SETUP_MODULES" --stop-after-init
+        # An earlier setup stopped part-way. Installing is idempotent: installed
+        # modules are kept as they are, and the database is never dropped. When
+        # the first install failed, Odoo rolled it back and left only its module
+        # table, with even base uninstalled; base is then installed first, as for
+        # a new database.
+        local init="$SETUP_MODULES"
+        [[ "$(installed_count "$DEV_DB" base)" == "1" ]] || init="base,$init"
+        echo "$DEV_DB exists, but not all of $SETUP_MODULES is installed; installing: $init."
+        odoo_run "$DEV_DB" --init="$init" --stop-after-init
     fi
     echo "Done. Start the server with: scripts/dev.sh start"
 }
