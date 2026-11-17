@@ -19,6 +19,17 @@ Exact commands and results, newest stage first. Every result is PASS, FAIL, BLOC
 - **NOT RUN:** the candidate's own manual check (TP-G-05); a full live crawl (on purpose); the Partner Monitor tests on the Community baseline (optional, TP-G-03); multi-process Odoo workers; other hosts.
 - **BLOCKED:** nothing in the target edition. The earlier Stage 01B pair stays blocked by a standard test and is kept only for history ([environment.md](environment.md)).
 - **Screenshots and exports actually produced and committed:** [screenshots/](screenshots/) (Stages 06, 07, 09 and 10) and [samples/](samples/) (Stage 09). The Stage 11 screenshots were looked at but kept privately with the logs.
+- **Published** (Stage 15, 2026-11-17): https://github.com/fahimnox/odoo-dev-assessment, the submitted commit tagged `submission-v1` (documentation only on top of `submission-rc1`). The results above are those of that code.
+
+## Stage 15 (2026-11-17): publication
+
+No application check was rerun: `submission-v1` differs from `submission-rc1` only in `README.md` and files under `docs/`, and no addon code or setup file changed after the Stage 11 acceptance.
+
+- **GitHub account:** the local Git credential manager holds one GitHub account, `fahimnox`, the author name of all 25 commits and the manifests' `author`. The GitHub API confirmed it (`GET /user`: HTTP 200, login `fahimnox`, scope `repo`). The credential was never printed or written to a file.
+- **Repository name:** `fahimnox/odoo-dev-assessment` did not exist (`GET /repos/fahimnox/odoo-dev-assessment`: HTTP 404). It was created empty and public, without an initial commit (`POST /user/repos`: HTTP 201).
+- **Publication review**, repeated before the push over the files and every commit: PASS ([release_checklist.md](release_checklist.md) section 3).
+- **Links and anchors:** 442 relative links in 51 Markdown files, 0 broken: PASS. **ASCII:** the new and updated documents contain ASCII only: PASS.
+- **Push and public access:** checked after the push and recorded in the Stage 15 log, which follows the submitted commit on `main`.
 
 ## Stage 12 (2026-11-16): documentation and release checkpoint
 

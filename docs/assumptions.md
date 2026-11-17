@@ -41,7 +41,7 @@ These are referenced by the PDF but were **not supplied**. They have not been re
 
 ## Ambiguities and design decisions
 
-D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, D-18 to D-22 in Stage 03, D-23 to D-29 in Stage 04, D-30 to D-36 in Stage 05, D-37 to D-42 in Stage 06, D-43 to D-49 in Stage 07, D-50 to D-53 in Stage 08, D-54 to D-63 in Stage 09, D-64 to D-66 in Stage 10, D-67 to D-69 in Stage 11, and D-70 in Stage 12.
+D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 were found and decided in Stage 02, D-18 to D-22 in Stage 03, D-23 to D-29 in Stage 04, D-30 to D-36 in Stage 05, D-37 to D-42 in Stage 06, D-43 to D-49 in Stage 07, D-50 to D-53 in Stage 08, D-54 to D-63 in Stage 09, D-64 to D-66 in Stage 10, D-67 to D-69 in Stage 11, D-70 in Stage 12, and D-71 in Stage 15.
 
 | ID | PDF p. | Ambiguity | Decision |
 |---|---|---|---|
@@ -114,7 +114,8 @@ D-01 to D-07 were identified in Stage 00 and resolved in Stage 02. D-08 to D-17 
 | D-67 | 2 | The default edition and a repeated setup (Stage 11) | `scripts/dev.sh` defaults to `enterprise-20241208`, the target, because the Trial Balance addon cannot install without Enterprise; `community` stays available by name and installs the Partner Monitor only. A first `setup` writes `.env` and then asks for the two source folders. Running `setup` again installs any missing module (with `base` first when a failed first install left only Odoo's module table) and never drops the development database (findings AC-01, AC-02) |
 | D-68 | 2 | How the acceptance ran next to the development environment (Stage 11) | In a separate Compose project (`COMPOSE_PROJECT_NAME=azk-stage11-acc`) with its own empty volumes and port 8073, from `git archive` exports outside the repository. Its database names equal the development ones in another PostgreSQL cluster, so the acceptance scripts that write check the database creation date instead of the name. Downloads stay paused there |
 | D-69 | 3 | Failure notes and mail delivery (Stage 11; documented in Stage 12) | Kept as designed (D-08): the note is posted on the run's chatter for the configured user and delivered by that user's preference. With "Handle by Emails" and no outgoing mail server, the email fails and nothing reaches the inbox (observation O-01). The README (section 7, Stage 12) tells the reader to configure an outgoing mail server or to choose "Handle in Odoo" for the recipient, and explains the chatter message, the inbox notification and the email |
-| D-70 | 1 | License file of the repository (Stage 12) | None until question Q-06 is answered. Both manifests keep LGPL-3 (A-06), and README section 17 says that the license is undecided. Adding a license file is the candidate's decision before publication (Stage 15, [release_checklist.md](release_checklist.md)) |
+| D-70 | 1 | License file of the repository (Stage 12) | None until question Q-06 is answered. Both manifests keep LGPL-3 (A-06), and README section 17 says that the license is undecided. Adding a license file is the candidate's decision before publication (Stage 15, [release_checklist.md](release_checklist.md)). Still undecided at publication (2026-11-17): the public repository has no license file (D-71) |
+| D-71 | 1 | Publication (Stage 15) | On the candidate's explicit request: a public repository, https://github.com/fahimnox/odoo-dev-assessment, under the GitHub account `fahimnox`, the author name of every commit. The history and the author metadata are published unchanged, by the candidate's decision (the work email address therefore becomes public). Both tags are pushed: `submission-rc1` (the reviewed release candidate) and `submission-v1` (the submitted commit, documentation only on top of it). No license file (D-70). Q-02 to Q-06 were not asked; the documented defaults stand |
 
 ## Version and edition notes
 
@@ -133,7 +134,7 @@ These are recorded rather than silently changing scope. Details are in [architec
 
 ## Open clarifications for the team lead
 
-We continue under the documented defaults until answered. Only unresolved points are listed; none blocks the release checkpoint of Stage 12. As of 2026-11-16, Q-02 to Q-06 have not been asked.
+We continue under the documented defaults until answered. Only unresolved points are listed; none blocked the release checkpoint of Stage 12 or the publication of Stage 15. As of 2026-11-17, Q-02 to Q-06 have not been asked; the repository was published with the documented defaults.
 
 | ID | Question | Status |
 |---|---|---|

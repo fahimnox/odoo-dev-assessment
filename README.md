@@ -5,7 +5,7 @@ Two Odoo addons written for an Odoo developer technical assessment:
 - `azk_odoo_partner_monitor` (Exercise 1): reads the public Odoo Partners pages of www.odoo.com, stores partners, their status history and client references, and shows them on a filterable dashboard.
 - `azk_dynamic_trial_balance` (Exercise 2): a Dynamic Trial Balance wizard with account, journal and analytic filters, hierarchy and currency options, and an on-screen Preview, PDF and XLSX built on the Enterprise report framework.
 
-**Status (release checkpoint of 2026-11-16):** both addons are built, tested and accepted from a clean checkout. 261 automated tests pass (147 and 114). Two requirements stay open: P-17.3, because the original views specification was never supplied, and T-19, because the candidate's own manual check of the final screens is still to be done. The public repository is created only in the last stage (Stage 15). Details: [Status](#13-status-complete-and-pending).
+**Status (published on 2026-11-17, tag `submission-v1`):** both addons are built, tested and accepted from a clean checkout. 261 automated tests pass (147 and 114). Two requirements stay open: P-17.3, because the original views specification was never supplied, and T-19, because the candidate's own manual check of the final screens is still to be done. Repository: https://github.com/fahimnox/odoo-dev-assessment. Details: [Status](#13-status-complete-and-pending).
 
 ## Contents
 
@@ -64,6 +64,14 @@ Two Odoo addons written for an Odoo developer technical assessment:
 ## 4. Installation from a clean checkout
 
 These are the steps of [docs/environment.md](docs/environment.md#quick-start-clean-checkout). In Stage 11 they were followed literally from a `git archive` export of the repository (no `.env`, empty Docker volumes) and passed; see [docs/acceptance_results.md](docs/acceptance_results.md). Run them from the repository root in bash.
+
+Get the code first:
+
+```bash
+git clone https://github.com/fahimnox/odoo-dev-assessment.git
+cd odoo-dev-assessment
+git checkout submission-v1    # optional: the submitted commit; main may carry later documentation-only commits
+```
 
 1. `scripts/dev.sh setup`
    - The first run writes `.env` (ignored by Git) with random database passwords and `ODOO_EDITION=enterprise-20241208`, then stops with "needs ENTERPRISE_ADDONS in .env". No container is created yet.
@@ -290,12 +298,13 @@ Where the assessment was silent or ambiguous, we chose a default and wrote it do
 - Exercise 1: models, scraping, history, two-level validation, the empty-country case, scheduled jobs, resilience, failure notes, dashboard with four charts and shared filters, views, security and demo data.
 - Exercise 2: the wizard with every field and help text, the calculation engine, the Preview, PDF and XLSX, access on every path, and demo data with posted, draft, cancelled, foreign-currency and analytic entries and a five-level hierarchy.
 - Packaging: a pinned Docker setup, a clean-checkout quick start (accepted in Stage 11), this README, the documentation and the AI logs.
+- Publication (G-01): this public repository, published in Stage 15 (2026-11-17). The submitted commit is tagged `submission-v1`; it equals the reviewed release candidate `submission-rc1` plus documentation.
 
 **Pending:**
 
 - **P-17.3:** checking the views against the original specification, which was never supplied (Q-02). IN PROGRESS.
-- **The public GitHub repository** (G-01): Stage 15. Before it, the decisions in [docs/release_checklist.md](docs/release_checklist.md) (license, Git identity) are the candidate's.
 - **T-19, the candidate's own manual check** of the final screens (TP-G-05): IN PROGRESS until it is done and recorded in section 10.
+- **The license** (Q-06): still undecided at publication (section 17).
 - **Answers to Q-02 to Q-06.** Until then the defaults above stand.
 - Not done, by choice: a full live crawl; the Partner Monitor test suite on the Community baseline (optional, TP-G-03).
 
@@ -321,6 +330,7 @@ The final requirement matrix and its status summary: [docs/requirements_matrix.m
 - The assessment encourages generative AI and asks for the prompts and outputs. This solution was built with **Claude Code** (Anthropic's terminal agent), model **Opus 5.5** (`claude-opus-5-5`), as each log records.
 - The candidate chose the exercises, ran the work one stage at a time with written stage prompts, relayed the team lead's clarification (Enterprise), made the recorded scope decisions (for example deferring the page download in Stage 04, until Stage 10), and reviewed the results. The AI agent wrote the code, tests and documentation, and ran the commands and checks reported here. The scraping logic was generated with AI, as the assessment asks (P-03.1).
 - [docs/ai/](docs/ai/README.md) holds, for every stage, the user's prompts and the agent's visible answers verbatim, a summary of its tool activity (labeled as a summary), and a table of the agent's mistakes and how they were found and corrected. Hidden reasoning, system prompts and raw tool output are not included. Redactions (local paths) are listed there.
+- The candidate's learning stages are not finished: Stage 13 (a walkthrough of this code) is paused after its first section, and Stage 14 (a mock interview) is deferred until after publication. They prepare the candidate and change nothing in the submission unless they find a defect. The log of Stage 15, which records this publication, follows the submitted commit on `main`.
 
 ## 16. Repository layout
 
@@ -340,4 +350,4 @@ Not in this repository, on purpose: Odoo itself, the Enterprise addons, `.env`, 
 
 ## 17. License
 
-Both manifests declare **LGPL-3**, an unconfirmed default (A-06). The Trial Balance addon depends on the proprietary Enterprise module `account_reports` (OEEL-1), so its license is open question Q-06. No license file is included until that is decided.
+Both manifests declare **LGPL-3**, an unconfirmed default (A-06). The Trial Balance addon depends on the proprietary Enterprise module `account_reports` (OEEL-1), so its license is open question Q-06. No license file is included until that is decided. This was still undecided at publication (Stage 15, 2026-11-17): the repository is public without a license file, and the manifests still declare LGPL-3.

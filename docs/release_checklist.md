@@ -2,6 +2,8 @@
 
 _Stage 12, 2026-11-16. The local release checkpoint is the Stage 12 commit, marked with the annotated tag `submission-rc1`. The tag is local: nothing is pushed or published before Stage 15._
 
+_Update, Stage 15 (2026-11-17): published at https://github.com/fahimnox/odoo-dev-assessment. The submitted commit, tag `submission-v1`, is `submission-rc1` plus documentation only (status, the candidate's decisions, the review below and the paused Stage 13 log); no addon, setup or script file changed, so the Stage 11 results stand. Both tags are pushed._
+
 ## 1. What the checkpoint contains
 
 - **The two addons:** `addons/azk_odoo_partner_monitor` 18.0.1.5.0 and `addons/azk_dynamic_trial_balance` 18.0.1.3.0. Their code is unchanged since Stage 10 (`e54214b`); Stage 12 changed only the fixtures README of the Partner Monitor tests (documentation).
@@ -22,13 +24,13 @@ Verified for this checkpoint:
 - [x] Demo script with exact menus, data labels, expected numbers, a failure-and-recovery story and an offline fallback: [demo_script.md](demo_script.md).
 - [x] Final requirement matrix with a status summary: [requirements_matrix.md](requirements_matrix.md).
 - [x] Documentation checks (Stage 12): relative links and anchors of every Markdown file, the commands and file paths named in the README and the demo script, ASCII text in the new and updated documents. Results: [test_results.md](test_results.md).
-- [x] Publication review of the files and of the Git history (section 3).
+- [x] Publication review of the files and of the Git history (section 3), repeated in Stage 15 before the push.
+- [x] The public repository (Stage 15, 2026-11-17): https://github.com/fahimnox/odoo-dev-assessment, created under the account `fahimnox`, the author name of every commit. The remote branch and tags were compared with the local ones after the push (Stage 15 log).
 
 Not done (see section 5):
 
 - [ ] The candidate's own manual check of the final screens (TP-G-05; requirement T-19).
-- [ ] The decisions of section 4.
-- [ ] The public repository (Stage 15).
+- [ ] The open decisions of section 4: the license, the manual check, the questions Q-02 to Q-06 and the supplied archive. The Git identity and the tag were decided in Stage 15.
 
 ## 3. Publication review (2026-11-16)
 
@@ -44,29 +46,49 @@ A script read every file to be published (198 files, 4.15 MB) and every blob of 
 - **AI logs:** visible user and assistant text only, with the redactions listed in [ai/README.md](ai/README.md). Non-ASCII text appears only in the historical Stage 00 transcript (Arabic), in one dash of the first log, and in two symbols of `AGENTS.md`, all written before the English-only correction.
 - **Commit messages:** no path, secret or address other than the agent's `Co-Authored-By` line.
 
+### Repeated in Stage 15 (2026-11-17), before the push
+
+The same script, with GitHub token prefixes (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`) added to its patterns, read the 199 files of the submitted commit and every blob of the 25 earlier commits (the documentation added since was read as files). Results, unchanged from Stage 12:
+
+- no real secret value (the five database and acceptance passwords of the local `.env` files and the acceptance users), private key, access token or vendor license header, in the files or in the history; no blob over 500 kB; no deleted path hidden in the history;
+- no Windows or Unix user path; `AppData` occurs only in the generic form `%LOCALAPPDATA%`;
+- email addresses: the `@example.com` test addresses, and the Git identity's work email address in the commit metadata and in the four documents named above (decision 1);
+- the agent's `Co-Authored-By` line is the only address in commit messages.
+
+The credential used to create the repository came from the local Git credential manager and was never printed or written to a file.
+
 ## 4. Decisions for the candidate before publication
 
 1. **Git identity.** Keep the work email address public, or rewrite the commits' author (for example to a GitHub "noreply" address) and redact the four documents, recording the redaction in [ai/README.md](ai/README.md). Rewriting history changes every commit id, so it must happen before the first push.
+   - **Decided on 2026-11-17: keep.** The candidate chose to publish the existing author metadata and history unchanged. The work email address is therefore public, in the metadata of every commit and in the four documents.
 2. **License (Q-06).** The manifests declare LGPL-3 as an unconfirmed default (A-06), and no license file is included (D-70). Decide the license, add the file and align both manifests; `azk_dynamic_trial_balance` depends on the OEEL-1 module `account_reports`.
+   - **Still open at publication.** The repository is public without a license file.
 3. **The manual check (TP-G-05).** Follow [demo_script.md](demo_script.md) in a normal browser and record the result in README section 10; then T-19 becomes DONE.
+   - **Still pending.**
 4. **The open questions Q-02 to Q-06.** Ask them before publication, or publish with the documented defaults.
+   - **Published with the documented defaults;** the questions have not been asked.
 5. **The supplied archive.** It contains an earlier implementation of this assessment's modules, which was never opened or used. Whether to mention it to the team lead is the candidate's decision ([STATE.md](STATE.md), open items).
+   - **Still the candidate's decision.**
 6. **The tag.** Push `submission-rc1` with the branch, or tag the published commit anew in Stage 15.
+   - **Decided:** both. `submission-rc1` marks the reviewed release candidate, and `submission-v1` marks the submitted commit.
 
 ## 5. Pending work
 
 - **P-17.3, IN PROGRESS:** the original views specification was never supplied (M-01, Q-02), so "the required filters, groupings and pivot configurations remain the same" cannot be checked.
 - **T-19, IN PROGRESS:** the candidate's manual check (decision 3).
-- **G-01, NOT STARTED:** the public GitHub repository and its link (Stage 15).
+- **G-01, DONE in Stage 15:** the public repository above. Sending its link to the assessor is the candidate's own action.
+- **The license (Q-06):** undecided; no license file (D-70).
 - **Questions Q-02 to Q-06:** unanswered; the defaults stand ([assumptions.md](assumptions.md)).
-- **Stages 13 and 14** (code walkthrough and mock interview) are interactive preparation for the candidate; they change nothing in the submission unless a defect is found.
+- **Stages 13 and 14** (code walkthrough and mock interview) are interactive preparation for the candidate; they change nothing in the submission unless a defect is found. On 2026-11-17 the candidate paused Stage 13 after its first section and deferred Stage 14, to publish first; both resume after publication.
 - **Not planned:** a full live crawl (on purpose, D-64); the Partner Monitor test suite on the Community baseline (optional, TP-G-03); multi-process Odoo workers; other hosts and operating systems.
 - **Local clean-up (no effect on the submission):** the Stage 11 acceptance project `azk-stage11-acc` and its volumes (318 MB) are kept for the demo; delete them when no longer needed ([STATE.md](STATE.md)).
 
 ## 6. How to check the checkpoint again
 
 ```text
-git checkout submission-rc1          # or the branch it marks
+git clone https://github.com/fahimnox/odoo-dev-assessment.git
+cd odoo-dev-assessment
+git checkout submission-v1           # the submitted commit (submission-rc1: the release candidate)
 scripts/dev.sh setup                 # quick start, README section 4 (in a new folder: README section 6)
 scripts/dev.sh test                  # expect "0 failed, 0 error(s) of 261 tests"
 scripts/dev.sh start                 # then the demo script

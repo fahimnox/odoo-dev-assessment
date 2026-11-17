@@ -4,6 +4,8 @@ _2026-11-16 (times in UTC). Clean-checkout acceptance of the submission, run by 
 
 _Update, Stage 12 (2026-11-16): the README now exists, and the requirement rows marked "Stage 12" below have their final status in [requirements_matrix.md](requirements_matrix.md). Stage 12 also checked the consequence of reusing a project's volumes with a new `.env` on a throwaway project ([test_results.md](test_results.md)). This record is otherwise unchanged._
 
+_Update, Stage 15 (2026-11-17): the repository is published at https://github.com/fahimnox/odoo-dev-assessment; the submitted commit is tagged `submission-v1`. No addon code or setup file changed after this acceptance (only the acceptance's own check scripts, a fixtures README and one script comment), so its results stand for the published commit. The status lists below are those of Stage 11; the current statuses are in [requirements_matrix.md](requirements_matrix.md)._
+
 ## Verdict
 
 - **Installation:** both addons install from a clean export of the repository, following the documented quick start and their declared dependencies, on the pinned Enterprise runtime: alone, together, with and without demo data. Every install and update log has 0 WARNING, ERROR or CRITICAL lines.

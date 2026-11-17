@@ -28,7 +28,7 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 |---|---|
 | All logs | Absolute local paths are replaced with `<kit-root>` (the assessment kit folder), `<home>` (a Windows user profile) or `<scratchpad>` (the CLI's temporary folder) |
 | [stage_11.md](stage_11.md), [stage_12.md](stage_12.md) | Random passwords (the Stage 11 acceptance users, the Stage 12 throwaway database) never appear: they passed through environment variables in tool calls, which are not reproduced |
-| [stage_00.md](stage_00.md), [stage_01.md](stage_01.md) | Not redacted: the Git identity's work email address appears as written. Whether to redact it before publication is the candidate's decision ([release_checklist.md](../release_checklist.md) section 4) |
+| [stage_00.md](stage_00.md), [stage_01.md](stage_01.md) | Not redacted: the Git identity's work email address appears as written. Before publication the candidate chose to keep it, with the author metadata of every commit (2026-11-17, [release_checklist.md](../release_checklist.md) section 4) |
 | [stage_01b.md](stage_01b.md) | Names of earlier customer projects found in the company-supplied archive, and the Windows user profile of its old virtual environment, are not reproduced (described generically). No credential or subscription value was ever printed |
 
 ## Index
@@ -51,6 +51,9 @@ The assessment recommends GenAI and asks for a log of the prompts used and the r
 | [stage_10.md](stage_10.md) | 10 | The engineering review of both addons ([review_findings.md](../review_findings.md)): the missing page download built and checked live through the worker (Stage 04 completed), six defects found and fixed (four of them by the live check and by new tests), custom fiscal years, branches and the analytic selector tested, standard reports shown unchanged, and a benchmark |
 | [stage_11.md](stage_11.md) | 11 | Clean acceptance from `git archive` exports in a separate Compose project. The first documented command failed in a fresh checkout and was fixed (default edition, a repeatable setup, a quick start). Then: installs alone and together, with and without demo data; an upgrade from Stage 09; 261 tests; the restart check; browser checks; a kept live sample with simulated outages and notifications; access over HTTP. It opens with the messages between Stages 10 and 11 |
 | [stage_12.md](stage_12.md) | 12 | Submission documentation: the README, the demo script and the release checklist; the design documents brought to the final implementation; the final requirement matrix; the volume-reuse consequence checked on a throwaway project; link, command, ASCII and publication checks over the files and the Git history; the local release tag `submission-rc1` |
+| [stage_13.md](stage_13.md) | 13 (PAUSED) | Code walkthrough for the candidate, interactive: a private code map built outside this repository, and section 1 of 7 (the project overview) taught with one question. Paused by the user before answering, to publish first; it resumes after publication |
+
+Stage 14 (mock interview) is DEFERRED by the user until after publication and has not started, so it has no log yet.
 
 ## Mistakes found and corrected
 

@@ -1,9 +1,16 @@
 # Project state
 
-_Last updated: 2026-11-16, end of Stage 12 (local release checkpoint `submission-rc1`). Stage 04 is DONE since Stage 10._
+_Last updated: 2026-11-17, Stage 15 (publication): the repository is public at https://github.com/fahimnox/odoo-dev-assessment, and the submitted commit is tagged `submission-v1`. Stage 13 is PAUSED and Stage 14 is DEFERRED until after publication. Stage 04 is DONE since Stage 10._
 
 ## Current position
 
+- **Stage 15: DONE (2026-11-17).** Published, on the user's explicit request, to https://github.com/fahimnox/odoo-dev-assessment (public), under the GitHub account `fahimnox`, the author name of every commit.
+  - **What was published:** the branch `main` with its full history, unchanged (the user chose to keep the author metadata and history), and the tags `submission-rc1` (the reviewed release candidate) and `submission-v1` (the submitted commit: `submission-rc1` plus documentation only).
+  - **Checked before the push:** the publication review of Stage 12, repeated over the files and every commit ([release_checklist.md](release_checklist.md) section 3), and the documentation links. No application check was rerun: no addon code or setup file changed since the Stage 11 acceptance, and nothing but documentation since `submission-rc1`.
+  - **Checked after the push:** the remote branch and tags against the local ones, and the README and both manifests read without signing in; recorded in the Stage 15 log, which follows the submitted commit on `main`.
+  - **Still open:** the license (Q-06, D-70), the candidate's manual check (T-19), the views specification (P-17.3, Q-02), and the questions Q-02 to Q-06. Sending the link to the assessor is the candidate's own action.
+- **Stage 14: DEFERRED (2026-11-17)** by the user until after publication. Not started.
+- **Stage 13: PAUSED (2026-11-17)** by the user after section 1 of 7, to publish first. Section 1 (the project overview) was taught; its comprehension question has not been answered yet. As the Stage 13 prompt requires, the code map and the record of the candidate's answers are private study notes outside this repository. The partial log is [ai/stage_13.md](ai/stage_13.md). The stage resumes after publication and stays unfinished until the walkthrough is completed. No addon code changed.
 - **Stage 12: DONE (2026-11-16).** Submission documentation and a local release checkpoint (the Stage 12 commit, annotated tag `submission-rc1`, not pushed). No addon code or setup file changed.
   - **New:** [README.md](../README.md) (scope, the Enterprise target with the unconfirmed version 18.0, the pins, prerequisites, the verified quick start, commands, isolated copies and volume reuse, configuration with mail delivery of the failure notes, features, resilience, testing with 261 = 147 + 114, demo, assumptions and limitations, status, evidence, AI use, license), [demo_script.md](demo_script.md) (about 7 minutes, data labels, expected numbers, a failure-and-recovery story, an offline fallback) and [release_checklist.md](release_checklist.md) (the publication review, the candidate's decisions, the pending work).
   - **Updated to the final implementation:** [architecture.md](architecture.md) (a new section 0; the stale "not implemented yet" intro removed), [resilience.md](resilience.md) (a map, notification delivery, partial-snapshot safety, Stage 11 results), [calculation_contract.md](calculation_contract.md) (a reviewer summary; fiscal years and branches compared in Stage 10), the final [requirements_matrix.md](requirements_matrix.md) (147 of 152 rows DONE; P-17.3 and T-19 IN PROGRESS; G-01 NOT STARTED), [test_results.md](test_results.md) (a final summary), [test_plan.md](test_plan.md), [assumptions.md](assumptions.md) (D-69 documented, D-70), the fixtures README and one script comment.
@@ -190,7 +197,7 @@ _Last updated: 2026-11-16, end of Stage 12 (local release checkpoint `submission
     - the custom addon tests passed 4 of 4;
     - the login, Trial Balance, PDF and XLSX smoke checks passed.
   - Details in [enterprise_transition.md](enterprise_transition.md#follow-up-continuation-2026-11-05).
-- **Next step:** Stage 13 (code walkthrough), when the user requests it. Before publication (Stage 15), the candidate's decisions in [release_checklist.md](release_checklist.md) section 4.
+- **Next step:** when the user asks, resume Stage 13 at section 1 (its question is still unanswered), then Stage 14 (mock interview). The candidate's open decisions are in [release_checklist.md](release_checklist.md) section 4: the license, the manual check, the questions Q-02 to Q-06 and the supplied archive.
 - **Browser checks:** the user reported a browser smoke check of the Stage 01B environment (port 8070) in the 2026-11-04 message, without detailed results. On port 8071 the agent ran headless Chrome (installed on this machine) through the DevTools protocol in Stage 06: the Partner Monitor dashboard check passed 7 of 7 (`scripts/ui_smoke_check.py`). Other screens of the environment were not checked in a browser; the manual steps are in the Stage 06 handoff.
 - **Business features implemented:**
   - the Partner Monitor data model, access rules, basic views and demo data (Stage 03);
@@ -232,9 +239,9 @@ _Last updated: 2026-11-16, end of Stage 12 (local release checkpoint `submission
 | 10 | Engineering review | DONE (2026-11-15): review findings with evidence; the page download and a live check; fiscal years, branches and analytics tested; 147 Partner Monitor and 114 Trial Balance tests pass, the vendor's 11 tests pass with our addon, and the live, analytic, restart and no-demo checks pass |
 | 11 | Clean acceptance | DONE (2026-11-16): from clean exports in a separate Compose project, both addons install alone and together, with and without demo data, and upgrade from Stage 09 keeping all data; 261 of 261 tests; restart 12 of 12; browser checks 7, 7, 20 and 7 of the same; access 24 of 24; the first setup command fixed (AC-01, AC-02) |
 | 12 | Submission documentation | DONE (2026-11-16): README, demo script, release checklist, final requirement matrix (147 of 152 rows DONE), design documents brought to the final implementation, publication review; local tag `submission-rc1` |
-| 13 | Code walkthrough | NOT STARTED |
-| 14 | Mock interview | NOT STARTED |
-| 15 | Publish | NOT STARTED |
+| 13 | Code walkthrough | PAUSED (2026-11-17) by the user after section 1 of 7; resumes after publication; the code map and answer notes are private, outside the repository |
+| 14 | Mock interview | DEFERRED (2026-11-17) by the user until after publication; not started |
+| 15 | Publish | DONE (2026-11-17): public repository https://github.com/fahimnox/odoo-dev-assessment; `main` and the tags `submission-rc1` and `submission-v1` pushed; history unchanged; the remote compared with the local refs after the push |
 
 ## Decisions in force
 
@@ -315,6 +322,8 @@ _Last updated: 2026-11-16, end of Stage 12 (local release checkpoint `submission
   - D-68: the acceptance ran in a separate Compose project;
   - D-69: failure notes follow the recipient's preference; the README explains mail delivery;
   - D-70: no license file until Q-06 is answered.
+- **Stage 15 decision** ([assumptions.md](assumptions.md)):
+  - D-71: publish the history and author metadata unchanged, with both tags, and without a license file.
 - **Stage 09 decisions** ([assumptions.md](assumptions.md)):
   - D-54: our report record and custom handler in the standard framework; competing standard filters off; per-currency totals as lines;
   - D-55: our PDF company block, options block and grouped column header;
@@ -344,7 +353,7 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
 - **Website downloads are paused on `azk_ee24`** (D-64): its run 1 (2026-11-10) waits with that reason. Untick Settings > Partner Monitor > Pause Website Downloads only to start a real, full sync from this machine (about 330 listing pages and, the first time, about 4,500 partner pages, at one request per 3 s or more).
 - **Memory:** in Stage 09 the CLI stopped a background test run when the machine was critically low on memory. Close unused applications before long runs; the browser checks need about 0.5 GB more.
 - **Failure notes and mail:** with Odoo's default "Handle by Emails" and no outgoing mail server, a failure note stays on the run's chatter and its email fails (O-01, D-69). Documented in README section 7 (Stage 12): configure a mail server, or set the recipient to "Handle in Odoo".
-- **Before publication (Stage 15), the candidate's decisions** ([release_checklist.md](release_checklist.md) section 4): the Git identity's email address (in all commits and four documents), the license file (Q-06, D-70), the manual check (TP-G-05, T-19), whether to ask Q-02 to Q-06 first, and the tag.
+- **The candidate's decisions** ([release_checklist.md](release_checklist.md) section 4): decided on 2026-11-17, before the push: keep the Git identity and the history unchanged (the work email address is public, in every commit and four documents), and push both tags. Still open: the license file (Q-06, D-70), the manual check (TP-G-05, T-19), the questions Q-02 to Q-06 (the repository was published with the documented defaults), and the supplied archive.
 - **Acceptance project (Stage 11):** the Compose project `azk-stage11-acc` is stopped, and its volumes are kept for inspection (297 MB of PostgreSQL data and 21 MB of filestore, measured with `docker system df -v`). Delete it with `docker compose -p azk-stage11-acc down --volumes` from its export folder, when no longer needed (the user's decision).
 - **Browser check of the Trial Balance (user, recommended):** the walkthrough is in [handoffs/stage_09_en.md](handoffs/stage_09_en.md).
 - **Browser check of the Partner Monitor UI (user, recommended):** the agent's headless check covered the dashboard (Stage 06). Still for the user, in a normal browser: the country selector, a click on a chart bar, the reader role, the pivot and graph views, a partner form and Settings > Partner Monitor (steps in the Stage 06 handoff).
@@ -361,7 +370,7 @@ The original views specification (M-01), the Trial Balance mockup (M-02) and the
   - The live partners site was checked on a small manual sample in Stage 04 (A-19) and through the module and the worker in Stage 10 ([live_site_notes.md](live_site_notes.md)); a full live sync has not been run from this machine, on purpose (D-64).
   - The `account_reports` display and export hooks were verified and used in Stage 09 (column groups, the PDF templates, the XLSX writer, the preview filter component); the fallback of [architecture.md](architecture.md) 4.7 was not needed.
 - Manifest author `fahimnox` and license LGPL-3 are unconfirmed defaults (A-06). The license of `azk_dynamic_trial_balance`, which will depend on the OEEL-1 module `account_reports`, is question Q-06.
-- Commits use the global Git identity `fahimnox <mohamed.fahim@noxholding.com>`, which becomes public in Stage 15 unless the user decides otherwise.
+- Commits use the global Git identity `fahimnox <mohamed.fahim@noxholding.com>`, which is public since Stage 15 (2026-11-17): the user chose to publish the author metadata and history unchanged.
 - Not exercised: `scripts/dev.sh source` itself (an equivalent command made the source copy).
 
 ## Host facts
