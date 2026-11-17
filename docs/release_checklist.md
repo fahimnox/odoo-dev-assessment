@@ -25,7 +25,7 @@ Verified for this checkpoint:
 - [x] Final requirement matrix with a status summary: [requirements_matrix.md](requirements_matrix.md).
 - [x] Documentation checks (Stage 12): relative links and anchors of every Markdown file, the commands and file paths named in the README and the demo script, ASCII text in the new and updated documents. Results: [test_results.md](test_results.md).
 - [x] Publication review of the files and of the Git history (section 3), repeated in Stage 15 before the push.
-- [x] The public repository (Stage 15, 2026-11-17): https://github.com/fahimnox/odoo-dev-assessment, created under the account `fahimnox`, the author name of every commit. The remote branch and tags were compared with the local ones after the push (Stage 15 log).
+- [x] The public repository (Stage 15, 2026-11-17): https://github.com/fahimnox/odoo-dev-assessment, created under the account `fahimnox`, the author name of every commit. The remote branch and tags were compared with the local ones after the push ([Stage 15 log](ai/stage_15.md), [test_results.md](test_results.md)).
 
 Not done (see section 5):
 

@@ -29,7 +29,15 @@ No application check was rerun: `submission-v1` differs from `submission-rc1` on
 - **Repository name:** `fahimnox/odoo-dev-assessment` did not exist (`GET /repos/fahimnox/odoo-dev-assessment`: HTTP 404). It was created empty and public, without an initial commit (`POST /user/repos`: HTTP 201).
 - **Publication review**, repeated before the push over the files and every commit: PASS ([release_checklist.md](release_checklist.md) section 3).
 - **Links and anchors:** 442 relative links in 51 Markdown files, 0 broken: PASS. **ASCII:** the new and updated documents contain ASCII only: PASS.
-- **Push and public access:** checked after the push and recorded in the Stage 15 log, which follows the submitted commit on `main`.
+- **Push:** `git push -u origin main`, then `git push origin submission-rc1 submission-v1`, through the Git credential manager without prompts: both exit 0.
+- **Remote refs against the local refs** (`git ls-remote origin`): PASS. `HEAD` and `main` are `513145da3c270a0de6b180462e5af41baddf173a`; the tag `submission-v1` (tag object `69e35946`) points to `513145d`, and `submission-rc1` (tag object `b332902b`) to `32445f0`, as locally.
+- **Public access without signing in:** PASS.
+  - The repository API reports `private: false`, `visibility: public` and the default branch `main`. The commits API resolves `main` and `submission-v1` to `513145d`, and `submission-rc1` to `32445f0`.
+  - The repository page answers HTTP 200.
+  - `README.md` and both `__manifest__.py` files at `513145d` download from raw.githubusercontent.com with the same SHA-256 as the local files.
+  - The tree API lists 199 files (62 in `addons/azk_odoo_partner_monitor/`, 33 in `addons/azk_dynamic_trial_balance/`), as the local commit.
+  - The first attempt had two connection resets (`curl: (35) Recv failure`); both requests passed when retried.
+- **The Stage 15 log and handoff** were committed on `main` after the tag; they change documentation only.
 
 ## Stage 12 (2026-11-16): documentation and release checkpoint
 
